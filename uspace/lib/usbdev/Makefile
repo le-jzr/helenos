@@ -30,6 +30,16 @@ USPACE_PREFIX = ../..
 LIBRARY = libusbdev
 LIBS = usb drv
 
+EXPORT_HEADERS = \
+	usb/dev/alternate_ifaces.h \
+	usb/dev/device.h \
+	usb/dev/dp.h \
+	usb/dev/driver.h \
+	usb/dev/pipes.h \
+	usb/dev/poll.h \
+	usb/dev/recognise.h \
+	usb/dev/request.h
+
 SOURCES = \
 	src/altiface.c \
 	src/driver.c \

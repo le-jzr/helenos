@@ -39,4 +39,7 @@ SOURCES = \
 	rectangle.c \
 	transform.c
 
+# TODO: Put the headers into a subdirectory.
+EXPORT_HEADERS = $(SOURCES:.c=.h)
+
 include $(USPACE_PREFIX)/Makefile.common

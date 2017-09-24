@@ -32,6 +32,32 @@ EXTRA_CFLAGS = -Igeneric/private
 LIBRARY = libdrv
 LIBS = usb pcm
 
+# TODO: put in a subdirectory
+EXPORT_HEADERS = \
+	ddf/driver.h \
+	ddf/interrupt.h \
+	ddf/log.h \
+	ops/battery_dev.h \
+	ops/char_dev.h \
+	ops/clock_dev.h \
+	ops/hw_res.h \
+	ops/ieee80211.h \
+	ops/led_dev.h \
+	ops/nic.h \
+	ops/pio_window.h \
+	ahci_iface.h \
+	audio_mixer_iface.h \
+	audio_pcm_iface.h \
+	battery_iface.h \
+	char_dev_iface.h \
+	dev_iface.h \
+	ieee80211_iface.h \
+	nic_iface.h \
+	pci_dev_iface.h \
+	usbhc_iface.h \
+	usbhid_iface.h \
+	usb_iface.h
+
 SOURCES = \
 	generic/driver.c \
 	generic/dev_iface.c \

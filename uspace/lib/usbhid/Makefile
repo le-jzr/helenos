@@ -30,6 +30,20 @@ USPACE_PREFIX = ../..
 LIBRARY = libusbhid
 LIBS = usb usbdev drv
 
+EXPORT_HEADERS = \
+	usb/hid/usages/consumer.h \
+	usb/hid/usages/core.h \
+	usb/hid/usages/kbdgen.h \
+	usb/hid/usages/led.h \
+	usb/hid/hiddescriptor.h \
+	usb/hid/hid.h \
+	usb/hid/hidparser.h \
+	usb/hid/hidpath.h \
+	usb/hid/hidreport.h \
+	usb/hid/hid_report_items.h \
+	usb/hid/hidtypes.h \
+	usb/hid/request.h
+
 SOURCES = \
 	src/hiddescriptor.c \
 	src/hidparser.c \

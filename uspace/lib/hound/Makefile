@@ -31,8 +31,14 @@ EXTRA_CFLAGS = -Iinclude/hound
 LIBRARY = libhound
 LIBS = pcm
 
+EXPORT_HEADERS = \
+	hound/client.h \
+	hound/protocol.h \
+	hound/server.h
+
 SOURCES = \
 	src/protocol.c \
 	src/client.c
+
 include $(USPACE_PREFIX)/Makefile.common
 

@@ -37,6 +37,9 @@
 #   LINKER_SCRIPT      linker script
 #   PRE_DEPEND         targets required for dependency check
 #
+#   EXPORT_HEADERS     headers to export; if a directory is given,
+#                      the whole directory is exported recursively
+#
 #   BINARY         (/) binary output name (like appname)
 #   LIBRARY        (/) library output name (like libname)
 #
@@ -120,6 +123,8 @@ LIBMATH_INCLUDES_FLAGS = \
 LIBPOSIX_PREFIX = $(LIB_PREFIX)/posix
 LIBDLTEST_PREFIX = $(LIB_PREFIX)/dltest
 
+BUILD_INCLUDE_DIR = $(USPACE_PREFIX)/include
+
 AFLAGS =
 LFLAGS = --fatal-warnings
 
@@ -170,16 +175,16 @@ else
 	INCLUDES_FLAGS = $(LIBC_INCLUDES_FLAGS)
 endif
 
-INCLUDES_FLAGS += $(addsuffix /include,$(addprefix -I$(LIB_PREFIX)/,$(LIBS))) $(addprefix -I$(LIB_PREFIX)/,$(LIBS))
+INCLUDES_FLAGS += $(addprefix -I$(BUILD_INCLUDE_DIR)/lib, $(LIBS))
 ifneq ($(LIBRARY),)
-	INCLUDES_FLAGS += -Iinclude -I.
+	INCLUDES_FLAGS += -I$(BUILD_INCLUDE_DIR)/$(LIBRARY)
 endif
 
 # PCUT-based unit tests
 ifneq ($(TEST_SOURCES),)
 	TEST_OUTPUT = $(TEST_BINARY)
 	TEST_DISASM = $(TEST_BINARY).disasm
-	TEST_CFLAGS = -I$(LIB_PREFIX)/pcut/include -D__helenos__
+	TEST_CFLAGS = -I$(BUILD_INCLUDE_DIR)/libpcut -D__helenos__
 	TEST_OUTPUT_LIBS = $(LIB_PREFIX)/pcut/libpcut.a
 	EXTRA_CLEAN += $(TEST_OUTPUT) $(TEST_OUTPUT).map $(TEST_DISASM)
 ifneq ($(LIBRARY),)
@@ -194,6 +199,23 @@ all: $(VERSION_DEF) $(COMMON_MAKEFILE) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(OUT
 	-[ -f $(DEPEND) ] && cp -a $(DEPEND) $(DEPEND_PREV)
 
 all-test: $(TEST_OUTPUT) $(TEST_DISASM)
+
+# TODO: Currently platform headers (i.e. c, posix, math, softint, softfloat)
+#       aren't copied to BUILD_INCLUDE_DIR with the rest of uspace libraries.
+#       Instead, they stay where they are, and the Makefile has special
+#       compiler flags for them. This should change in the future.
+
+headers: $(VERSION_DEF) $(COMMON_MAKEFILE) $(CONFIG_MAKEFILE) $(CONFIG_HEADER)
+ifneq ($(LIBRARY),)
+	for h in $(EXPORT_HEADERS); do \
+		mkdir -p `dirname $(BUILD_INCLUDE_DIR)/$(LIBRARY)/$$h`; \
+		if [ -a $$h ]; then \
+			cp -r -u -L --target=$(BUILD_INCLUDE_DIR)/$(LIBRARY)/`dirname $$h` $$h; \
+		else \
+			cp -r -u -L --target=$(BUILD_INCLUDE_DIR)/$(LIBRARY)/`dirname $$h` include/$$h; \
+		fi; \
+	done
+endif
 
 clean:
 	rm -f $(DEPEND) $(DEPEND_PREV) $(JOB) $(OUTPUT) $(LARCHIVE) $(LOUTPUT) $(EXTRA_OUTPUT) $(EXTRA_CLEAN)
@@ -265,7 +287,9 @@ LIB_CFLAGS = $(CFLAGS) -fPIC
 LIB_LFLAGS = $(LFLAGS) -shared -soname $(LSONAME) --whole-archive
 
 ifneq ($(MAKECMDGOALS),clean)
+ifneq ($(MAKECMDGOALS),headers)
 -include $(DEPEND)
+endif
 endif
 
 AS_CFLAGS := $(addprefix -Xassembler ,$(AFLAGS))

@@ -30,6 +30,12 @@ USPACE_PREFIX = ../..
 LIBRARY = libieee80211
 LIBS = drv nic crypto
 
+EXPORT_HEADERS = \
+	ieee80211.h \
+	ieee80211_iface_impl.h \
+	ieee80211_impl.h \
+	ieee80211_private.h
+
 SOURCES = \
 	src/ieee80211.c \
 	src/ieee80211_impl.c \

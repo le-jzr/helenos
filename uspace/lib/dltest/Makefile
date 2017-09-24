@@ -31,6 +31,9 @@ LIBRARY = libdltest
 SLIBRARY = libdltest.so.0.0
 LSONAME = libdltest.so.0
 
+EXPORT_HEADERS = \
+	libdltest.h
+
 SOURCES = \
 	dltest.c
 

@@ -29,6 +29,14 @@
 USPACE_PREFIX = ../..
 LIBRARY = libtrackmod
 
+EXPORT_HEADERS = \
+	types/protracker.h \
+	types/trackmod.h \
+	types/xm.h \
+	protracker.h \
+	trackmod.h \
+	xm.h
+
 SOURCES = \
 	protracker.c \
 	trackmod.c \

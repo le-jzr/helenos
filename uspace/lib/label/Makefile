@@ -30,6 +30,14 @@ USPACE_PREFIX = ../..
 
 LIBRARY = liblabel
 
+EXPORT_HEADERS = \
+	label/empty.h \
+	label/label.h \
+	std/fat.h \
+	std/gpt.h \
+	std/mbr.h \
+	types/liblabel.h
+
 SOURCES = \
 	src/dummy.c \
 	src/empty.c \

@@ -29,6 +29,10 @@
 USPACE_PREFIX = ../..
 LIBRARY = libnettl
 
+EXPORT_HEADERS = \
+	nettl/amap.h \
+	nettl/portrng.h
+
 SOURCES = \
 	src/amap.c \
 	src/portrng.c

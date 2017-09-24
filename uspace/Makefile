@@ -239,14 +239,17 @@ LIBS = \
 	lib/ieee80211
 
 LIBC_BUILD = $(addsuffix .build,$(LIBC))
+LIBS_HEADERS = $(addsuffix .headers,$(LIBS))
 LIBS_BUILD = $(addsuffix .build,$(LIBS))
 LIBN_BUILD = $(addsuffix .build,$(LIBN))
 BUILDS := $(addsuffix .build,$(DIRS))
 BUILDS_TESTS := $(addsuffix .build-test,$(DIRS) $(LIBS) lib/c)
 
+BUILD_INCLUDE_DIR = ./include
+
 CLEANS := $(addsuffix .clean,$(DIRS)) $(addsuffix .clean,$(LIBN)) $(addsuffix .clean,$(LIBS)) $(addsuffix .clean,$(LIBC))
 
-.PHONY: all $(LIBC_BUILD) $(LIBS_BUILD) $(LIBN_BUILD) $(BUILDS) $(CLEANS) clean
+.PHONY: all $(LIBC_BUILD) $(LIBS_BUILD) $(LIBS_HEADERS) $(LIBN_BUILD) $(BUILDS) $(CLEANS) clean
 
 all: $(BUILDS) $(BUILDS_TESTS)
 
@@ -254,6 +257,7 @@ $(BUILDS_TESTS): $(LIBC_BUILD) $(LIBS_BUILD) $(LIBN_BUILD)
 	$(MAKE) -r -C $(basename $@) all-test PRECHECK=$(PRECHECK)
 
 clean: $(CLEANS)
+	rm -rf $(BUILD_INCLUDE_DIR)
 
 $(CLEANS):
 	-$(MAKE) -r -C $(basename $@) clean
@@ -264,7 +268,10 @@ $(BUILDS): $(LIBC_BUILD) $(LIBS_BUILD) $(LIBN_BUILD)
 $(LIBN_BUILD): $(LIBC_BUILD) $(LIBS_BUILD)
 	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK)
 
-$(LIBS_BUILD): $(LIBC_BUILD)
+$(LIBS_HEADERS):
+	$(MAKE) -r -C $(basename $@) headers PRECHECK=$(PRECHECK)
+
+$(LIBS_BUILD): $(LIBC_BUILD) $(LIBS_HEADERS)
 	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK)
 
 $(LIBC_BUILD):

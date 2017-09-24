@@ -30,6 +30,9 @@
 USPACE_PREFIX = ../..
 LIBRARY = libfs
 
+EXPORT_HEADERS = \
+	libfs.h
+
 SOURCES = \
 	libfs.c
 

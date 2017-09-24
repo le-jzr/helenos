@@ -29,6 +29,9 @@
 USPACE_PREFIX = ../..
 LIBRARY = libcrypto
 
+EXPORT_HEADERS = \
+	crypto.h
+
 SOURCES = \
 	crypto.c \
 	aes.c \

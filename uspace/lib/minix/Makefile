@@ -29,6 +29,9 @@
 USPACE_PREFIX = ../..
 LIBRARY = libminix
 
+EXPORT_HEADERS = \
+	minix.h
+
 SOURCES = \
 	minix.c
 

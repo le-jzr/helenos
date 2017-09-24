@@ -30,6 +30,22 @@ USPACE_PREFIX = ../..
 LIBRARY = libext4
 LIBS = block crypto fs
 
+EXPORT_HEADERS = \
+	ext4/balloc.h \
+	ext4/bitmap.h \
+	ext4/block_group.h \
+	ext4/directory.h \
+	ext4/directory_index.h \
+	ext4/extent.h \
+	ext4/filesystem.h \
+	ext4/fstypes.h \
+	ext4/hash.h \
+	ext4/ialloc.h \
+	ext4/inode.h \
+	ext4/ops.h \
+	ext4/superblock.h \
+	ext4/types.h
+
 SOURCES = \
 	src/balloc.c \
 	src/bitmap.c \

@@ -30,6 +30,10 @@ USPACE_PREFIX = ../..
 
 LIBRARY = libfdisk
 
+EXPORT_HEADERS = \
+	types/fdisk.h \
+	fdisk.h
+
 SOURCES = \
 	src/fdisk.c
 

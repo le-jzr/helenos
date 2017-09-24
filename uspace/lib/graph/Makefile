@@ -31,6 +31,9 @@ LIBRARY = libgraph
 SLIBRARY = libgraph.so.0.0
 LSONAME = libgraph.so.0
 
+EXPORT_HEADERS = \
+	graph.h
+
 SOURCES = \
 	graph.c
 

@@ -44,4 +44,7 @@ SOURCES = \
 	widget.c \
 	window.c
 
+# TODO: put in a subdirectory
+EXPORT_HEADERS = $(SOURCES:.c=.h)
+
 include $(USPACE_PREFIX)/Makefile.common

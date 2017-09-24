@@ -31,6 +31,15 @@ LIBRARY = libnic
 EXTRA_CFLAGS += -DLIBNIC_INTERNAL
 LIBS = drv
 
+EXPORT_HEADERS = \
+	nic.h \
+	nic_addr_db.h \
+	nic_driver.h \
+	nic_ev.h \
+	nic_impl.h \
+	nic_rx_control.h \
+	nic_wol_virtues.h
+
 SOURCES = \
 	src/nic_driver.c \
 	src/nic_ev.c \

@@ -32,6 +32,11 @@ EXTRA_CFLAGS = \
 	-Iinclude/usbvirt
 LIBS = drv usb usbdev
 
+EXPORT_HEADERS = \
+	usbvirt/device.h \
+	usbvirt/ipc.h \
+	usbvirt/virthub_base.h
+
 SOURCES = \
 	src/ctrltransfer.c \
 	src/device.c \

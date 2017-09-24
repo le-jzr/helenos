@@ -26,6 +26,14 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+EXPORT_HEADERS = \
+	pcut/asserts.h \
+	pcut/datadef.h \
+	pcut/helper.h \
+	pcut/pcut.h \
+	pcut/prevs.h \
+	pcut/tests.h
+
 SOURCES = \
 	src/os/helenos.c \
 	src/assert.c \

@@ -31,6 +31,12 @@ LIBRARY = libhttp
 SLIBRARY = libhttp.so.0.0
 LSONAME = libhttp.so.0
 
+EXPORT_HEADERS = \
+	http/ctype.h \
+	http/errno.h \
+	http/http.h \
+	http/receive-buffer.h
+
 SOURCES = \
 	src/http.c \
 	src/headers.c \

@@ -31,6 +31,9 @@ LIBRARY = liburi
 SLIBRARY = liburi.so.0.0
 LSONAME = liburi.so.0
 
+EXPORT_HEADERS = \
+	uri.h
+
 SOURCES = \
 	uri.c
 
