@@ -27,7 +27,6 @@
 #
 
 USPACE_PREFIX = ../..
-EXTRA_CFLAGS = -Iinclude
 BINARY = sysinfo
 
 SOURCES = \

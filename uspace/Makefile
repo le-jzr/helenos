@@ -221,6 +221,7 @@ LIBS = \
 	lib/draw \
 	lib/label \
 	lib/math \
+	lib/minix \
 	lib/nettl \
 	lib/nic \
 	lib/ext4 \

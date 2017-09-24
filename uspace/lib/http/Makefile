@@ -30,7 +30,6 @@ USPACE_PREFIX = ../..
 LIBRARY = libhttp
 SLIBRARY = libhttp.so.0.0
 LSONAME = libhttp.so.0
-EXTRA_CFLAGS += -Iinclude
 
 SOURCES = \
 	src/http.c \

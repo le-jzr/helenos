@@ -27,8 +27,6 @@
 #
 
 USPACE_PREFIX = ../..
-LIBS =
-EXTRA_CFLAGS =
 BINARY = killall
 
 SOURCES = \

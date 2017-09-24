@@ -31,19 +31,7 @@ USPACE_PREFIX = ../..
 # (it is really annoying to write long names)
 BINARY = vuh
 
-LIBS = \
-	$(LIBUSBVIRT_PREFIX)/libusbvirt.a \
-	$(LIBUSBHID_PREFIX)/libusbhid.a \
-	$(LIBUSBDEV_PREFIX)/libusbdev.a \
-	$(LIBUSB_PREFIX)/libusb.a \
-	$(LIBDRV_PREFIX)/libdrv.a
-EXTRA_CFLAGS = \
-	-I$(LIBUSB_PREFIX)/include \
-	-I$(LIBUSBDEV_PREFIX)/include \
-	-I$(LIBUSBHID_PREFIX)/include \
-	-I$(LIBUSBVIRT_PREFIX)/include \
-	-I$(LIBDRV_PREFIX)/include
-
+LIBS = usb usbdev usbhid usbvirt drv
 
 SOURCES_INTERFACES = \
 	hids/bootkbd.c \
@@ -56,6 +44,5 @@ SOURCES = \
 	life.c \
 	stdreq.c \
 	$(SOURCES_INTERFACES)
-	
 
 include $(USPACE_PREFIX)/Makefile.common
