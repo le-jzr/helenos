@@ -35,7 +35,9 @@ BINARY = vlaunch
 MATH = y
 
 IMG = image
-IMGS = $(IMG)s
+IMGS = $(BUILD_DIR)/$(IMG)s
+
+EXTRA_CFLAGS = -I$(BUILD_DIR)
 
 SOURCES = \
 	vlaunch.c \

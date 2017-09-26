@@ -26,8 +26,8 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
--include ../Makefile.common
--include ../Makefile.config
+-include $(BUILD_DIR)/../Makefile.common
+-include $(BUILD_DIR)/../Makefile.config
 
 ## Common binaries
 #
@@ -245,34 +245,40 @@ LIBN_BUILD = $(addsuffix .build,$(LIBN))
 BUILDS := $(addsuffix .build,$(DIRS))
 BUILDS_TESTS := $(addsuffix .build-test,$(DIRS) $(LIBS) lib/c)
 
-BUILD_INCLUDE_DIR = ./include
+BUILD_INCLUDE_DIR = $(BUILD_DIR)/include
 
 CLEANS := $(addsuffix .clean,$(DIRS)) $(addsuffix .clean,$(LIBN)) $(addsuffix .clean,$(LIBS)) $(addsuffix .clean,$(LIBC))
 
 .PHONY: all $(LIBC_BUILD) $(LIBS_BUILD) $(LIBS_HEADERS) $(LIBN_BUILD) $(BUILDS) $(CLEANS) clean
 
-all: $(BUILDS) $(BUILDS_TESTS)
+all: $(LIBC_BUILD) $(BUILDS) $(BUILDS_TESTS)
 
 $(BUILDS_TESTS): $(LIBC_BUILD) $(LIBS_BUILD) $(LIBN_BUILD)
-	$(MAKE) -r -C $(basename $@) all-test PRECHECK=$(PRECHECK)
+	mkdir -p $(abspath $(BUILD_DIR))/$(basename $@)
+	$(MAKE) -r -C $(basename $@) all-test PRECHECK=$(PRECHECK) BUILD_ROOT_DIR=$(abspath $(BUILD_DIR)/..) BUILD_DIR=$(abspath $(BUILD_DIR))/$(basename $@)
 
 clean: $(CLEANS)
 	rm -rf $(BUILD_INCLUDE_DIR)
 
 $(CLEANS):
-	-$(MAKE) -r -C $(basename $@) clean
+	-$(MAKE) -r -C $(basename $@) clean BUILD_ROOT_DIR=$(abspath $(BUILD_DIR)/..) BUILD_DIR=$(abspath $(BUILD_DIR))/$(basename $@)
 
 $(BUILDS): $(LIBC_BUILD) $(LIBS_BUILD) $(LIBN_BUILD)
-	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK)
+	mkdir -p $(abspath $(BUILD_DIR))/$(basename $@)
+	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK) BUILD_ROOT_DIR=$(abspath $(BUILD_DIR)/..) BUILD_DIR=$(abspath $(BUILD_DIR))/$(basename $@)
 
 $(LIBN_BUILD): $(LIBC_BUILD) $(LIBS_BUILD)
-	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK)
+	mkdir -p $(abspath $(BUILD_DIR))/$(basename $@)
+	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK) BUILD_ROOT_DIR=$(abspath $(BUILD_DIR)/..) BUILD_DIR=$(abspath $(BUILD_DIR))/$(basename $@)
 
 $(LIBS_HEADERS):
-	$(MAKE) -r -C $(basename $@) headers PRECHECK=$(PRECHECK)
+	mkdir -p $(abspath $(BUILD_DIR))/$(basename $@)
+	$(MAKE) -r -C $(basename $@) headers PRECHECK=$(PRECHECK) BUILD_ROOT_DIR=$(abspath $(BUILD_DIR)/..) BUILD_DIR=$(abspath $(BUILD_DIR))/$(basename $@)
 
 $(LIBS_BUILD): $(LIBC_BUILD) $(LIBS_HEADERS)
-	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK)
+	mkdir -p $(abspath $(BUILD_DIR))/$(basename $@)
+	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK) BUILD_ROOT_DIR=$(abspath $(BUILD_DIR)/..) BUILD_DIR=$(abspath $(BUILD_DIR))/$(basename $@)
 
 $(LIBC_BUILD):
-	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK)
+	mkdir -p $(abspath $(BUILD_DIR))/$(basename $@)
+	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK) BUILD_ROOT_DIR=$(abspath $(BUILD_DIR)/..) BUILD_DIR=$(abspath $(BUILD_DIR))/$(basename $@)

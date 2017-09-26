@@ -38,10 +38,12 @@ import re
 import time
 import subprocess
 
-SANDBOX = 'autotool'
-CONFIG = 'Makefile.config'
-MAKEFILE = 'Makefile.common'
-HEADER = 'common.h'
+BUILD_DIR = sys.argv[1]
+
+SANDBOX = BUILD_DIR + '/autotool'
+CONFIG = BUILD_DIR + '/Makefile.config'
+MAKEFILE = BUILD_DIR + '/Makefile.common'
+HEADER = BUILD_DIR + '/common.h'
 GUARD = 'AUTOTOOL_COMMON_H_'
 
 PROBE_SOURCE = 'probe.c'

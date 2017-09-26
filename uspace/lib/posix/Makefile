@@ -32,18 +32,18 @@ LIBRARY = libposix
 SLIBRARY = libposix.so.0.0
 LSONAME = libposix.so.0
 
-EXTRA_CFLAGS = -Iinclude/
+EXTRA_CFLAGS = -Iinclude/ -I$(BUILD_DIR)/include
 
-INCLUDE_LIBC = ./include/libc
+INCLUDE_LIBC = $(BUILD_DIR)/include/libc
 
-LIBC_FILE = $(LIBC_PREFIX)/libc.a
+LIBC_FILE = $(BUILD_LIB_PREFIX)/c/libc.a
 
-FIXED_POSIX_LIBRARY = libposixaslibc.a
-FIXED_C_LIBRARY = libc4posix.a
+FIXED_POSIX_LIBRARY = $(BUILD_DIR)/libposixaslibc.a
+FIXED_C_LIBRARY = $(BUILD_DIR)/libc4posix.a
 
-REDEFS_HIDE_LIBC = redefs-hide-libc-symbols.list
-REDEFS_SHOW_LIBPOSIX = redefs-show-posix-symbols.list
-COLLISIONS_LIST = collisions.list
+REDEFS_HIDE_LIBC = $(BUILD_DIR)/redefs-hide-libc-symbols.list
+REDEFS_SHOW_LIBPOSIX = $(BUILD_DIR)/redefs-show-posix-symbols.list
+COLLISIONS_LIST = $(BUILD_DIR)/collisions.list
 
 PRE_DEPEND = $(INCLUDE_LIBC)
 EXTRA_CLEAN = \
@@ -86,14 +86,15 @@ TEST_SOURCES = \
 include $(USPACE_PREFIX)/Makefile.common
 
 $(INCLUDE_LIBC): ../c/include
-	ln -s -f -n ../$^ $@
+	mkdir -p $(dir $@)
+	cp -p -r -L -u $< $@
 
 $(FIXED_C_LIBRARY): $(REDEFS_HIDE_LIBC) $(REDEFS_SHOW_LIBPOSIX)
 	$(OBJCOPY) --redefine-syms=$(REDEFS_HIDE_LIBC) $(LIBC_FILE) $@
 	$(OBJCOPY) --redefine-syms=$(REDEFS_SHOW_LIBPOSIX) $@ $@
 
-$(FIXED_POSIX_LIBRARY): $(LIBRARY).a $(REDEFS_HIDE_LIBC) $(REDEFS_SHOW_LIBPOSIX)
-	$(OBJCOPY) --redefine-syms=$(REDEFS_HIDE_LIBC) $(LIBRARY).a $@
+$(FIXED_POSIX_LIBRARY): $(BUILD_DIR)/$(LIBRARY).a $(REDEFS_HIDE_LIBC) $(REDEFS_SHOW_LIBPOSIX)
+	$(OBJCOPY) --redefine-syms=$(REDEFS_HIDE_LIBC) $(BUILD_DIR)/$(LIBRARY).a $@
 	$(OBJCOPY) --redefine-syms=$(REDEFS_SHOW_LIBPOSIX) $@ $@
 
 $(REDEFS_HIDE_LIBC): $(COLLISIONS_LIST)

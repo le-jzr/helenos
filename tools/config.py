@@ -41,9 +41,11 @@ import subprocess
 import xtui
 import random
 
-RULES_FILE = sys.argv[1]
+BUILD_DIR = sys.argv[1]
+RULES_FILE = sys.argv[2]
 MAKEFILE = 'Makefile.config'
-MACROS = 'config.h'
+OUT_MAKEFILE = BUILD_DIR + '/Makefile.config'
+MACROS = BUILD_DIR + '/config.h'
 PRESETS_DIR = 'defaults'
 
 def read_config(fname, config):
@@ -600,44 +602,44 @@ def main():
 	
 	# Input configuration file can be specified on command line
 	# otherwise configuration from previous run is used.
-	if len(sys.argv) >= 4:
-		profile = parse_profile_name(sys.argv[3])
+	if len(sys.argv) >= 5:
+		profile = parse_profile_name(sys.argv[4])
 		read_presets(profile, config)
-	elif os.path.exists(MAKEFILE):
-		read_config(MAKEFILE, config)
+	elif os.path.exists(OUT_MAKEFILE):
+		read_config(OUT_MAKEFILE, config)
 	
 	# Default mode: check values and regenerate configuration files
-	if (len(sys.argv) >= 3) and (sys.argv[2] == 'default'):
+	if (len(sys.argv) >= 4) and (sys.argv[3] == 'default'):
 		if (infer_verify_choices(config, rules)):
 			preprocess_config(config, rules)
-			create_output(MAKEFILE, MACROS, config, rules)
+			create_output(OUT_MAKEFILE, MACROS, config, rules)
 			return 0
 	
 	# Hands-off mode: check values and regenerate configuration files,
 	# but no interactive fallback
-	if (len(sys.argv) >= 3) and (sys.argv[2] == 'hands-off'):
-		# We deliberately test sys.argv >= 4 because we do not want
+	if (len(sys.argv) >= 4) and (sys.argv[3] == 'hands-off'):
+		# We deliberately test sys.argv >= 5 because we do not want
 		# to read implicitly any possible previous run configuration
-		if len(sys.argv) < 4:
+		if len(sys.argv) < 5:
 			sys.stderr.write("Configuration error: No presets specified\n")
 			return 2
 		
 		if (infer_verify_choices(config, rules)):
 			preprocess_config(config, rules)
-			create_output(MAKEFILE, MACROS, config, rules)
+			create_output(OUT_MAKEFILE, MACROS, config, rules)
 			return 0
 		
 		sys.stderr.write("Configuration error: The presets are ambiguous\n")
 		return 1
 	
 	# Check mode: only check configuration
-	if (len(sys.argv) >= 3) and (sys.argv[2] == 'check'):
+	if (len(sys.argv) >= 4) and (sys.argv[3] == 'check'):
 		if infer_verify_choices(config, rules):
 			return 0
 		return 1
 	
 	# Random mode
-	if (len(sys.argv) == 3) and (sys.argv[2] == 'random'):
+	if (len(sys.argv) == 4) and (sys.argv[3] == 'random'):
 		ok = random_choices(config, rules, 0)
 		if not ok:
 			sys.stderr.write("Internal error: unable to generate random config.\n")
@@ -646,7 +648,7 @@ def main():
 			sys.stderr.write("Internal error: random configuration not consistent.\n")
 			return 2
 		preprocess_config(config, rules)
-		create_output(MAKEFILE, MACROS, config, rules)
+		create_output(OUT_MAKEFILE, MACROS, config, rules)
 		
 		return 0	
 	
@@ -748,7 +750,7 @@ def main():
 		xtui.screen_done(screen)
 	
 	preprocess_config(config, rules)
-	create_output(MAKEFILE, MACROS, config, rules)
+	create_output(OUT_MAKEFILE, MACROS, config, rules)
 	return 0
 
 if __name__ == '__main__':

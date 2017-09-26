@@ -27,7 +27,7 @@
 #
 
 BOOT_OUTPUT = image.boot
-POST_OUTPUT = $(ROOT_PATH)/image.iso
+POST_OUTPUT = $(BUILD_ROOT_PATH)/image.iso
 POSTBUILD = Makefile.yaboot
 
 BFD_NAME = elf32-powerpc
@@ -39,7 +39,7 @@ ENDIANESS = BE
 EXTRA_CFLAGS = -mcpu=powerpc -msoft-float -m32
 
 RD_SRVS_ESSENTIAL += \
-	$(USPACE_PATH)/srv/hw/bus/cuda_adb/cuda_adb
+	$(BUILD_USPACE_PATH)/srv/hw/bus/cuda_adb/cuda_adb
 
 RD_DRVS_ESSENTIAL += \
 	platform/mac \

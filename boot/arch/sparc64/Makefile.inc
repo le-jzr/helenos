@@ -27,7 +27,7 @@
 #
 
 BOOT_OUTPUT = image.boot
-POST_OUTPUT = $(ROOT_PATH)/image.iso
+POST_OUTPUT = $(BUILD_ROOT_PATH)/image.iso
 POSTBUILD = Makefile.silo
 
 BFD_NAME = elf64-sparc
@@ -50,7 +50,7 @@ RD_DRV_CFG += \
 RD_SRVS_NON_ESSENTIAL +=
 
 RD_SRVS_ESSENTIAL += \
-	$(USPACE_PATH)/srv/hw/irc/obio/obio
+	$(BUILD_USPACE_PATH)/srv/hw/irc/obio/obio
 
 SOURCES = \
 	arch/$(BARCH)/src/asm.S \

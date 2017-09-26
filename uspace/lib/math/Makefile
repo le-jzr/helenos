@@ -29,15 +29,15 @@
 USPACE_PREFIX = ../..
 ROOT_PATH = $(USPACE_PREFIX)/..
 
-CONFIG_MAKEFILE = $(ROOT_PATH)/Makefile.config
+CONFIG_MAKEFILE = $(BUILD_ROOT_DIR)/Makefile.config
 
 LIBRARY = libmath
 SLIBRARY = libmath.so.0.0
 LSONAME = libmath.so.0
 MATH = y
 
--include $(CONFIG_MAKEFILE)
--include arch/$(UARCH)/Makefile.inc
+include $(CONFIG_MAKEFILE)
+include arch/$(UARCH)/Makefile.inc
 
 GENERIC_SOURCES = \
 	generic/acos.c \

@@ -30,14 +30,17 @@
 USPACE_PREFIX = ../..
 ROOT_PATH = $(USPACE_PREFIX)/..
 
-CONFIG_MAKEFILE = $(ROOT_PATH)/Makefile.config
-COMMON_HEADER_ARCH = arch/$(UARCH)/include/libarch/common.h
+BUILD_ROOT_DIR ?= ROOT_PATH
+BUILD_DIR ?= .
+
+CONFIG_MAKEFILE = $(BUILD_ROOT_DIR)/Makefile.config
+COMMON_HEADER_ARCH = $(BUILD_ROOT_DIR)/uspace/lib/c/arch/$(UARCH)/include/libarch/common.h
 
 LINKER_SCRIPTS = \
-	$(LIBC_PREFIX)/arch/$(UARCH)/_link.ld \
-	$(LIBC_PREFIX)/arch/$(UARCH)/_link-loader.ld \
-	$(LIBC_PREFIX)/arch/$(UARCH)/_link-shlib.ld \
-	$(LIBC_PREFIX)/arch/$(UARCH)/_link-dlexe.ld
+	$(BUILD_DIR)/arch/$(UARCH)/_link.ld \
+	$(BUILD_DIR)/arch/$(UARCH)/_link-loader.ld \
+	$(BUILD_DIR)/arch/$(UARCH)/_link-shlib.ld \
+	$(BUILD_DIR)/arch/$(UARCH)/_link-dlexe.ld
 
 PRE_DEPEND = $(COMMON_HEADER_ARCH)
 EXTRA_OUTPUT = $(LINKER_SCRIPTS)
@@ -46,12 +49,12 @@ LIBRARY = libc
 SLIBRARY = libc.so.0.0
 LSONAME = libc.so.0
 
--include $(CONFIG_MAKEFILE)
--include arch/$(UARCH)/Makefile.inc
+include $(CONFIG_MAKEFILE)
+include arch/$(UARCH)/Makefile.inc
 
-ARCH_AUTOGENS_H := $(addsuffix .h,$(basename $(ARCH_AUTOGENS_AG)))
-ARCH_AUTOGENS_PROBE_C := $(addsuffix .ag.probe.c,$(basename $(ARCH_AUTOGENS_AG)))
-ARCH_AUTOGENS_PROBE_S := $(addsuffix .ag.probe.s,$(basename $(ARCH_AUTOGENS_AG)))
+ARCH_AUTOGENS_H := $(addprefix $(BUILD_DIR)/,$(addsuffix .h,$(basename $(ARCH_AUTOGENS_AG))))
+ARCH_AUTOGENS_PROBE_C := $(addprefix $(BUILD_DIR)/,$(addsuffix .ag.probe.c,$(basename $(ARCH_AUTOGENS_AG))))
+ARCH_AUTOGENS_PROBE_S := $(addprefix $(BUILD_DIR)/,$(addsuffix .ag.probe.s,$(basename $(ARCH_AUTOGENS_AG))))
 
 PRE_DEPEND += $(ARCH_AUTOGENS_H)
 EXTRA_CLEAN += $(ARCH_AUTOGENS_H) $(ARCH_AUTOGENS_PROBE_C) $(ARCH_AUTOGENS_PROBE_S)
@@ -191,22 +194,30 @@ TEST_SOURCES = \
 
 include $(USPACE_PREFIX)/Makefile.common
 
-%.h: %.ag
-	$(AUTOGEN) probe $< >$<.probe.c
-	$(CC_AUTOGEN) $(DEFS) $(CFLAGS) -S -o $<.probe.s $<.probe.c
-	$(AUTOGEN) generate $< <$<.probe.s >$@   
+$(BUILD_DIR)/%.h: %.ag
+	mkdir -p $(dir $@)
+	$(AUTOGEN) probe $< >$(BUILD_DIR)/$<.probe.c
+	$(CC_AUTOGEN) $(DEFS) $(CFLAGS) -S -o $(BUILD_DIR)/$<.probe.s $(BUILD_DIR)/$<.probe.c
+	$(AUTOGEN) generate $< <$(BUILD_DIR)/$<.probe.s >$@
 
-$(LIBC_PREFIX)/arch/$(UARCH)/_link.ld: $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld.in
-	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(CURDIR) -E -x c $< | grep -v "^\#" > $@
+OBJPATH = $(abspath $(BUILD_DIR))
 
-$(LIBC_PREFIX)/arch/$(UARCH)/_link-loader.ld: $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld.in
-	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(CURDIR) -DLOADER -E -x c $< | grep -v "^\#" > $@
+$(BUILD_DIR)/arch/$(UARCH)/_link.ld: arch/$(UARCH)/_link.ld.in
+	mkdir -p $(dir $@)
+	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(OBJPATH) -E -x c $< | grep -v "^\#" > $@
 
-$(LIBC_PREFIX)/arch/$(UARCH)/_link-shlib.ld: $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld.in
-	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(CURDIR) -DSHLIB -E -x c $< | grep -v "^\#" > $@
+$(BUILD_DIR)/arch/$(UARCH)/_link-loader.ld: arch/$(UARCH)/_link.ld.in
+	mkdir -p $(dir $@)
+	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(OBJPATH) -DLOADER -E -x c $< | grep -v "^\#" > $@
 
-$(LIBC_PREFIX)/arch/$(UARCH)/_link-dlexe.ld: $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld.in
-	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(CURDIR) -DDLEXE -E -x c $< | grep -v "^\#" > $@
+$(BUILD_DIR)/arch/$(UARCH)/_link-shlib.ld: arch/$(UARCH)/_link.ld.in
+	mkdir -p $(dir $@)
+	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(OBJPATH) -DSHLIB -E -x c $< | grep -v "^\#" > $@
+
+$(BUILD_DIR)/arch/$(UARCH)/_link-dlexe.ld: arch/$(UARCH)/_link.ld.in
+	mkdir -p $(dir $@)
+	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(OBJPATH) -DDLEXE -E -x c $< | grep -v "^\#" > $@
 
 $(COMMON_HEADER_ARCH): $(COMMON_HEADER)
-	ln -sfn ../../../../$< $@
+	mkdir -p $(dir $@)
+	cp $< $@

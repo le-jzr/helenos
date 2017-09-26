@@ -37,6 +37,8 @@ ifneq ($(POSTBUILD),)
 endif
 
 build_dist: clean_dist
+	mkdir -p "$(DIST_PATH)"
+	cp -r -L "$(SOURCE_DIST_PATH)/." "$(DIST_PATH)/"
 	mkdir -p "$(DIST_PATH)/app/"
 	mkdir -p "$(DIST_PATH)/cfg/net/"
 	mkdir -p "$(DIST_PATH)/lib/"
@@ -53,10 +55,12 @@ build_dist: clean_dist
 	done
 ifeq ($(CONFIG_DEVEL_FILES), y)
 	mkdir -p "$(DIST_PATH)/inc/c/"
-	cp -r -L "$(USPACE_PATH)/lib/c/include/." "$(DIST_PATH)/inc/c/"
-	cp -r -L "$(ROOT_PATH)/abi/include/." "$(DIST_PATH)/inc/c/"
-	cp -r -L "$(USPACE_PATH)/lib/c/arch/$(UARCH)/include/." "$(DIST_PATH)/inc/c/"
-	cat "$(USPACE_PATH)/lib/c/arch/$(UARCH)/_link.ld" | sed 's/^STARTUP(.*)$$//g' > "$(DIST_PATH)/inc/_link.ld"
+	cp -r -L "$(SOURCE_USPACE_PATH)/lib/c/include/." "$(DIST_PATH)/inc/c/"
+	#cp -r -L "$(BUILD_USPACE_PATH)/lib/c/include/." "$(DIST_PATH)/inc/c/"
+	cp -r -L "$(SOURCE_ROOT_PATH)/abi/include/." "$(DIST_PATH)/inc/c/"
+	cp -r -L "$(SOURCE_USPACE_PATH)/lib/c/arch/$(UARCH)/include/." "$(DIST_PATH)/inc/c/"
+	cp -r -L "$(BUILD_USPACE_PATH)/lib/c/arch/$(UARCH)/include/." "$(DIST_PATH)/inc/c/"
+	cat "$(BUILD_USPACE_PATH)/lib/c/arch/$(UARCH)/_link.ld" | sed 's/^STARTUP(.*)$$//g' > "$(DIST_PATH)/inc/_link.ld"
 endif
 	for file in $(RD_APPS) ; do \
 		cp "$$file" "$(DIST_PATH)/app/" ; \
@@ -85,7 +89,7 @@ ifeq ($(CONFIG_PCUT_SELF_TESTS),y)
 	echo "echo Running all PCUT self-tests..." >"$(DIST_PATH)/test/run_pcut"
 	echo "<html><head><title>Results of PCUT self-tests on HelenOS</title></head><body>" >"$(DIST_PATH)/test/pcut.html"
 	echo "<h1>Results of PCUT self-tests on HelenOS</h1><ul>" >>"$(DIST_PATH)/test/pcut.html"
-	for file in $(USPACE_PATH)/lib/pcut/test-libpcut-*; do \
+	for file in $(BUILD_USPACE_PATH)/lib/pcut/test-libpcut-*; do \
 		file2=`basename $$file`; \
 		name=`echo "$$file2" | sed 's/test-libpcut-//'`; \
 		cp "$$file" "$(DIST_PATH)/test/" ; \
@@ -103,18 +107,18 @@ endif
 		drv_dir="`dirname "$$drv"`" ; \
 		drv_name="`basename "$$drv"`" ; \
 		mkdir -p "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$drv_dir/$$drv_name/$$drv_name" "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name/" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$drv_dir/$$drv_name/$$drv_name.ma" "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name/" ; \
+		cp "$(BUILD_USPACE_PATH)/$(DRVS_PATH)/$$drv_dir/$$drv_name/$$drv_name" "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name/" ; \
+		cp "$(SOURCE_USPACE_PATH)/$(DRVS_PATH)/$$drv_dir/$$drv_name/$$drv_name.ma" "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name/" ; \
 	done
 	for file in $(RD_DRV_CFG) ; do \
 		file_dir="`dirname "$$file"`" ; \
 		file_name="`basename "$$file"`" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$file_dir/$$file_name/"*".dev" "$(DIST_PATH)/$(DRVS_PATH)/$$file_name/" ; \
+		cp "$(SOURCE_USPACE_PATH)/$(DRVS_PATH)/$$file_dir/$$file_name/"*".dev" "$(DIST_PATH)/$(DRVS_PATH)/$$file_name/" ; \
 	done
 	for file in $(RD_DRVS_FW) ; do \
 		file_dir="`dirname "$$file"`" ; \
 		file_name="`basename "$$file"`" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$file_dir/$$file_name/$$file_name.fw" "$(DIST_PATH)/$(DRVS_PATH)/$$file_name/" ; \
+		cp "$(SOURCE_USPACE_PATH)/$(DRVS_PATH)/$$file_dir/$$file_name/$$file_name.fw" "$(DIST_PATH)/$(DRVS_PATH)/$$file_name/" ; \
 	done
 	if ls $(DIST_OVERLAY_PATH)/* >/dev/null; then \
 		cp -r -L $(DIST_OVERLAY_PATH)/* "$(DIST_PATH)"; \
@@ -129,12 +133,13 @@ endif
 	find generic/src/ arch/*/src/ genarch/src/ -name '*.o' -follow -exec rm \{\} \;
 
 clean_dist:
+	mkdir -p $(BUILD_USPACE_PATH)/dist
 	rm -f $(INITRD).img $(COMPS).s $(COMPS).h $(COMPS)_desc.c $(COMPONENTS_DEFLATE) $(COMPS).o $(COMPS)_desc.o $(COMPS).zip $(LINK)
-	find $(USPACE_PATH)/dist -mindepth 1 -maxdepth 1 -type f -exec rm \{\} \;
-	rm -f $(USPACE_PATH)/dist/srv/*
-	rm -rf $(USPACE_PATH)/dist/drv/*
-	rm -rf $(USPACE_PATH)/dist/lib/*
-	rm -rf $(USPACE_PATH)/dist/inc/*
-	rm -f $(USPACE_PATH)/dist/app/*
-	rm -f $(USPACE_PATH)/dist/test/*
-	rm -f $(USPACE_PATH)/dist/cfg/net/*
+	find $(BUILD_USPACE_PATH)/dist -mindepth 1 -maxdepth 1 -type f -exec rm \{\} \;
+	rm -f $(BUILD_USPACE_PATH)/dist/srv/*
+	rm -rf $(BUILD_USPACE_PATH)/dist/drv/*
+	rm -rf $(BUILD_USPACE_PATH)/dist/lib/*
+	rm -rf $(BUILD_USPACE_PATH)/dist/inc/*
+	rm -f $(BUILD_USPACE_PATH)/dist/app/*
+	rm -f $(BUILD_USPACE_PATH)/dist/test/*
+	rm -f $(BUILD_USPACE_PATH)/dist/cfg/net/*

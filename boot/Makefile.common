@@ -29,26 +29,31 @@
 ## Configuration
 #
 
-ROOT_PATH = ..
+SOURCE_ROOT_PATH = ..
+BUILD_ROOT_PATH = $(BUILD_DIR)/..
 
-VERSION_DEF = $(ROOT_PATH)/version
+VERSION_DEF = $(SOURCE_ROOT_PATH)/version
 
-COMMON_MAKEFILE = $(ROOT_PATH)/Makefile.common
-COMMON_HEADER = $(ROOT_PATH)/common.h
+COMMON_MAKEFILE = $(BUILD_ROOT_PATH)/Makefile.common
+COMMON_HEADER = $(BUILD_ROOT_PATH)/common.h
 COMMON_HEADER_ARCH = arch/$(BARCH)/include/common.h
 
-CONFIG_MAKEFILE = $(ROOT_PATH)/Makefile.config
-CONFIG_HEADER = $(ROOT_PATH)/config.h
+CONFIG_MAKEFILE = $(BUILD_ROOT_PATH)/Makefile.config
+CONFIG_HEADER = $(BUILD_ROOT_PATH)/config.h
 
--include $(VERSION_DEF)
--include $(COMMON_MAKEFILE)
--include $(CONFIG_MAKEFILE)
+include $(VERSION_DEF)
+include $(COMMON_MAKEFILE)
+include $(CONFIG_MAKEFILE)
 
-KERNEL_PATH = $(ROOT_PATH)/kernel
-USPACE_PATH = $(ROOT_PATH)/uspace
-DIST_PATH = $(USPACE_PATH)/dist
-DIST_OVERLAY_PATH = $(USPACE_PATH)/overlay
-TOOLS_PATH = $(ROOT_PATH)/tools
+SOURCE_KERNEL_PATH = $(SOURCE_ROOT_PATH)/kernel
+SOURCE_USPACE_PATH = $(SOURCE_ROOT_PATH)/uspace
+BUILD_KERNEL_PATH = $(BUILD_ROOT_PATH)/kernel
+BUILD_USPACE_PATH = $(BUILD_ROOT_PATH)/uspace
+
+SOURCE_DIST_PATH = $(SOURCE_USPACE_PATH)/dist
+DIST_OVERLAY_PATH = $(SOURCE_USPACE_PATH)/overlay
+DIST_PATH = $(BUILD_USPACE_PATH)/dist
+TOOLS_PATH = $(SOURCE_ROOT_PATH)/tools
 DRVS_PATH = drv
 
 MKARRAY = $(TOOLS_PATH)/mkarray.py
@@ -57,72 +62,72 @@ MKFAT = $(TOOLS_PATH)/mkfat.py
 MKEXT4 = $(TOOLS_PATH)/mkext4.py
 MKUIMAGE = $(TOOLS_PATH)/mkuimage.py
 
-JOBFILE = $(ROOT_PATH)/tools/jobfile.py
+JOBFILE = $(TOOLS_PATH)/jobfile.py
 
 ARCH_INCLUDE = generic/include/arch
 GENARCH_INCLUDE = generic/include/genarch
 
-DEPEND = Makefile.depend
+DEPEND = $(BUILD_DIR)/Makefile.depend
 DEPEND_PREV = $(DEPEND).prev
-DISTROOT = distroot
-INITRD = initrd
+DISTROOT = $(BUILD_DIR)/distroot
+INITRD = $(BUILD_DIR)/initrd
 
 INIT_TASKS = \
-	$(USPACE_PATH)/srv/ns/ns \
-	$(USPACE_PATH)/srv/loader/loader \
-	$(USPACE_PATH)/app/init/init \
-	$(USPACE_PATH)/srv/locsrv/locsrv \
-	$(USPACE_PATH)/srv/bd/rd/rd \
-	$(USPACE_PATH)/srv/vfs/vfs \
-	$(USPACE_PATH)/srv/logger/logger
+	$(BUILD_USPACE_PATH)/srv/ns/ns \
+	$(BUILD_USPACE_PATH)/srv/loader/loader \
+	$(BUILD_USPACE_PATH)/app/init/init \
+	$(BUILD_USPACE_PATH)/srv/locsrv/locsrv \
+	$(BUILD_USPACE_PATH)/srv/bd/rd/rd \
+	$(BUILD_USPACE_PATH)/srv/vfs/vfs \
+	$(BUILD_USPACE_PATH)/srv/logger/logger
 
 ifeq ($(RDFMT),tmpfs)
-	INIT_TASKS += $(USPACE_PATH)/srv/fs/tmpfs/tmpfs
+	INIT_TASKS += $(BUILD_USPACE_PATH)/srv/fs/tmpfs/tmpfs
 endif
 
 ifeq ($(RDFMT),fat)
-	INIT_TASKS += $(USPACE_PATH)/srv/fs/fat/fat
+	INIT_TASKS += $(BUILD_USPACE_PATH)/srv/fs/fat/fat
 endif
 
 ifeq ($(RDFMT),ext4fs)
-	INIT_TASKS += $(USPACE_PATH)/srv/fs/ext4fs/ext4fs
+	INIT_TASKS += $(BUILD_USPACE_PATH)/srv/fs/ext4fs/ext4fs
 endif
 
 RD_SRVS_ESSENTIAL = \
-	$(USPACE_PATH)/srv/hid/input/input \
-	$(USPACE_PATH)/srv/hid/output/output \
-	$(USPACE_PATH)/srv/hid/console/console \
-	$(USPACE_PATH)/srv/devman/devman \
-	$(USPACE_PATH)/srv/fs/locfs/locfs \
-	$(USPACE_PATH)/srv/hid/compositor/compositor \
-	$(USPACE_PATH)/srv/klog/klog
+	$(BUILD_USPACE_PATH)/srv/hid/input/input \
+	$(BUILD_USPACE_PATH)/srv/hid/output/output \
+	$(BUILD_USPACE_PATH)/srv/hid/console/console \
+	$(BUILD_USPACE_PATH)/srv/devman/devman \
+	$(BUILD_USPACE_PATH)/srv/fs/locfs/locfs \
+	$(BUILD_USPACE_PATH)/srv/hid/compositor/compositor \
+	$(BUILD_USPACE_PATH)/srv/klog/klog
 
 RD_SRVS_NON_ESSENTIAL = \
-	$(USPACE_PATH)/srv/bd/file_bd/file_bd \
-	$(USPACE_PATH)/srv/bd/sata_bd/sata_bd \
-	$(USPACE_PATH)/srv/bd/vbd/vbd \
-	$(USPACE_PATH)/srv/clipboard/clipboard \
-	$(USPACE_PATH)/srv/fs/tmpfs/tmpfs \
-	$(USPACE_PATH)/srv/fs/fat/fat \
-	$(USPACE_PATH)/srv/fs/mfs/mfs \
-	$(USPACE_PATH)/srv/fs/cdfs/cdfs \
-	$(USPACE_PATH)/srv/fs/exfat/exfat \
-	$(USPACE_PATH)/srv/fs/udf/udf \
-	$(USPACE_PATH)/srv/fs/ext4fs/ext4fs \
-	$(USPACE_PATH)/srv/hid/remcons/remcons \
-	$(USPACE_PATH)/srv/hid/isdv4_tablet/isdv4_tablet \
-	$(USPACE_PATH)/srv/hid/rfb/rfb \
-	$(USPACE_PATH)/srv/net/dhcp/dhcp \
-	$(USPACE_PATH)/srv/net/dnsrsrv/dnsrsrv \
-	$(USPACE_PATH)/srv/net/ethip/ethip \
-	$(USPACE_PATH)/srv/net/inetsrv/inetsrv \
-	$(USPACE_PATH)/srv/net/loopip/loopip \
-	$(USPACE_PATH)/srv/net/nconfsrv/nconfsrv \
-	$(USPACE_PATH)/srv/net/slip/slip \
-	$(USPACE_PATH)/srv/net/tcp/tcp \
-	$(USPACE_PATH)/srv/net/udp/udp \
-	$(USPACE_PATH)/srv/taskmon/taskmon \
-	$(USPACE_PATH)/srv/volsrv/volsrv
+	$(BUILD_USPACE_PATH)/srv/bd/file_bd/file_bd \
+	$(BUILD_USPACE_PATH)/srv/bd/sata_bd/sata_bd \
+	$(BUILD_USPACE_PATH)/srv/bd/vbd/vbd \
+	$(BUILD_USPACE_PATH)/srv/clipboard/clipboard \
+	$(BUILD_USPACE_PATH)/srv/fs/tmpfs/tmpfs \
+	$(BUILD_USPACE_PATH)/srv/fs/fat/fat \
+	$(BUILD_USPACE_PATH)/srv/fs/mfs/mfs \
+	$(BUILD_USPACE_PATH)/srv/fs/cdfs/cdfs \
+	$(BUILD_USPACE_PATH)/srv/fs/exfat/exfat \
+	$(BUILD_USPACE_PATH)/srv/fs/udf/udf \
+	$(BUILD_USPACE_PATH)/srv/fs/ext4fs/ext4fs \
+	$(BUILD_USPACE_PATH)/srv/hid/remcons/remcons \
+	$(BUILD_USPACE_PATH)/srv/hid/isdv4_tablet/isdv4_tablet \
+	$(BUILD_USPACE_PATH)/srv/hid/rfb/rfb \
+	$(BUILD_USPACE_PATH)/srv/net/dhcp/dhcp \
+	$(BUILD_USPACE_PATH)/srv/net/dnsrsrv/dnsrsrv \
+	$(BUILD_USPACE_PATH)/srv/net/ethip/ethip \
+	$(BUILD_USPACE_PATH)/srv/net/inetsrv/inetsrv \
+	$(BUILD_USPACE_PATH)/srv/net/loopip/loopip \
+	$(BUILD_USPACE_PATH)/srv/net/nconfsrv/nconfsrv \
+	$(BUILD_USPACE_PATH)/srv/net/slip/slip \
+	$(BUILD_USPACE_PATH)/srv/net/tcp/tcp \
+	$(BUILD_USPACE_PATH)/srv/net/udp/udp \
+	$(BUILD_USPACE_PATH)/srv/taskmon/taskmon \
+	$(BUILD_USPACE_PATH)/srv/volsrv/volsrv
 
 RD_DRVS_ESSENTIAL = \
 	root/root \
@@ -149,106 +154,106 @@ RD_LIBS =
 
 ifeq ($(CONFIG_DEVEL_FILES), y)
 	RD_LIBS += \
-		$(USPACE_PATH)/lib/c/libc.a \
-		$(USPACE_PATH)/lib/softint/libsoftint.a \
-		$(USPACE_PATH)/lib/softfloat/libsoftfloat.a
+		$(BUILD_USPACE_PATH)/lib/c/libc.a \
+		$(BUILD_USPACE_PATH)/lib/softint/libsoftint.a \
+		$(BUILD_USPACE_PATH)/lib/softfloat/libsoftfloat.a
 endif
 
 ifeq ($(CONFIG_BUILD_SHARED_LIBS), y)
 	RD_LIBS += \
-		$(USPACE_PATH)/lib/c/libc.so.0 \
-		$(USPACE_PATH)/lib/softint/libsoftint.so.0 \
-		$(USPACE_PATH)/lib/math/libmath.so.0 \
-		$(USPACE_PATH)/lib/dltest/libdltest.so.0
+		$(BUILD_USPACE_PATH)/lib/c/libc.so.0 \
+		$(BUILD_USPACE_PATH)/lib/softint/libsoftint.so.0 \
+		$(BUILD_USPACE_PATH)/lib/math/libmath.so.0 \
+		$(BUILD_USPACE_PATH)/lib/dltest/libdltest.so.0
 endif
 
 RD_APPS_ESSENTIAL = \
-	$(USPACE_PATH)/app/bdsh/bdsh \
-	$(USPACE_PATH)/app/getterm/getterm \
-	$(USPACE_PATH)/app/kio/kio \
-	$(USPACE_PATH)/app/vlaunch/vlaunch \
-	$(USPACE_PATH)/app/vterm/vterm
+	$(BUILD_USPACE_PATH)/app/bdsh/bdsh \
+	$(BUILD_USPACE_PATH)/app/getterm/getterm \
+	$(BUILD_USPACE_PATH)/app/kio/kio \
+	$(BUILD_USPACE_PATH)/app/vlaunch/vlaunch \
+	$(BUILD_USPACE_PATH)/app/vterm/vterm
 
 RD_APPS_NON_ESSENTIAL = \
-	$(USPACE_PATH)/app/barber/barber \
-	$(USPACE_PATH)/app/bithenge/bithenge \
-	$(USPACE_PATH)/app/blkdump/blkdump \
-	$(USPACE_PATH)/app/bnchmark/bnchmark \
-	$(USPACE_PATH)/app/corecfg/corecfg \
-	$(USPACE_PATH)/app/devctl/devctl \
-	$(USPACE_PATH)/app/dnscfg/dnscfg \
-	$(USPACE_PATH)/app/dnsres/dnsres \
-	$(USPACE_PATH)/app/download/download \
-	$(USPACE_PATH)/app/edit/edit \
-	$(USPACE_PATH)/app/fdisk/fdisk \
-	$(USPACE_PATH)/app/gunzip/gunzip \
-	$(USPACE_PATH)/app/inet/inet \
-	$(USPACE_PATH)/app/kill/kill \
-	$(USPACE_PATH)/app/killall/killall \
-	$(USPACE_PATH)/app/loc/loc \
-	$(USPACE_PATH)/app/mixerctl/mixerctl \
-	$(USPACE_PATH)/app/modplay/modplay \
-	$(USPACE_PATH)/app/logset/logset \
-	$(USPACE_PATH)/app/mkfat/mkfat \
-	$(USPACE_PATH)/app/mkexfat/mkexfat \
-	$(USPACE_PATH)/app/mkmfs/mkmfs \
-	$(USPACE_PATH)/app/nic/nic \
-	$(USPACE_PATH)/app/rcutest/rcutest \
-	$(USPACE_PATH)/app/rcubench/rcubench \
-	$(USPACE_PATH)/app/sbi/sbi \
-	$(USPACE_PATH)/app/sportdmp/sportdmp \
-	$(USPACE_PATH)/app/redir/redir \
-	$(USPACE_PATH)/app/taskdump/taskdump \
-	$(USPACE_PATH)/app/tester/tester \
-	$(USPACE_PATH)/app/testread/testread \
-	$(USPACE_PATH)/app/testwrit/testwrit \
-	$(USPACE_PATH)/app/tetris/tetris \
-	$(USPACE_PATH)/app/trace/trace \
-	$(USPACE_PATH)/app/netecho/netecho \
-	$(USPACE_PATH)/app/nterm/nterm \
-	$(USPACE_PATH)/app/ping/ping \
-	$(USPACE_PATH)/app/pkg/pkg \
-	$(USPACE_PATH)/app/stats/stats \
-	$(USPACE_PATH)/app/sysinfo/sysinfo \
-	$(USPACE_PATH)/app/sysinst/sysinst \
-	$(USPACE_PATH)/app/top/top \
-	$(USPACE_PATH)/app/untar/untar \
-	$(USPACE_PATH)/app/usbinfo/usbinfo \
-	$(USPACE_PATH)/app/vuhid/vuh \
-	$(USPACE_PATH)/app/mkbd/mkbd \
-	$(USPACE_PATH)/app/websrv/websrv \
-	$(USPACE_PATH)/app/date/date \
-	$(USPACE_PATH)/app/vcalc/vcalc \
-	$(USPACE_PATH)/app/vdemo/vdemo \
-	$(USPACE_PATH)/app/viewer/viewer \
-	$(USPACE_PATH)/app/df/df \
-	$(USPACE_PATH)/app/fontviewer/fontviewer \
-	$(USPACE_PATH)/app/wifi_supplicant/wifi_supplicant
+	$(BUILD_USPACE_PATH)/app/barber/barber \
+	$(BUILD_USPACE_PATH)/app/bithenge/bithenge \
+	$(BUILD_USPACE_PATH)/app/blkdump/blkdump \
+	$(BUILD_USPACE_PATH)/app/bnchmark/bnchmark \
+	$(BUILD_USPACE_PATH)/app/corecfg/corecfg \
+	$(BUILD_USPACE_PATH)/app/devctl/devctl \
+	$(BUILD_USPACE_PATH)/app/dnscfg/dnscfg \
+	$(BUILD_USPACE_PATH)/app/dnsres/dnsres \
+	$(BUILD_USPACE_PATH)/app/download/download \
+	$(BUILD_USPACE_PATH)/app/edit/edit \
+	$(BUILD_USPACE_PATH)/app/fdisk/fdisk \
+	$(BUILD_USPACE_PATH)/app/gunzip/gunzip \
+	$(BUILD_USPACE_PATH)/app/inet/inet \
+	$(BUILD_USPACE_PATH)/app/kill/kill \
+	$(BUILD_USPACE_PATH)/app/killall/killall \
+	$(BUILD_USPACE_PATH)/app/loc/loc \
+	$(BUILD_USPACE_PATH)/app/mixerctl/mixerctl \
+	$(BUILD_USPACE_PATH)/app/modplay/modplay \
+	$(BUILD_USPACE_PATH)/app/logset/logset \
+	$(BUILD_USPACE_PATH)/app/mkfat/mkfat \
+	$(BUILD_USPACE_PATH)/app/mkexfat/mkexfat \
+	$(BUILD_USPACE_PATH)/app/mkmfs/mkmfs \
+	$(BUILD_USPACE_PATH)/app/nic/nic \
+	$(BUILD_USPACE_PATH)/app/rcutest/rcutest \
+	$(BUILD_USPACE_PATH)/app/rcubench/rcubench \
+	$(BUILD_USPACE_PATH)/app/sbi/sbi \
+	$(BUILD_USPACE_PATH)/app/sportdmp/sportdmp \
+	$(BUILD_USPACE_PATH)/app/redir/redir \
+	$(BUILD_USPACE_PATH)/app/taskdump/taskdump \
+	$(BUILD_USPACE_PATH)/app/tester/tester \
+	$(BUILD_USPACE_PATH)/app/testread/testread \
+	$(BUILD_USPACE_PATH)/app/testwrit/testwrit \
+	$(BUILD_USPACE_PATH)/app/tetris/tetris \
+	$(BUILD_USPACE_PATH)/app/trace/trace \
+	$(BUILD_USPACE_PATH)/app/netecho/netecho \
+	$(BUILD_USPACE_PATH)/app/nterm/nterm \
+	$(BUILD_USPACE_PATH)/app/ping/ping \
+	$(BUILD_USPACE_PATH)/app/pkg/pkg \
+	$(BUILD_USPACE_PATH)/app/stats/stats \
+	$(BUILD_USPACE_PATH)/app/sysinfo/sysinfo \
+	$(BUILD_USPACE_PATH)/app/sysinst/sysinst \
+	$(BUILD_USPACE_PATH)/app/top/top \
+	$(BUILD_USPACE_PATH)/app/untar/untar \
+	$(BUILD_USPACE_PATH)/app/usbinfo/usbinfo \
+	$(BUILD_USPACE_PATH)/app/vuhid/vuh \
+	$(BUILD_USPACE_PATH)/app/mkbd/mkbd \
+	$(BUILD_USPACE_PATH)/app/websrv/websrv \
+	$(BUILD_USPACE_PATH)/app/date/date \
+	$(BUILD_USPACE_PATH)/app/vcalc/vcalc \
+	$(BUILD_USPACE_PATH)/app/vdemo/vdemo \
+	$(BUILD_USPACE_PATH)/app/viewer/viewer \
+	$(BUILD_USPACE_PATH)/app/df/df \
+	$(BUILD_USPACE_PATH)/app/fontviewer/fontviewer \
+	$(BUILD_USPACE_PATH)/app/wifi_supplicant/wifi_supplicant
 
 ifeq ($(CONFIG_BUILD_SHARED_LIBS), y)
 	RD_APPS_NON_ESSENTIAL += \
-		$(USPACE_PATH)/app/dltest/dltest \
-		$(USPACE_PATH)/app/dltests/dltests
+		$(BUILD_USPACE_PATH)/app/dltest/dltest \
+		$(BUILD_USPACE_PATH)/app/dltests/dltests
 endif
 
 RD_TESTS = \
-	$(USPACE_PATH)/lib/c/test-libc \
-	$(USPACE_PATH)/lib/label/test-liblabel \
-	$(USPACE_PATH)/lib/posix/test-libposix \
-	$(USPACE_PATH)/lib/uri/test-liburi \
-	$(USPACE_PATH)/app/bdsh/test-bdsh \
-	$(USPACE_PATH)/srv/net/tcp/test-tcp
+	$(BUILD_USPACE_PATH)/lib/c/test-libc \
+	$(BUILD_USPACE_PATH)/lib/label/test-liblabel \
+	$(BUILD_USPACE_PATH)/lib/posix/test-libposix \
+	$(BUILD_USPACE_PATH)/lib/uri/test-liburi \
+	$(BUILD_USPACE_PATH)/app/bdsh/test-bdsh \
+	$(BUILD_USPACE_PATH)/srv/net/tcp/test-tcp
 
 RD_DATA_ESSENTIAL = \
-	$(USPACE_PATH)/app/bdsh/demo.txt
+	$(SOURCE_USPACE_PATH)/app/bdsh/demo.txt
 
 RD_DATA_NON_ESSENTIAL = \
-	$(USPACE_PATH)/app/modplay/demo.xm \
-	$(USPACE_PATH)/app/viewer/logo.tga
+	$(SOURCE_USPACE_PATH)/app/modplay/demo.xm \
+	$(SOURCE_USPACE_PATH)/app/viewer/logo.tga
 
 
 COMPONENTS = \
-	$(KERNEL_PATH)/kernel.bin \
+	$(BUILD_KERNEL_PATH)/kernel.bin \
 	$(INIT_TASKS) \
 	$(INITRD).img
 
@@ -258,7 +263,7 @@ LINK = arch/$(BARCH)/_link.ld
 COMP = component
 COMPS = $(COMP)s
 
--include arch/$(BARCH)/Makefile.inc
+include arch/$(BARCH)/Makefile.inc
 
 ifeq ($(CONFIG_BAREBONE),y)
 	RD_SRVS = $(RD_SRVS_ESSENTIAL)
@@ -276,8 +281,8 @@ endif
 
 MODULES := $(notdir $(COMPONENTS))
 
-BOOT_OUTPUT ?= $(ROOT_PATH)/image.boot
-RAW ?= image.raw
-JOB ?= image.job
-MAP ?= image.map
+BOOT_OUTPUT ?= $(BUILD_ROOT_PATH)/image.boot
+RAW ?= $(BUILD_DIR)/image.raw
+JOB ?= $(BUILD_DIR)/image.job
+MAP ?= $(BUILD_DIR)/image.map
 BUILD ?= Makefile.build

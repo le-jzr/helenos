@@ -29,7 +29,7 @@
 
 USPACE_PREFIX = ../..
 
-LINKER_SCRIPT = $(LIBC_PREFIX)/arch/$(UARCH)/_link-loader.ld
+LINKER_SCRIPT = $(BUILD_LIB_PREFIX)/c/arch/$(UARCH)/_link-loader.ld
 
 BINARY = loader
 STATIC_ONLY = y

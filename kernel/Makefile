@@ -33,12 +33,14 @@ ROOT_PATH = ..
 
 VERSION_DEF = $(ROOT_PATH)/version
 
-COMMON_MAKEFILE = $(ROOT_PATH)/Makefile.common
-COMMON_HEADER = $(ROOT_PATH)/common.h
-COMMON_HEADER_ARCH = arch/$(KARCH)/include/arch/common.h
+COMMON_MAKEFILE = $(BUILD_DIR)/../Makefile.common
+COMMON_HEADER = $(BUILD_DIR)/../common.h
+GENINCLUDE = $(BUILD_DIR)/arch/$(KARCH)/include
+GENARCHINCLUDE = $(BUILD_DIR)/genarch/include
+COMMON_HEADER_ARCH = $(GENINCLUDE)/arch/common.h
 
-CONFIG_MAKEFILE = $(ROOT_PATH)/Makefile.config
-CONFIG_HEADER = $(ROOT_PATH)/config.h
+CONFIG_MAKEFILE = $(BUILD_DIR)/../Makefile.config
+CONFIG_HEADER = $(BUILD_DIR)/../config.h
 
 -include $(VERSION_DEF)
 -include $(COMMON_MAKEFILE)
@@ -47,24 +49,25 @@ CONFIG_HEADER = $(ROOT_PATH)/config.h
 ## Common names
 #
 
-AGDEPEND = Makefile.ag.depend
-DEPEND = Makefile.depend
+AGDEPEND = $(BUILD_DIR)/Makefile.ag.depend
+DEPEND = $(BUILD_DIR)/Makefile.depend
 DEPEND_PREV = $(DEPEND).prev
-RAW = kernel.raw
-BIN = kernel.bin
-MAP = kernel.map
-JOB = kernel.job
+RAW = $(BUILD_DIR)/kernel.raw
+BIN = $(BUILD_DIR)/kernel.bin
+MAP = $(BUILD_DIR)/kernel.map
+JOB = $(BUILD_DIR)/kernel.job
 MAP_PREV = $(MAP).prev
-DISASM = kernel.disasm
-DUMP = kernel.dump
-REAL_MAP = generic/src/debug/real_map
+DISASM = $(BUILD_DIR)/kernel.disasm
+DUMP = $(BUILD_DIR)/kernel.dump
+REAL_MAP = $(BUILD_DIR)/generic/src/debug/real_map
 
 GENMAP = tools/genmap.py
 JOBFILE = $(ROOT_PATH)/tools/jobfile.py
 
-LINK = arch/$(KARCH)/_link.ld
-EMPTY_MAP = generic/src/debug/empty_map.o
-SIZEOK_MAP = generic/src/debug/sizeok_map.o
+LINK = $(BUILD_DIR)/arch/$(KARCH)/_link.ld
+LINK_IN = arch/$(KARCH)/_link.ld.in
+EMPTY_MAP = $(BUILD_DIR)/generic/src/debug/empty_map.o
+SIZEOK_MAP = $(BUILD_DIR)/generic/src/debug/sizeok_map.o
 
 .PHONY: all clean autogen_clean
 
@@ -78,7 +81,7 @@ clean: autogen_clean
 ## Common compiler flags
 #
 
-INCLUDES = generic/include genarch/include arch/$(KARCH)/include ../abi/include
+INCLUDES = generic/include $(GENARCHINCLUDE) genarch/include $(GENINCLUDE) arch/$(KARCH)/include ../abi/include
 INCLUDES_FLAGS = $(addprefix -I,$(INCLUDES))
 
 DEFS = -DKERNEL -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)" -D__$(BITS)_BITS__ -D__$(ENDIANESS)__
@@ -359,17 +362,17 @@ else
 	INSTRUMENTED_SOURCES =
 endif
 
-GENERIC_OBJECTS := $(addsuffix .o,$(basename $(GENERIC_SOURCES)))
-ARCH_OBJECTS := $(addsuffix .o,$(basename $(ARCH_SOURCES)))
-GENARCH_OBJECTS := $(addsuffix .o,$(basename $(GENARCH_SOURCES)))
+GENERIC_OBJECTS := $(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(basename $(GENERIC_SOURCES))))
+ARCH_OBJECTS := $(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(basename $(ARCH_SOURCES))))
+GENARCH_OBJECTS := $(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(basename $(GENARCH_SOURCES))))
 
-GENARCH_AUTOGENS_H := $(addsuffix .h,$(basename $(GENARCH_AUTOGENS_AG)))
-GENARCH_AUTOGENS_PROBE_C := $(addsuffix .ag.probe.c,$(basename $(GENARCH_AUTOGENS_AG)))
-GENARCH_AUTOGENS_PROBE_S := $(addsuffix .ag.probe.s,$(basename $(GENARCH_AUTOGENS_AG)))
+GENARCH_AUTOGENS_H := $(addprefix $(BUILD_DIR)/,$(addsuffix .h,$(basename $(GENARCH_AUTOGENS_AG))))
+GENARCH_AUTOGENS_PROBE_C := $(addprefix $(BUILD_DIR)/,$(addsuffix .ag.probe.c,$(basename $(GENARCH_AUTOGENS_AG))))
+GENARCH_AUTOGENS_PROBE_S := $(addprefix $(BUILD_DIR)/,$(addsuffix .ag.probe.s,$(basename $(GENARCH_AUTOGENS_AG))))
 
-ARCH_AUTOGENS_H := $(addsuffix .h,$(basename $(ARCH_AUTOGENS_AG)))
-ARCH_AUTOGENS_PROBE_C := $(addsuffix .ag.probe.c,$(basename $(ARCH_AUTOGENS_AG)))
-ARCH_AUTOGENS_PROBE_S := $(addsuffix .ag.probe.s,$(basename $(ARCH_AUTOGENS_AG)))
+ARCH_AUTOGENS_H := $(addprefix $(BUILD_DIR)/,$(addsuffix .h,$(basename $(ARCH_AUTOGENS_AG))))
+ARCH_AUTOGENS_PROBE_C := $(addprefix $(BUILD_DIR)/,$(addsuffix .ag.probe.c,$(basename $(ARCH_AUTOGENS_AG))))
+ARCH_AUTOGENS_PROBE_S := $(addprefix $(BUILD_DIR)/,$(addsuffix .ag.probe.s,$(basename $(ARCH_AUTOGENS_AG))))
 
 AUTOGENS_H := $(ARCH_AUTOGENS_H) $(GENARCH_AUTOGENS_H)
 AUTOGENS_AG := $(ARCH_AUTOGENS_AG) $(GENARCH_AUTOGENS_AG)
@@ -382,7 +385,7 @@ ifeq ($(COMPILER),clang)
 endif
 
 ifeq ($(CONFIG_SYMTAB),y)
-	SYMTAB_OBJECTS := generic/src/debug/real_map.o
+	SYMTAB_OBJECTS := $(REAL_MAP).o
 else
 	SYMTAB_OBJECTS :=
 endif
@@ -407,27 +410,32 @@ ifeq ($(CONFIG_STRIP_BINARIES),y)
 	$(STRIP) $(RAW)
 endif
 
-$(LINK): $(LINK).in $(DEPEND)
+$(LINK): $(LINK_IN) $(DEPEND)
+	mkdir -p $(dir $@)
 	$(CC) $(DEFS) $(CFLAGS) -D__ASM__ -D__LINKER__ -E -x c $< | grep -v "^\#" > $@
 
-%.h: %.ag
-	$(AUTOGEN) probe $< >$<.probe.c
-	$(CC_AUTOGEN) $(DEFS) $(CFLAGS) -S -o $<.probe.s $<.probe.c
-	$(AUTOGEN) generate $< <$<.probe.s >$@   
+$(BUILD_DIR)/%.h: %.ag
+	mkdir -p $(dir $@)
+	$(AUTOGEN) probe $< >$(BUILD_DIR)/$<.probe.c
+	$(CC_AUTOGEN) $(DEFS) $(CFLAGS) -S -o $(BUILD_DIR)/$<.probe.s $(BUILD_DIR)/$<.probe.c
+	$(AUTOGEN) generate $< <$(BUILD_DIR)/$<.probe.s >$@
 
-%.o: %.S $(DEPEND)
+$(BUILD_DIR)/%.o: %.S $(DEPEND)
+	mkdir -p $(dir $@)
 	$(CC) $(DEFS) $(CFLAGS) $(AS_CFLAGS) -D__ASM__ -c -o $@ $<
 ifeq ($(PRECHECK),y)
 	$(JOBFILE) $(JOB) $< $@ as asm/preproc $(DEFS) $(CFLAGS) -D__ASM__
 endif
 
-%.o: %.s $(DEPEND)
+$(BUILD_DIR)/%.o: %.s $(DEPEND)
+	mkdir -p $(dir $@)
 	$(CC) $(DEFS) $(CFLAGS) $(AS_CFLAGS) -D__ASM__ -c -o $@ $<
 ifeq ($(PRECHECK),y)
 	$(JOBFILE) $(JOB) $< $@ as asm $(DEFS) $(CFLAGS) $(EXTRA_FLAGS)
 endif
 
-%.o: %.c $(DEPEND)
+$(BUILD_DIR)/%.o: %.c $(DEPEND)
+	mkdir -p $(dir $@)
 	$(CC) $(DEFS) $(CFLAGS) $(EXTRA_FLAGS) $(FPU_NO_CFLAGS) $(if $(findstring $<,$(INSTRUMENTED_SOURCES)),$(INSTRUMENTATION)) -c -o $@ $<
 ifeq ($(PRECHECK),y)
 	$(JOBFILE) $(JOB) $< $@ cc core $(DEFS) $(CFLAGS) $(EXTRA_FLAGS) $(FPU_NO_CFLAGS)
@@ -437,6 +445,7 @@ $(REAL_MAP).o: $(REAL_MAP).bin
 	echo "$(AS_PROLOG)""$(SYMTAB_SECTION)"" .incbin \"$<\"" | $(CC) $(CFLAGS) $(AS_CFLAGS) -x assembler -c -o $@ -
 
 $(REAL_MAP).bin: $(LINK) $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS)
+	mkdir -p $(dir $(EMPTY_MAP))
 	echo "$(AS_PROLOG)""$(SYMTAB_SECTION)" | $(CC) $(CFLAGS) $(AS_CFLAGS) -x assembler -c -o $(EMPTY_MAP) -
 ifeq ($(CONFIG_LTO),y)
 	$(CC) $(DEFS) $(CFLAGS) $(LD_CFLAGS) -Xlinker -Map -Xlinker $(MAP_PREV) -o $@ $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(EXTRA_OBJECTS) $(EMPTY_MAP)
@@ -461,11 +470,12 @@ endif
 $(AUTOGENS_H): $(AGDEPEND)
 
 $(AGDEPEND): $(AUTOGENS_AG)
+	mkdir -p $(dir $@)
 	echo "# DO NOT EDIT" >$@
 	for g in $^; do \
-		h=`dirname $$g`/`basename $$g .ag`.h; \
+		h=$(BUILD_DIR)/`dirname $$g`/`basename $$g .ag`.h; \
 		for l in `$(AUTOGEN) depend $$g`; do \
-			echo "$$h: $$l" >>$@; \
+			echo "$$h: $(BUILD_DIR)/$$l" >>$@; \
 		done \
 	done
 
@@ -474,7 +484,8 @@ $(DEPEND): $(COMMON_HEADER_ARCH) $(AUTOGENS_H)
 	-[ -f $(DEPEND_PREV) ] && diff -q $(DEPEND_PREV) $@ && mv -f $(DEPEND_PREV) $@
 
 $(COMMON_HEADER_ARCH): $(COMMON_HEADER)
-	ln -sfn ../../../../$< $@
+	mkdir -p $(dir $@)
+	cp $< $@
 
 autogen_clean:
 	-rm $(ARCH_AUTOGENS_H) $(ARCH_AUTOGENS_PROBE_C) $(ARCH_AUTOGENS_PROBE_S)

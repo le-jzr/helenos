@@ -30,7 +30,7 @@
 
 include Makefile.common
 
-INCLUDES = -Igeneric/include -I$(ROOT_PATH)/abi/include
+INCLUDES = -Igeneric/include -I$(SOURCE_ROOT_PATH)/abi/include
 OPTIMIZATION = 3
 
 DEFS = -DBOOT -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)" -D__$(BITS)_BITS__ -D__$(ENDIANESS)__

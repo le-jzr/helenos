@@ -27,8 +27,8 @@
 #
 
 RD_SRVS_ESSENTIAL += \
-	$(USPACE_PATH)/srv/audio/hound/hound \
-	$(USPACE_PATH)/srv/devman/devman
+	$(BUILD_USPACE_PATH)/srv/audio/hound/hound \
+	$(BUILD_USPACE_PATH)/srv/devman/devman
 
 RD_DRVS_ESSENTIAL += \
 	intctl/apic \
@@ -59,12 +59,12 @@ RD_DRV_CFG += \
 	bus/isa
 
 RD_APPS_ESSENTIAL += \
-	$(USPACE_PATH)/app/edit/edit \
-	$(USPACE_PATH)/app/mixerctl/mixerctl \
-	$(USPACE_PATH)/app/wavplay/wavplay
+	$(BUILD_USPACE_PATH)/app/edit/edit \
+	$(BUILD_USPACE_PATH)/app/mixerctl/mixerctl \
+	$(BUILD_USPACE_PATH)/app/wavplay/wavplay
 
 RD_DATA_NON_ESSENTIAL += \
-	$(USPACE_PATH)/app/wavplay/demo.wav
+	$(SOURCE_USPACE_PATH)/app/wavplay/demo.wav
 
-BOOT_OUTPUT = $(ROOT_PATH)/image.iso
+BOOT_OUTPUT = $(BUILD_ROOT_PATH)/image.iso
 BUILD = Makefile.grub

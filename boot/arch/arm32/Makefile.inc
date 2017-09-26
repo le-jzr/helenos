@@ -28,7 +28,7 @@
 
 ifeq ($(MACHINE), gta02)
 	BOOT_OUTPUT = image.boot
-	POST_OUTPUT = $(ROOT_PATH)/uImage.bin
+	POST_OUTPUT = $(BUILD_ROOT_PATH)/uImage.bin
 	LADDR = 0x30008000
 	SADDR = 0x30008000
 	POSTBUILD = Makefile.uboot
@@ -36,7 +36,7 @@ endif
 
 ifeq ($(MACHINE), $(filter $(MACHINE),beagleboardxm beaglebone))
 	BOOT_OUTPUT = image.boot
-	POST_OUTPUT = $(ROOT_PATH)/uImage.bin
+	POST_OUTPUT = $(BUILD_ROOT_PATH)/uImage.bin
 	LADDR = 0x80000000
 	SADDR = 0x80000000
 	POSTBUILD = Makefile.uboot
@@ -44,7 +44,7 @@ endif
 
 ifeq ($(MACHINE), raspberrypi)
 	BOOT_OUTPUT = image.boot
-	POST_OUTPUT = $(ROOT_PATH)/uImage.bin
+	POST_OUTPUT = $(BUILD_ROOT_PATH)/uImage.bin
 	LADDR = 0x00008000
 	SADDR = 0x00008000
 	POSTBUILD = Makefile.uboot
@@ -60,8 +60,8 @@ EXTRA_CFLAGS = -march=$(subst _,-,$(PROCESSOR_ARCH)) -mno-unaligned-access
 
 ifeq ($(MACHINE), gta02)
 	RD_SRVS_ESSENTIAL += \
-		$(USPACE_PATH)/srv/hid/s3c24xx_ts/s3c24xx_ts \
-		$(USPACE_PATH)/srv/hw/char/s3c24xx_uart/s3c24ser
+		$(BUILD_USPACE_PATH)/srv/hid/s3c24xx_ts/s3c24xx_ts \
+		$(BUILD_USPACE_PATH)/srv/hw/char/s3c24xx_uart/s3c24ser
 endif
 
 ifeq ($(MACHINE), $(filter $(MACHINE),beagleboardxm beaglebone))

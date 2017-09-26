@@ -32,26 +32,54 @@
 CSCOPE = cscope
 FORMAT = clang-format
 CHECK = tools/check.sh
-CONFIG = tools/config.py
-AUTOTOOL = tools/autotool.py
-SANDBOX = autotool
+
+PYTHON_ENV = PYTHONDONTWRITEBYTECODE=y
+CONFIG = $(PYTHON_ENV) tools/config.py
+AUTOTOOL = $(PYTHON_ENV) tools/autotool.py
 
 CONFIG_RULES = HelenOS.config
 
-COMMON_MAKEFILE = Makefile.common
-COMMON_HEADER = common.h
+BUILD_DIR ?= build
+
+SANDBOX = $(BUILD_DIR)/autotool
+
+COMMON_MAKEFILE = $(BUILD_DIR)/Makefile.common
+COMMON_HEADER = $(BUILD_DIR)/common.h
 COMMON_HEADER_PREV = $(COMMON_HEADER).prev
 
-CONFIG_MAKEFILE = Makefile.config
-CONFIG_HEADER = config.h
+CONFIG_MAKEFILE = $(BUILD_DIR)/Makefile.config
+CONFIG_HEADER = $(BUILD_DIR)/config.h
+
+ifeq ($(BUILD_DIR),build)
+	KERNEL_BUILD_DIR = ../build/kernel
+	USPACE_BUILD_DIR = ../build/uspace
+	BOOT_BUILD_DIR = ../build/boot
+else
+	# TODO: It would be ideal if we could keep the path relative when
+	#       it's provided as relative, but I'm not sure if Make can
+	#       express the condition. It should be something like:
+	#
+	#   if ($(BUILD_DIR) starts with '/') {
+	#           KERNEL_BUILD_DIR = $(BUILD_DIR)/kernel
+	#   } else {
+	#           KERNEL_BUILD_DIR = ../$(BUILD_DIR)/kernel
+	#   }
+	#
+	KERNEL_BUILD_DIR = $(abspath $(BUILD_DIR))/kernel
+	USPACE_BUILD_DIR = $(abspath $(BUILD_DIR))/uspace
+	BOOT_BUILD_DIR = $(abspath $(BUILD_DIR))/boot
+endif
+
+
 
 .PHONY: all precheck cscope cscope_parts autotool config_auto config_default config distclean clean check releasefile release
 
 all: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER)
 	cp -a $(COMMON_HEADER) $(COMMON_HEADER_PREV)
-	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK)
-	$(MAKE) -r -C uspace PRECHECK=$(PRECHECK)
-	$(MAKE) -r -C boot PRECHECK=$(PRECHECK)
+	mkdir -p $(BUILD_DIR)/kernel $(BUILD_DIR)/uspace $(BUILD_DIR)/boot
+	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK) BUILD_DIR=$(KERNEL_BUILD_DIR)
+	$(MAKE) -r -C uspace PRECHECK=$(PRECHECK) BUILD_DIR=$(USPACE_BUILD_DIR)
+	$(MAKE) -r -C boot PRECHECK=$(PRECHECK) BUILD_DIR=$(BOOT_BUILD_DIR)
 
 precheck: clean
 	$(MAKE) -r all PRECHECK=y
@@ -70,7 +98,7 @@ format:
 
 # Pre-integration build check
 check: $(CHECK)
-ifdef JOBS 
+ifdef JOBS
 	$(CHECK) -j $(JOBS)
 else
 	$(CHECK)
@@ -79,23 +107,24 @@ endif
 # Autotool (detects compiler features)
 
 autotool $(COMMON_MAKEFILE) $(COMMON_HEADER): $(CONFIG_MAKEFILE)
-	$(AUTOTOOL)
+	$(AUTOTOOL) $(BUILD_DIR)
 	-[ -f $(COMMON_HEADER_PREV) ] && diff -q $(COMMON_HEADER_PREV) $(COMMON_HEADER) && mv -f $(COMMON_HEADER_PREV) $(COMMON_HEADER)
 
 # Build-time configuration
 
 config_default $(CONFIG_MAKEFILE) $(CONFIG_HEADER): $(CONFIG_RULES)
+	mkdir -p $(BUILD_DIR)
 ifeq ($(HANDS_OFF),y)
-	$(CONFIG) $< hands-off $(PROFILE)
+	$(CONFIG) $(BUILD_DIR) $< hands-off $(PROFILE)
 else
-	$(CONFIG) $< default $(PROFILE)
+	$(CONFIG) $(BUILD_DIR) $< default $(PROFILE)
 endif
 
 config: $(CONFIG_RULES)
-	$(CONFIG) $<
+	$(CONFIG) $(BUILD_DIR) $<
 
 random-config: $(CONFIG_RULES)
-	$(CONFIG) $< random
+	$(CONFIG) $(BUILD_DIR) $< random
 
 # Release files
 
@@ -111,9 +140,9 @@ distclean: clean
 	rm -f $(CSCOPE).out $(COMMON_MAKEFILE) $(COMMON_HEADER) $(COMMON_HEADER_PREV) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) tools/*.pyc tools/checkers/*.pyc release/HelenOS-*
 
 clean:
-	rm -fr $(SANDBOX)
-	$(MAKE) -r -C kernel clean
-	$(MAKE) -r -C uspace clean
-	$(MAKE) -r -C boot clean
+	rm -rf $(SANDBOX)
+	$(MAKE) -r -C kernel clean BUILD_DIR=$(KERNEL_BUILD_DIR)
+	$(MAKE) -r -C uspace clean BUILD_DIR=$(USPACE_BUILD_DIR)
+	$(MAKE) -r -C boot clean BUILD_DIR=$(BOOT_BUILD_DIR)
 
 -include Makefile.local
