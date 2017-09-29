@@ -124,7 +124,7 @@ ifeq ($(PRECHECK),y)
 	$(JOBFILE) $(JOB) $< $@ as asm
 endif
 
-$(DEPEND): $(ARCH_INCLUDE) $(GENARCH_INCLUDE) $(COMMON_HEADER_ARCH) $(PRE_DEPEND)
+$(DEPEND): $(ARCH_INCLUDE) $(GENARCH_INCLUDE) $(PRE_DEPEND)
 	makedepend -f - -- $(DEPEND_DEFS) $(CFLAGS) -- $(SOURCES) > $@ 2> /dev/null
 	-[ -f $(DEPEND_PREV) ] && diff -q $(DEPEND_PREV) $@ && mv -f $(DEPEND_PREV) $@
 
@@ -150,6 +150,3 @@ $(ARCH_INCLUDE): arch/$(KARCH)/include/
 
 $(GENARCH_INCLUDE): genarch/include/
 	ln -sfn ../../$< $@
-
-$(COMMON_HEADER_ARCH): $(COMMON_HEADER)
-	ln -sfn ../../../$< $@
