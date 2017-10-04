@@ -31,6 +31,10 @@
  *	__SIZEOF_LONG_LONG__
  *	__SIZEOF_POINTER__
  *
+ *	__SIZEOF_FLOAT__
+ *	__SIZEOF_DOUBLE__
+ *	__SIZEOF_LONG_DOUBLE__
+ *
  *	__SIZE_TYPE__
  *	__SIZE_MAX__
  *
@@ -531,5 +535,17 @@
 #define __SCNuMAX__ "ju"
 #define __SCNoMAX__ "jo"
 #define __SCNxMAX__ "jx"
+
+#ifndef __SIZEOF_FLOAT__
+#error "HelenOS expects __SIZEOF_FLOAT__ to be defined."
+#endif
+
+#ifndef __SIZEOF_DOUBLE__
+#error "HelenOS expects __SIZEOF_DOUBLE__ to be defined."
+#endif
+
+#ifndef __SIZEOF_LONG_DOUBLE__
+#error "HelenOS expects __SIZEOF_LONG_DOUBLE__ to be defined."
+#endif
 
 #endif // __BITS_MACROS_H_
