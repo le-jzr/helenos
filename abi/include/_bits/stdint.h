@@ -152,4 +152,11 @@ typedef __UINTMAX_TYPE__ uintmax_t;
 #define WINT_MAX __WINT_MAX__
 
 
+/* Use nonstandard 128-bit types if they are supported by the compiler. */
+
+#ifdef __SIZEOF_INT128__
+typedef __int128 int128_t;
+typedef unsigned __int128 uint128_t;
+#endif
+
 #endif // __BITS_STDINT_H_
