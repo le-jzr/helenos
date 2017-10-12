@@ -45,15 +45,14 @@
  *	__WCHAR_MAX__
  *
  *	__WINT_TYPE__
- *	__WINT_WIDTH__
+ *	__WINT_MAX__ or
+ *	__WINT_WIDTH__ and __WINT_UNSIGNED__ when wint_t is unsigned
  *
  *	__INTMAX_TYPE__
  *	__INTMAX_MAX__
  *	either __INTMAX_C_SUFFIX__ or __INTMAX_C
  *
  *	__CHAR_UNSIGNED__ when char is unsigned
- *	__WCHAR_UNSIGNED__ when wchar_t is unsigned
- *	__WINT_UNSIGNED__ when wint_t is unsigned
  *
  * After this header is processed, the following additional macros are
  * guaranteed to be defined:
@@ -306,28 +305,30 @@
 #undef __INTPTR_C_SUFFIX__
 #undef __INTPTR_MIN__
 #undef __INTPTR_MAX__
-
-#define __INTPTR_TYPE__ long
-#define __INTPTR_C(x) x ## L
-#define __INTPTR_MIN__ __LONG_MIN__
-#define __INTPTR_MAX__ __LONG_MAX__
-
 #undef __UINTPTR_TYPE__
 #undef __UINTPTR_C
 #undef __UINTPTR_C_SUFFIX__
 #undef __UINTPTR_MIN__
 #undef __UINTPTR_MAX__
-
-#define __UINTPTR_TYPE__ unsigned long
-#define __UINTPTR_C(x) x ## UL
-#define __UINTPTR_MAX__ __ULONG_MAX__
-
 #undef __PRIdPTR__
 #undef __PRIiPTR__
 #undef __PRIuPTR__
 #undef __PRIoPTR__
 #undef __PRIxPTR__
 #undef __PRIXPTR__
+#undef __SCNdPTR__
+#undef __SCNiPTR__
+#undef __SCNuPTR__
+#undef __SCNoPTR__
+#undef __SCNxPTR__
+
+#ifdef __intptr_is_long__
+
+#define __INTPTR_TYPE__ long
+#define __INTPTR_MIN__ __LONG_MIN__
+#define __INTPTR_MAX__ __LONG_MAX__
+#define __UINTPTR_TYPE__ unsigned long
+#define __UINTPTR_MAX__ __ULONG_MAX__
 
 #define __PRIdPTR__ "ld"
 #define __PRIiPTR__ "li"
@@ -336,17 +337,37 @@
 #define __PRIxPTR__ "lx"
 #define __PRIXPTR__ "lX"
 
-#undef __SCNdPTR__
-#undef __SCNiPTR__
-#undef __SCNuPTR__
-#undef __SCNoPTR__
-#undef __SCNxPTR__
-
 #define __SCNdPTR__ "ld"
 #define __SCNiPTR__ "li"
 #define __SCNuPTR__ "lu"
 #define __SCNoPTR__ "lo"
 #define __SCNxPTR__ "lx"
+
+#else
+
+// Original definition results in size_t and uintptr_t always having the same
+// type. We keep this definition for the time being, to avoid unnecessary noise.
+
+#define __INTPTR_TYPE__ __PTRDIFF_TYPE__
+#define __INTPTR_MIN__ __PTRDIFF_MIN__
+#define __INTPTR_MAX__ __PTRDIFF_MAX__
+#define __UINTPTR_TYPE__ __SIZE_TYPE__
+#define __UINTPTR_MAX__ __SIZE_MAX__
+
+#define __PRIdPTR__ "zd"
+#define __PRIiPTR__ "zi"
+#define __PRIuPTR__ "zu"
+#define __PRIoPTR__ "zo"
+#define __PRIxPTR__ "zx"
+#define __PRIXPTR__ "zX"
+
+#define __SCNdPTR__ "zd"
+#define __SCNiPTR__ "zi"
+#define __SCNuPTR__ "zu"
+#define __SCNoPTR__ "zo"
+#define __SCNxPTR__ "zx"
+
+#endif
 
 #if __SIZEOF_LONG_LONG__ != 8
 #error "HelenOS expects long long that is 64 bits wide."
@@ -430,7 +451,11 @@
 #error "HelenOS expects __WCHAR_TYPE__ and __WCHAR_MAX__ to be defined by the toolchain."
 #endif
 
-#if __WCHAR_MAX__ != __INT32_MAX__
+#if __WCHAR_MAX__ == __INT32_MAX__
+#define __WCHAR_SIGNED__ 1
+#elif __WCHAR_MAX__ == __UINT32_MAX__
+#define __WCHAR_UNSIGNED__ 1
+#else
 #error "HelenOS expects __WCHAR_TYPE__ to be 32 bits wide."
 #endif
 
@@ -449,6 +474,15 @@
 
 #if __WINT_WIDTH__ != 32
 #error "HelenOS expects __WINT_TYPE__ to be 32 bits wide."
+#endif
+
+// for GCC
+#if __WINT_MAX__ == __INT32_MAX__
+#define __WINT_SIGNED__ 1
+#elif __WINT_MAX__ == __UINT32_MAX__
+#define __WINT_UNSIGNED__ 1
+#elif defined(__WINT_MAX__)
+#error "Unrecognized value of __WINT_MAX__"
 #endif
 
 #ifndef __WINT_MAX__

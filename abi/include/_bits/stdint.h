@@ -121,10 +121,6 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 #define UINTPTR_MIN __UINTPTR_C(0)
 #define UINTPTR_MAX __UINTPTR_MAX__
 
-#define INTPTR_C(x) __INTPTR_C(x)
-#define UINTPTR_C(x) __UINTPTR_C(x)
-
-
 
 typedef __INTMAX_TYPE__ intmax_t;
 typedef __UINTMAX_TYPE__ uintmax_t;
