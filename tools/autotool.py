@@ -495,6 +495,7 @@ def detect_sizes(probe):
 		macros.append({'oldmacro': probe[tag]['size'], 'newmacro': '__SIZEOF_%s__' % tag})
 		
 		if ('sname' in probe[tag]):
+			macros.append({'oldmacro': probe[tag]['size']*8, 'newmacro': '__%s_WIDTH__' % probe[tag]['sname']})
 			if (probe[tag]['sign'] == 'unsigned'):
 				macros.append({'oldmacro': "1", 'newmacro': '__%s_UNSIGNED__' % probe[tag]['sname']})
 			if (probe[tag]['sign'] == 'signed'):
