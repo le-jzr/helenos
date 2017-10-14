@@ -671,6 +671,7 @@ def main():
 				{'type': '__WINT_TYPE__', 'tag': 'WINT_T', 'def': '__WINT_TYPE__', 'sname': 'WINT' },
 				{'type': '__WCHAR_TYPE__', 'tag': 'WCHAR_T', 'def': '__WCHAR_TYPE__', 'sname': 'WCHAR' },
 				{'type': '__INTMAX_TYPE__', 'tag': 'INTMAX_T', 'def': '__INTMAX_TYPE__', 'sname': 'INTMAX' },
+				{'type': 'unsigned __INTMAX_TYPE__', 'tag': 'UINTMAX_T', 'def': '__INTMAX_TYPE__', 'sname': 'UINTMAX' },
 			]
 		)
 		
