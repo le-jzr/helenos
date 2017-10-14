@@ -447,6 +447,7 @@ def probe_compiler(common, typesizes):
 				
 				if (compatible_int == 1):
 					builtins[tag] = {
+						'tag': tag,
 						'name': name,
 						'sign': signedness,
 						'base': base,
@@ -489,19 +490,17 @@ def get_max(type):
 def detect_sizes(probe):
 	"Detect properties of builtin types"
 	
-	macros = []
+	macros = {}
 	
-	for tag in probe.keys():
-		macros.append({'oldmacro': probe[tag]['size'], 'newmacro': '__SIZEOF_%s__' % tag})
+	for type in probe.values():
+		macros['__SIZEOF_%s__' % type['tag']] = type['size']
 		
-		if ('sname' in probe[tag]):
-			macros.append({'oldmacro': probe[tag]['size']*8, 'newmacro': '__%s_WIDTH__' % probe[tag]['sname']})
-			if (probe[tag]['sign'] == 'unsigned'):
-				macros.append({'oldmacro': "1", 'newmacro': '__%s_UNSIGNED__' % probe[tag]['sname']})
-			if (probe[tag]['sign'] == 'signed'):
-				macros.append({'oldmacro': "1", 'newmacro': '__%s_SIGNED__' % probe[tag]['sname']})
-			macros.append({'oldmacro': "%s" % get_suffix(probe[tag]), 'newmacro': '__%s_C_SUFFIX__' % probe[tag]['sname']})
-			macros.append({'oldmacro': "%d%s" % (get_max(probe[tag]), get_suffix(probe[tag])), 'newmacro': '__%s_MAX__' % probe[tag]['sname']})
+		if ('sname' in type):
+			macros['__%s_TYPE__'  % type['sname']] = type['name']
+			macros['__%s_WIDTH__' % type['sname']] = type['size']*8
+			macros['__%s_%s__' % (type['sname'], type['sign'].upper())] = "1"
+			macros['__%s_C_SUFFIX__' % type['sname']] = get_suffix(type)
+			macros['__%s_MAX__' % type['sname']] = "%d%s" % (get_max(type), get_suffix(type))
 	
 	if (probe['SIZE_T']['sign'] != 'unsigned'):
 		print_error(['The type size_t is not unsigned.', COMPILER_FAIL])
@@ -539,10 +538,10 @@ def create_header(hdname, macros):
 	outhd.write('#ifndef %s\n' % GUARD)
 	outhd.write('#define %s\n\n' % GUARD)
 	
-	for macro in macros:
-		outhd.write('#ifndef %s\n' % macro['newmacro'])
-		outhd.write('#define %s  %s\n' % (macro['newmacro'], macro['oldmacro']))
-		outhd.write('#endif\n')
+	for macro in sorted(macros):
+		outhd.write('#ifndef %s\n' % macro)
+		outhd.write('#define %s  %s\n' % (macro, macros[macro]))
+		outhd.write('#endif\n\n')
 	
 	outhd.write('\n#endif\n')
 	outhd.close()
