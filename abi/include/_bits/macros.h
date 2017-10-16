@@ -451,6 +451,9 @@
 #error "HelenOS expects __WCHAR_TYPE__ and __WCHAR_MAX__ to be defined by the toolchain."
 #endif
 
+#undef __WCHAR_SIGNED__
+#undef __WCHAR_UNSIGNED__
+
 #if __WCHAR_MAX__ == __INT32_MAX__
 #define __WCHAR_SIGNED__ 1
 #elif __WCHAR_MAX__ == __UINT32_MAX__
@@ -475,6 +478,9 @@
 #if __WINT_WIDTH__ != 32
 #error "HelenOS expects __WINT_TYPE__ to be 32 bits wide."
 #endif
+
+#undef __WINT_SIGNED__
+#undef __WINT_UNSIGNED__
 
 // for GCC
 #if __WINT_MAX__ == __INT32_MAX__
