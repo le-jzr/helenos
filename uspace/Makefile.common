@@ -108,7 +108,7 @@ LIBC_PREFIX = $(LIB_PREFIX)/c
 LIBC_INCLUDES_FLAGS = \
 	-I$(LIBC_PREFIX)/include \
 	-I$(LIBC_PREFIX)/arch/$(UARCH)/include \
-	-I$(ROOT_PATH)/abi/include
+	-I$(ROOT_PATH)/common/include
 LIBSOFTFLOAT_PREFIX = $(LIB_PREFIX)/softfloat
 LIBSOFTINT_PREFIX = $(LIB_PREFIX)/softint
 
