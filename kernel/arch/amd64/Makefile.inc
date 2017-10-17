@@ -26,23 +26,6 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-BFD_NAME = elf64-x86-64
-BFD_ARCH = i386:x86-64
-BFD = binary
-
-FPU_NO_CFLAGS = -mno-sse -mno-sse2
-COMMON_CFLAGS += -m64 -mcmodel=$(MEMORY_MODEL) -mno-red-zone -fno-unwind-tables -fno-omit-frame-pointer
-
-BITS = 64
-ENDIANESS = LE
-
-## Accepted CPUs
-#
-
-ifeq ($(PROCESSOR),opteron)
-	COMMON_CFLAGS += -march=opteron
-endif
-
 ARCH_SOURCES = \
 	arch/$(KARCH)/src/fpu_context.c \
 	arch/$(KARCH)/src/boot/multiboot.S \

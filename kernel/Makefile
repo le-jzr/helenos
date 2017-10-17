@@ -30,19 +30,9 @@
 #
 
 ROOT_PATH = ..
+SUBSYSTEM = kernel
 
-VERSION_DEF = $(ROOT_PATH)/version
-
-COMMON_MAKEFILE = $(ROOT_PATH)/Makefile.common
-COMMON_HEADER = $(ROOT_PATH)/common.h
-COMMON_HEADER_ARCH = arch/$(KARCH)/include/arch/common.h
-
-CONFIG_MAKEFILE = $(ROOT_PATH)/Makefile.config
-CONFIG_HEADER = $(ROOT_PATH)/config.h
-
--include $(VERSION_DEF)
--include $(COMMON_MAKEFILE)
--include $(CONFIG_MAKEFILE)
+include $(ROOT_PATH)/common/Makefile.common
 
 ## Common names
 #
@@ -68,7 +58,7 @@ SIZEOK_MAP = generic/src/debug/sizeok_map.o
 
 .PHONY: all clean autogen_clean
 
-all: $(VERSION_DEF) $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(BIN) $(DISASM)
+all: $(VERSION_DEF) $(COMMON_MAKEFILE) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(BIN) $(DISASM)
 	-[ -f $(DEPEND) ] && cp -a $(DEPEND) $(DEPEND_PREV)
 
 clean: autogen_clean
@@ -78,42 +68,19 @@ clean: autogen_clean
 ## Common compiler flags
 #
 
-INCLUDES = generic/include genarch/include arch/$(KARCH)/include ../common/include
-INCLUDES_FLAGS = $(addprefix -I,$(INCLUDES))
+INCLUDES += generic/include genarch/include arch/$(KARCH)/include
 
-DEFS = -DKERNEL -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)" -D__$(BITS)_BITS__ -D__$(ENDIANESS)__
+DEFS += -DKERNEL -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)"
 
-COMMON_CFLAGS = $(INCLUDES_FLAGS) -O$(OPTIMIZATION) -imacros $(CONFIG_HEADER) \
-	-ffreestanding -fno-builtin -nostdlib -nostdinc \
-	-fexec-charset=UTF-8 -finput-charset=UTF-8
-
-GCC_CFLAGS = -std=gnu99 -Wall -Wextra -Wno-unused-parameter \
-	-Wmissing-prototypes -Werror-implicit-function-declaration \
-	-Wwrite-strings -pipe
-
-CLANG_CFLAGS = -std=gnu99 -Wall -Wextra -Wno-unused-parameter \
-	-Wno-missing-field-initializers -Wno-unused-command-line-argument \
-	-Wmissing-prototypes -Werror-implicit-function-declaration \
-	-Wwrite-strings -pipe -fno-stack-protector -fno-PIC
-
-ifeq ($(CONFIG_DEBUG),y)
-	COMMON_CFLAGS += -Werror
-endif
-
-ifeq ($(CONFIG_LTO),y)
-	COMMON_CFLAGS += -flto
-endif
-
-ifeq ($(CONFIG_LINE_DEBUG),y)
-	COMMON_CFLAGS += -g
-endif
+CFLAGS += -ffreestanding -fno-builtin -nostdlib -nostdinc -fno-stack-protector -fno-PIC
 
 #
 # Mind the mutual ordering with the inclusion of the arch Makefile.inc.
 # AFLAGS and LFLAGS must be initialized before the inclusion.
 #
-AFLAGS =
-LFLAGS = -n -T $(LINK) -M --fatal-warnings
+
+AFLAGS +=
+LFLAGS += -n -T $(LINK) -M
 
 # FIXME: This condition is a workaround for issues #693 and #694.
 ifneq ($(KARCH),sparc64)
@@ -151,30 +118,7 @@ SYMTAB_SECTION = .section symtab.data, \"a\", $(ATSIGN)progbits;
 ## Compilation options
 #
 
-ifeq ($(COMPILER),gcc_native)
-	CFLAGS = $(COMMON_CFLAGS) $(GCC_CFLAGS)
-	DEPEND_DEFS = $(DEFS) $(CONFIG_DEFS)
-	INSTRUMENTATION = -finstrument-functions
-endif
-
-ifeq ($(COMPILER),gcc_cross)
-	CFLAGS = $(COMMON_CFLAGS) $(GCC_CFLAGS)
-	DEPEND_DEFS = $(DEFS) $(CONFIG_DEFS)
-	INSTRUMENTATION = -finstrument-functions
-endif
-
-ifeq ($(COMPILER),gcc_helenos)
-	CFLAGS = $(COMMON_CFLAGS) $(GCC_CFLAGS)
-	DEPEND_DEFS = $(DEFS) $(CONFIG_DEFS)
-	INSTRUMENTATION = -finstrument-functions
-endif
-
-ifeq ($(COMPILER),clang)
-	CFLAGS = $(COMMON_CFLAGS) $(CLANG_CFLAGS)
-	DEPEND_DEFS = $(DEFS) $(CONFIG_DEFS)
-	INSTRUMENTATION = -finstrument-functions
-endif
-
+INSTRUMENTATION = -finstrument-functions
 
 ## Generic kernel sources
 #
@@ -374,13 +318,6 @@ ARCH_AUTOGENS_PROBE_S := $(addsuffix .ag.probe.s,$(basename $(ARCH_AUTOGENS_AG))
 AUTOGENS_H := $(ARCH_AUTOGENS_H) $(GENARCH_AUTOGENS_H)
 AUTOGENS_AG := $(ARCH_AUTOGENS_AG) $(GENARCH_AUTOGENS_AG)
 
-AS_CFLAGS := $(addprefix -Xassembler ,$(AFLAGS))
-LD_CFLAGS := $(addprefix -Xlinker ,$(LFLAGS))
-
-ifeq ($(COMPILER),clang)
-	AS_CFLAGS += -mllvm -asm-macro-max-nesting-depth=1000
-endif
-
 ifeq ($(CONFIG_SYMTAB),y)
 	SYMTAB_OBJECTS := generic/src/debug/real_map.o
 else
@@ -418,19 +355,19 @@ $(LINK): $(LINK).in $(DEPEND)
 %.o: %.S $(DEPEND)
 	$(CC) $(DEFS) $(CFLAGS) $(AS_CFLAGS) -D__ASM__ -c -o $@ $<
 ifeq ($(PRECHECK),y)
-	$(JOBFILE) $(JOB) $< $@ as asm/preproc $(DEFS) $(CFLAGS) -D__ASM__
+	$(JOBFILE) $(JOB) $< $@ as asm/preproc $(DEFS) $(CFLAGS) $(AS_CFLAGS) -D__ASM__
 endif
 
 %.o: %.s $(DEPEND)
 	$(CC) $(DEFS) $(CFLAGS) $(AS_CFLAGS) -D__ASM__ -c -o $@ $<
 ifeq ($(PRECHECK),y)
-	$(JOBFILE) $(JOB) $< $@ as asm $(DEFS) $(CFLAGS) $(EXTRA_FLAGS)
+	$(JOBFILE) $(JOB) $< $@ as asm $(DEFS) $(CFLAGS) $(AS_CFLAGS)
 endif
 
 %.o: %.c $(DEPEND)
-	$(CC) $(DEFS) $(CFLAGS) $(EXTRA_FLAGS) $(FPU_NO_CFLAGS) $(if $(findstring $<,$(INSTRUMENTED_SOURCES)),$(INSTRUMENTATION)) -c -o $@ $<
+	$(CC) $(DEFS) $(CFLAGS) $(FPU_NO_CFLAGS) $(if $(findstring $<,$(INSTRUMENTED_SOURCES)),$(INSTRUMENTATION)) -c -o $@ $<
 ifeq ($(PRECHECK),y)
-	$(JOBFILE) $(JOB) $< $@ cc core $(DEFS) $(CFLAGS) $(EXTRA_FLAGS) $(FPU_NO_CFLAGS)
+	$(JOBFILE) $(JOB) $< $@ cc core $(DEFS) $(CFLAGS) $(FPU_NO_CFLAGS)
 endif
 
 $(REAL_MAP).o: $(REAL_MAP).bin
@@ -445,7 +382,7 @@ else
 endif
 	$(OBJDUMP) -t $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) > $(DUMP)
 	$(GENMAP) $(MAP_PREV) $(DUMP) $@
-	
+
 	# Do it once again, this time to get correct even the symbols
 	# on architectures that have bss after symtab
 	
