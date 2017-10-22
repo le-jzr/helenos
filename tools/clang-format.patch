@@ -1,0 +1,498 @@
+Index: docs/ClangFormatStyleOptions.rst
+===================================================================
+--- docs/ClangFormatStyleOptions.rst	(revision 316099)
++++ docs/ClangFormatStyleOptions.rst	(working copy)
+@@ -185,6 +185,20 @@
+ 
+ 
+ 
++**AlignConsecutiveMacros** (``bool``)
++  If ``true``, aligns consecutive C/C++ preprocessor macros.
++
++  This will align the C/C++ preprocessor macros of consecutive lines. This
++  will result in formattings like
++
++  .. code-block:: c++
++
++    #define SHORT_NAME       42
++    #define LONGER_NAME      0x007f
++    #define EVEN_LONGER_NAME (2)
++    #define foo(x)           (x * x)
++    #define bar(y, z)        (y + z)
++
+ **AlignConsecutiveAssignments** (``bool``)
+   If ``true``, aligns consecutive assignments.
+ 
+Index: include/clang/Format/Format.h
+===================================================================
+--- include/clang/Format/Format.h	(revision 316099)
++++ include/clang/Format/Format.h	(working copy)
+@@ -76,6 +76,19 @@
+   /// brackets.
+   BracketAlignmentStyle AlignAfterOpenBracket;
+ 
++  /// \brief If ``true``, aligns consecutive C/C++ preprocessor macros.
++  ///
++  /// This will align C/C++ preprocessor macros of consecutive lines.
++  /// Will result in formattings like
++  /// \code
++  ///   #define SHORT_NAME       42
++  ///   #define LONGER_NAME      0x007f
++  ///   #define EVEN_LONGER_NAME (2)
++  ///   #define foo(x)           (x * x)
++  ///   #define bar(y, z)        (y + z)
++  /// \endcode
++  bool AlignConsecutiveMacros;
++
+   /// \brief If ``true``, aligns consecutive assignments.
+   ///
+   /// This will align the assignment operators of consecutive lines. This
+Index: lib/Format/ContinuationIndenter.cpp
+===================================================================
+--- lib/Format/ContinuationIndenter.cpp	(revision 316099)
++++ lib/Format/ContinuationIndenter.cpp	(working copy)
+@@ -389,6 +389,29 @@
+       State.Stack.back().LastSpace = State.Stack.back().VariablePos;
+   }
+ 
++  if (!Current.is(tok::l_paren)) {
++    if (Current.Previous && Current.Previous->is(tok::identifier)) {
++      if (Current.Previous->Previous && Current.Previous->Previous->is(tok::pp_define)) {
++        ExtraSpaces += 1;
++      }
++    }
++  }
++  
++  if (Current.Previous && Current.Previous->is(tok::r_paren) && Current.Previous->MatchingParen) {
++    auto mparen = Current.Previous->MatchingParen;
++    if (mparen->Previous && mparen->Previous->is(tok::identifier)) {
++      if (mparen->Previous->Previous && mparen->Previous->Previous->is(tok::pp_define)) {
++        ExtraSpaces += 1;
++      }
++    }
++  }
++  
++  /*
++  if (Current->is(tok::r_paren) && Current->MatchingParen) {
++                  Current = Current->MatchingParen->Previous;
++                  SpacesRequiredBefore = 0;
++                }*/
++
+   unsigned Spaces = Current.SpacesRequiredBefore + ExtraSpaces;
+ 
+   // Indent preprocessor directives after the hash if required.
+Index: lib/Format/Format.cpp
+===================================================================
+--- lib/Format/Format.cpp	(revision 316099)
++++ lib/Format/Format.cpp	(working copy)
+@@ -278,6 +278,7 @@
+ 
+     IO.mapOptional("AccessModifierOffset", Style.AccessModifierOffset);
+     IO.mapOptional("AlignAfterOpenBracket", Style.AlignAfterOpenBracket);
++    IO.mapOptional("AlignConsecutiveMacros", Style.AlignConsecutiveMacros);
+     IO.mapOptional("AlignConsecutiveAssignments",
+                    Style.AlignConsecutiveAssignments);
+     IO.mapOptional("AlignConsecutiveDeclarations",
+@@ -562,6 +563,7 @@
+   LLVMStyle.AlignAfterOpenBracket = FormatStyle::BAS_Align;
+   LLVMStyle.AlignOperands = true;
+   LLVMStyle.AlignTrailingComments = true;
++  LLVMStyle.AlignConsecutiveMacros = false;
+   LLVMStyle.AlignConsecutiveAssignments = false;
+   LLVMStyle.AlignConsecutiveDeclarations = false;
+   LLVMStyle.AllowAllParametersOfDeclarationOnNextLine = true;
+Index: lib/Format/FormatToken.cpp
+===================================================================
+--- lib/Format/FormatToken.cpp	(revision 316099)
++++ lib/Format/FormatToken.cpp	(working copy)
+@@ -123,7 +123,7 @@
+       Column = 0;
+       NewLine = true;
+     }
+-
++    
+     // Place token using the continuation indenter and store the penalty.
+     Penalty += Indenter->addTokenToState(State, NewLine, DryRun, ExtraSpaces);
+   }
+Index: lib/Format/TokenAnnotator.cpp
+===================================================================
+--- lib/Format/TokenAnnotator.cpp	(revision 316099)
++++ lib/Format/TokenAnnotator.cpp	(working copy)
+@@ -1895,6 +1895,7 @@
+   FormatToken *Current = Line.First->Next;
+   bool InFunctionDecl = Line.MightBeFunctionDecl;
+   while (Current) {
++    
+     if (isFunctionDeclarationName(*Current, Line))
+       Current->Type = TT_FunctionDeclarationName;
+     if (Current->is(TT_LineComment)) {
+@@ -1924,11 +1925,13 @@
+           }
+         }
+       }
++    } else if (Current->is(TT_BlockComment)) {
++      Current->SpacesRequiredBefore = Style.SpacesBeforeTrailingComments;
+     } else if (Current->SpacesRequiredBefore == 0 &&
+                spaceRequiredBefore(Line, *Current)) {
+       Current->SpacesRequiredBefore = 1;
+     }
+-
++    
+     Current->MustBreakBefore =
+         Current->MustBreakBefore || mustBreakBefore(Line, *Current);
+ 
+Index: lib/Format/UnwrappedLineFormatter.cpp
+===================================================================
+--- lib/Format/UnwrappedLineFormatter.cpp	(revision 316099)
++++ lib/Format/UnwrappedLineFormatter.cpp	(working copy)
+@@ -196,7 +196,7 @@
+     if (I[1]->Type == LT_Invalid || I[1]->First->MustBreakBefore)
+       return 0;
+     if (TheLine->InPPDirective &&
+-        (!I[1]->InPPDirective || I[1]->First->HasUnescapedNewline))
++        (!I[1]->InPPDirective || I[1]->First->NewlinesBefore > 0))
+       return 0;
+ 
+     if (Style.ColumnLimit > 0 && Indent > Style.ColumnLimit)
+Index: lib/Format/WhitespaceManager.cpp
+===================================================================
+--- lib/Format/WhitespaceManager.cpp	(revision 316099)
++++ lib/Format/WhitespaceManager.cpp	(working copy)
+@@ -87,6 +87,7 @@
+ 
+   std::sort(Changes.begin(), Changes.end(), Change::IsBeforeInFile(SourceMgr));
+   calculateLineBreakInformation();
++  alignConsecutiveMacros();
+   alignConsecutiveDeclarations();
+   alignConsecutiveAssignments();
+   alignTrailingComments();
+@@ -227,7 +228,8 @@
+ template <typename F>
+ static void
+ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
+-                   SmallVector<WhitespaceManager::Change, 16> &Changes) {
++                   SmallVector<WhitespaceManager::Change, 16> &Changes,
++                   bool IgnoreScopeAndCommas) {
+   bool FoundMatchOnLine = false;
+   int Shift = 0;
+ 
+@@ -245,18 +247,20 @@
+   SmallVector<unsigned, 16> ScopeStack;
+ 
+   for (unsigned i = Start; i != End; ++i) {
+-    if (ScopeStack.size() != 0 &&
++    if (!IgnoreScopeAndCommas && ScopeStack.size() != 0 &&
+         Changes[i].indentAndNestingLevel() <
+             Changes[ScopeStack.back()].indentAndNestingLevel())
+       ScopeStack.pop_back();
+ 
+-    if (i != Start && Changes[i].indentAndNestingLevel() >
+-                          Changes[i - 1].indentAndNestingLevel())
++    if (!IgnoreScopeAndCommas && i != Start &&
++        Changes[i].indentAndNestingLevel() >
++            Changes[i - 1].indentAndNestingLevel())
+       ScopeStack.push_back(i);
+ 
+     bool InsideNestedScope = ScopeStack.size() != 0;
+ 
+-    if (Changes[i].NewlinesBefore > 0 && !InsideNestedScope) {
++    if (Changes[i].NewlinesBefore > 0 &&
++        (!InsideNestedScope || IgnoreScopeAndCommas)) {
+       Shift = 0;
+       FoundMatchOnLine = false;
+     }
+@@ -264,7 +268,8 @@
+     // If this is the first matching token to be aligned, remember by how many
+     // spaces it has to be shifted, so the rest of the changes on the line are
+     // shifted by the same amount
+-    if (!FoundMatchOnLine && !InsideNestedScope && Matches(Changes[i])) {
++    if (!FoundMatchOnLine && (IgnoreScopeAndCommas || !InsideNestedScope) &&
++        Matches(Changes[i])) {
+       FoundMatchOnLine = true;
+       Shift = Column - Changes[i].StartOfTokenColumn;
+       Changes[i].Spaces += Shift;
+@@ -317,7 +322,7 @@
+ template <typename F>
+ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
+                             SmallVector<WhitespaceManager::Change, 16> &Changes,
+-                            unsigned StartAt) {
++                            bool IgnoreScopeAndCommas, unsigned StartAt) {
+   unsigned MinColumn = 0;
+   unsigned MaxColumn = UINT_MAX;
+ 
+@@ -331,9 +336,9 @@
+                                    ? Changes[StartAt].indentAndNestingLevel()
+                                    : std::pair<unsigned, unsigned>(0, 0);
+ 
+-  // Keep track of the number of commas before the matching tokens, we will only
+-  // align a sequence of matching tokens if they are preceded by the same number
+-  // of commas.
++  // Keep track of the number of commas before the matching tokens. If
++  // IgnoreScopeAndCommas is false, we will only align a sequence of matching
++  // tokens if they are preceded by the same number of commas.
+   unsigned CommasBeforeLastMatch = 0;
+   unsigned CommasBeforeMatch = 0;
+ 
+@@ -350,7 +355,7 @@
+   auto AlignCurrentSequence = [&] {
+     if (StartOfSequence > 0 && StartOfSequence < EndOfSequence)
+       AlignTokenSequence(StartOfSequence, EndOfSequence, MinColumn, Matches,
+-                         Changes);
++                         Changes, IgnoreScopeAndCommas);
+     MinColumn = 0;
+     MaxColumn = UINT_MAX;
+     StartOfSequence = 0;
+@@ -375,9 +380,11 @@
+ 
+     if (Changes[i].Tok->is(tok::comma)) {
+       ++CommasBeforeMatch;
+-    } else if (Changes[i].indentAndNestingLevel() > IndentAndNestingLevel) {
++    } else if (!IgnoreScopeAndCommas &&
++               (Changes[i].indentAndNestingLevel() > IndentAndNestingLevel)) {
+       // Call AlignTokens recursively, skipping over this scope block.
+-      unsigned StoppedAt = AlignTokens(Style, Matches, Changes, i);
++      unsigned StoppedAt =
++          AlignTokens(Style, Matches, Changes, IgnoreScopeAndCommas, i);
+       i = StoppedAt - 1;
+       continue;
+     }
+@@ -387,12 +394,12 @@
+ 
+     // If there is more than one matching token per line, or if the number of
+     // preceding commas, do not match anymore, end the sequence.
+-    if (FoundMatchOnLine || CommasBeforeMatch != CommasBeforeLastMatch)
++    if (FoundMatchOnLine ||
++        (!IgnoreScopeAndCommas && (CommasBeforeMatch != CommasBeforeLastMatch)))
+       AlignCurrentSequence();
+ 
+     CommasBeforeLastMatch = CommasBeforeMatch;
+     FoundMatchOnLine = true;
+-
+     if (StartOfSequence == 0)
+       StartOfSequence = i;
+ 
+@@ -404,7 +411,8 @@
+ 
+     // If we are restricted by the maximum column width, end the sequence.
+     if (ChangeMinColumn > MaxColumn || ChangeMaxColumn < MinColumn ||
+-        CommasBeforeLastMatch != CommasBeforeMatch) {
++        (!IgnoreScopeAndCommas &&
++         (CommasBeforeLastMatch != CommasBeforeMatch))) {
+       AlignCurrentSequence();
+       StartOfSequence = i;
+     }
+@@ -418,6 +426,52 @@
+   return i;
+ }
+ 
++void WhitespaceManager::alignConsecutiveMacros() {
++  if (!Style.AlignConsecutiveMacros)
++    return;
++
++  AlignTokens(Style,
++              [&](const Change &C) {
++                const FormatToken *Current = C.Tok;
++                unsigned SpacesRequiredBefore = 1;
++
++                if (Current->SpacesRequiredBefore == 0 || !Current->Previous)
++                  return false;
++
++                Current = Current->Previous;
++
++                // If token is a ")", skip over the parameter list, to the
++                // token that precedes the "("
++                if (Current->is(tok::r_paren) && Current->MatchingParen) {
++                  Current = Current->MatchingParen->Previous;
++                  SpacesRequiredBefore = 0;
++                }
++
++                if (!Current || !Current->is(tok::identifier))
++                  return false;
++
++                if (!Current->Previous ||
++                    !Current->Previous->is(tok::pp_define))
++                  return false;
++
++                // For a macro function, 0 spaces are required between the
++                // identifier and the lparen that opens the parameter list.
++                // For a simple macro, 1 space is required between the
++                // identifier and the first token of the defined value.
++                return Current->Next->SpacesRequiredBefore ==
++                       SpacesRequiredBefore;
++              },
++
++              // Special case for AlignTokens: for all other alignment cases,
++              // the current sequence is ended when a comma or a scope change
++              // is encountered. This won't work for PP macros, since we need
++              // function-like macros and simple macros with
++              // parenthesis-enclosed values to be aligned in the same
++              // sequence. Setting IgnoreScopeAndCommas true prevents a scope
++              // change or a comma from ending the current sequence.
++              Changes, /*IgnoreScopeAndCommas=*/true, /*StartAt=*/0);
++}
++
+ void WhitespaceManager::alignConsecutiveAssignments() {
+   if (!Style.AlignConsecutiveAssignments)
+     return;
+@@ -434,7 +488,12 @@
+ 
+                 return C.Tok->is(tok::equal);
+               },
+-              Changes, /*StartAt=*/0);
++              Changes, /*IgnoreScopeAndCommas=*/false, /*StartAt=*/0);
++         
++  for (unsigned i = 0, e = Changes.size(); i != e; ++i) {
++    Changes[i].Spaces += 2;
++    Changes[i].StartOfTokenColumn -= 2;
++  }
+ }
+ 
+ void WhitespaceManager::alignConsecutiveDeclarations() {
+@@ -455,7 +514,7 @@
+                        C.Tok->is(TT_FunctionDeclarationName) ||
+                        C.Tok->is(tok::kw_operator);
+               },
+-              Changes, /*StartAt=*/0);
++              Changes, /*IgnoreScopeAndCommas=*/false, /*StartAt=*/0);
+ }
+ 
+ void WhitespaceManager::alignTrailingComments() {
+Index: lib/Format/WhitespaceManager.h
+===================================================================
+--- lib/Format/WhitespaceManager.h	(revision 316099)
++++ lib/Format/WhitespaceManager.h	(working copy)
+@@ -168,6 +168,9 @@
+   /// \c EscapedNewlineColumn for the first tokens or token parts in a line.
+   void calculateLineBreakInformation();
+ 
++  /// \brief Align consecutive C/C++ preprocessor macros over all \c Changes.
++  void alignConsecutiveMacros();
++
+   /// \brief Align consecutive assignments over all \c Changes.
+   void alignConsecutiveAssignments();
+ 
+Index: unittests/Format/FormatTest.cpp
+===================================================================
+--- unittests/Format/FormatTest.cpp	(revision 316099)
++++ unittests/Format/FormatTest.cpp	(working copy)
+@@ -8794,8 +8794,104 @@
+   verifyFormat("a or_eq 8;", Spaces);
+ }
+ 
++TEST_F(FormatTest, AlignConsecutiveMacros) {
++  FormatStyle Style = getLLVMStyle();
++  Style.AlignConsecutiveAssignments = true;
++  Style.AlignConsecutiveDeclarations = true;
++  Style.AlignConsecutiveMacros = false;
++
++  verifyFormat("#define a 3\n"
++               "#define bbbb 4\n"
++               "#define ccc (5)",
++               Style);
++
++  verifyFormat("#define f(x) (x * x)\n"
++               "#define fff(x, y, z) (x * y + z)\n"
++               "#define ffff(x, y) (x - y)",
++               Style);
++
++  verifyFormat("#define foo(x, y) (x + y)\n"
++               "#define bar (5, 6)(2 + 2)",
++               Style);
++
++  verifyFormat("#define a 3\n"
++               "#define bbbb 4\n"
++               "#define ccc (5)\n"
++               "#define f(x) (x * x)\n"
++               "#define fff(x, y, z) (x * y + z)\n"
++               "#define ffff(x, y) (x - y)",
++               Style);
++
++  Style.AlignConsecutiveMacros = true;
++  verifyFormat("#define a    3\n"
++               "#define bbbb 4\n"
++               "#define ccc  (5)",
++               Style);
++
++  verifyFormat("#define f(x)         (x * x)\n"
++               "#define fff(x, y, z) (x * y + z)\n"
++               "#define ffff(x, y)   (x - y)",
++               Style);
++
++  verifyFormat("#define foo(x, y) (x + y)\n"
++               "#define bar       (5, 6)(2 + 2)",
++               Style);
++
++  verifyFormat("#define a            3\n"
++               "#define bbbb         4\n"
++               "#define ccc          (5)\n"
++               "#define f(x)         (x * x)\n"
++               "#define fff(x, y, z) (x * y + z)\n"
++               "#define ffff(x, y)   (x - y)",
++               Style);
++
++  verifyFormat("#define a         5\n"
++               "#define foo(x, y) (x + y)\n"
++               "#define CCC       (6)\n"
++               "auto lambda = []() {\n"
++               "  auto  ii = 0;\n"
++               "  float j  = 0;\n"
++               "  return 0;\n"
++               "};\n"
++               "int   i  = 0;\n"
++               "float i2 = 0;\n"
++               "auto  v  = type{\n"
++               "    i = 1,   //\n"
++               "    (i = 2), //\n"
++               "    i = 3    //\n"
++               "};",
++               Style);
++
++  Style.AlignConsecutiveMacros = false;
++  Style.ColumnLimit = 20;
++
++  verifyFormat("#define a          \\\n"
++               "  \"aabbbbbbbbbbbb\"\n"
++               "#define D          \\\n"
++               "  \"aabbbbbbbbbbbb\" \\\n"
++               "  \"ccddeeeeeeeee\"\n"
++               "#define B          \\\n"
++               "  \"QQQQQQQQQQQQQ\"  \\\n"
++               "  \"FFFFFFFFFFFFF\"  \\\n"
++               "  \"LLLLLLLL\"\n",
++               Style);
++
++  Style.AlignConsecutiveMacros = true;
++  verifyFormat("#define a          \\\n"
++               "  \"aabbbbbbbbbbbb\"\n"
++               "#define D          \\\n"
++               "  \"aabbbbbbbbbbbb\" \\\n"
++               "  \"ccddeeeeeeeee\"\n"
++               "#define B          \\\n"
++               "  \"QQQQQQQQQQQQQ\"  \\\n"
++               "  \"FFFFFFFFFFFFF\"  \\\n"
++               "  \"LLLLLLLL\"\n",
++               Style);
++}
++
+ TEST_F(FormatTest, AlignConsecutiveAssignments) {
+   FormatStyle Alignment = getLLVMStyle();
++  Alignment.AlignConsecutiveMacros = true;
+   Alignment.AlignConsecutiveAssignments = false;
+   verifyFormat("int a = 5;\n"
+                "int oneTwoThree = 123;",
+@@ -8985,6 +9081,7 @@
+ 
+ TEST_F(FormatTest, AlignConsecutiveDeclarations) {
+   FormatStyle Alignment = getLLVMStyle();
++  Alignment.AlignConsecutiveMacros = true;
+   Alignment.AlignConsecutiveDeclarations = false;
+   verifyFormat("float const a = 5;\n"
+                "int oneTwoThree = 123;",
+@@ -9991,6 +10088,7 @@
+   Style.Language = FormatStyle::LK_Cpp;
+   CHECK_PARSE_BOOL(AlignOperands);
+   CHECK_PARSE_BOOL(AlignTrailingComments);
++  CHECK_PARSE_BOOL(AlignConsecutiveMacros);
+   CHECK_PARSE_BOOL(AlignConsecutiveAssignments);
+   CHECK_PARSE_BOOL(AlignConsecutiveDeclarations);
+   CHECK_PARSE_BOOL(AllowAllParametersOfDeclarationOnNextLine);
