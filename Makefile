@@ -30,8 +30,8 @@
 .NOTPARALLEL:
 
 CCHECK = tools/sycek/ccheck
-CSCOPE = cscope
-FORMAT = clang-format
+CSCOPE ?= cscope
+FORMAT ?= clang-format
 CHECK = tools/check.sh
 CONFIG = tools/config.py
 AUTOTOOL = tools/autotool.py
