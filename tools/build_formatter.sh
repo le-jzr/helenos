@@ -30,20 +30,21 @@
 
 # Author: Jiří Zárevúcky <zarevucky.jiri@gmail.com>
 
-LLVM_REV="316099"
+LLVM_REV="316100"
 SCRIPT_PATH=`which $0`
 SCRIPT_DIR=`dirname "${SCRIPT_PATH}"`
 
-mkdir clangbuild
+mkdir -p clangbuild
 cd clangbuild
 svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm -r "${LLVM_REV}"
 cd llvm/tools
+svn revert -R clang
 svn co http://llvm.org/svn/llvm-project/cfe/trunk clang -r "${LLVM_REV}"
 cd clang
-svn patch "${SCRIPT_DIR}/clang-format.patch"
-cd ../../..
-mkdir build
-cd build
-cmake -G "Ninja" ../llvm
+svn patch "${SCRIPT_DIR}/clang-format.patch" && \
+cd ../../.. && \
+mkdir -p build && \
+cd build && \
+cmake -G "Ninja" ../llvm && \
 ninja bin/clang-format
 
