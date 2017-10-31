@@ -47,31 +47,27 @@ CONFIG_HEADER = $(ROOT_PATH)/config.h
 ## Common names
 #
 
-AGDEPEND = Makefile.ag.depend
 RAW = kernel.raw
 BIN = kernel.bin
-MAP = kernel.map
 JOB = kernel.job
-MAP_PREV = $(MAP).prev
 DISASM = kernel.disasm
 DUMP = kernel.dump
+EMPTY_MAP = generic/src/debug/empty_map
+SIZEOK_MAP = generic/src/debug/sizeok_map
 REAL_MAP = generic/src/debug/real_map
 
 GENMAP = tools/genmap.py
 JOBFILE = $(ROOT_PATH)/tools/jobfile.py
 
 LINK = arch/$(KARCH)/_link.ld
-EMPTY_MAP = generic/src/debug/empty_map.o
-SIZEOK_MAP = generic/src/debug/sizeok_map.o
 
-.PHONY: all clean autogen_clean depend
+.PHONY: all clean
 
-all: $(VERSION_DEF) $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(BIN) $(DISASM)
+all: build.ninja
+	ninja
 
-clean: autogen_clean
-	rm -f $(RAW) $(BIN) $(MAP) $(JOB) $(MAP_PREV) $(DISASM) $(DUMP) $(REAL_MAP).* arch/*/_link.ld arch/*/include/arch/common.h
-	find generic/src/ arch/*/src/ genarch/src/ test/ -name '*.o' -follow -exec rm '{}' \;
-	find generic/src/ arch/*/src/ genarch/src/ test/ -name '*.d' -follow -exec rm '{}' \;
+clean:
+	ninja -t clean
 
 ## Common compiler flags
 #
@@ -127,7 +123,6 @@ endif
 #
 -include arch/$(KARCH)/Makefile.inc
 -include genarch/Makefile.inc
--include $(AGDEPEND)
 
 ## The at-sign
 #
@@ -340,127 +335,102 @@ else
 	INSTRUMENTED_SOURCES =
 endif
 
-GENERIC_OBJECTS := $(addsuffix .o,$(basename $(GENERIC_SOURCES)))
-ARCH_OBJECTS := $(addsuffix .o,$(basename $(ARCH_SOURCES)))
-GENARCH_OBJECTS := $(addsuffix .o,$(basename $(GENARCH_SOURCES)))
-
-GENERIC_DEPENDS := $(addsuffix .d,$(basename $(GENERIC_SOURCES)))
-ARCH_DEPENDS := $(addsuffix .d,$(basename $(ARCH_SOURCES)))
-GENARCH_DEPENDS := $(addsuffix .d,$(basename $(GENARCH_SOURCES)))
-
-GENARCH_AUTOGENS_H := $(addsuffix .h,$(basename $(GENARCH_AUTOGENS_AG)))
-GENARCH_AUTOGENS_PROBE_C := $(addsuffix .ag.probe.c,$(basename $(GENARCH_AUTOGENS_AG)))
-GENARCH_AUTOGENS_PROBE_S := $(addsuffix .ag.probe.s,$(basename $(GENARCH_AUTOGENS_AG)))
-
-ARCH_AUTOGENS_H := $(addsuffix .h,$(basename $(ARCH_AUTOGENS_AG)))
-ARCH_AUTOGENS_PROBE_C := $(addsuffix .ag.probe.c,$(basename $(ARCH_AUTOGENS_AG)))
-ARCH_AUTOGENS_PROBE_S := $(addsuffix .ag.probe.s,$(basename $(ARCH_AUTOGENS_AG)))
-
-AUTOGENS_H := $(ARCH_AUTOGENS_H) $(GENARCH_AUTOGENS_H)
 AUTOGENS_AG := $(ARCH_AUTOGENS_AG) $(GENARCH_AUTOGENS_AG)
 
 AS_CFLAGS := $(addprefix -Xassembler ,$(AFLAGS))
-LD_CFLAGS := $(addprefix -Xlinker ,$(LFLAGS))
-
--include $(GENERIC_DEPENDS)
--include $(ARCH_DEPENDS)
--include $(GENARCH_DEPENDS)
+LD_CFLAGS :=
 
 ifeq ($(COMPILER),clang)
 	AS_CFLAGS += -mllvm -asm-macro-max-nesting-depth=1000
 endif
 
 ifeq ($(CONFIG_SYMTAB),y)
-	SYMTAB_OBJECTS := generic/src/debug/real_map.o
+	SYMTAB_OBJECTS := $(REAL_MAP).o
 else
 	SYMTAB_OBJECTS :=
 endif
 
-$(BIN): $(RAW)
-	$(OBJCOPY) -O $(BFD) $< $@
+ALL_MAKEFILES = Makefile $(VERSION_DEF) $(COMMON_MAKEFILE) $(CONFIG_MAKEFILE) arch/$(KARCH)/Makefile.inc genarch/Makefile.inc
 
-$(DISASM): $(RAW)
-ifeq ($(CONFIG_LINE_DEBUG),y)
-	$(OBJDUMP) -d -S $< > $@
-else
-	$(OBJDUMP) -d $< > $@
-endif
-
-$(RAW): $(LINK) $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(SYMTAB_OBJECTS)
-ifeq ($(CONFIG_LTO),y)
-	$(CC) $(DEFS) $(CFLAGS) $(LD_CFLAGS) -Xlinker -Map -Xlinker $(MAP) -o $@ $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(EXTRA_OBJECTS) $(SYMTAB_OBJECTS)
-else
-	$(LD) $(LFLAGS) -Map $(MAP) -o $@ $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(EXTRA_OBJECTS) $(SYMTAB_OBJECTS)
-endif
 ifeq ($(CONFIG_STRIP_BINARIES),y)
-	$(STRIP) $(RAW)
+LFLAGS += --strip-all
 endif
 
-$(LINK): $(LINK).in | depend
-	$(CC) $(DEFS) $(CFLAGS) -D__ASM__ -D__LINKER__ -E -x c $< | grep -v "^\#" > $@
+ALL_SOURCES = $(GENERIC_SOURCES) $(ARCH_SOURCES) $(GENARCH_SOURCES)
+C_SOURCES = $(filter %.c, $(ALL_SOURCES))
+UNINSTRUMENTED_SOURCES = $(filter-out $(INSTRUMENTED_SOURCES), $(C_SOURCES))
+ASM_SOURCES = $(filter %.s, $(ALL_SOURCES))
+PREASM_SOURCES = $(filter %.S, $(ALL_SOURCES))
 
-%.h: %.ag
-	$(AUTOGEN) probe $< >$<.probe.c
-	$(CC_AUTOGEN) $(DEFS) $(CFLAGS) -S -o $<.probe.s $<.probe.c
-	$(AUTOGEN) generate $< <$<.probe.s >$@   
+ALMOST_ALL_OBJECTS = $(addsuffix .o,$(basename $(ALL_SOURCES))) $(EXTRA_OBJECTS)
+ALL_OBJECTS = $(ALMOST_ALL_OBJECTS) $(SYMTAB_OBJECTS)
 
-%.o: %.S | depend
-	$(CC) -MD $(DEFS) $(CFLAGS) $(AS_CFLAGS) -D__ASM__ -c -o $@ $<
-ifeq ($(PRECHECK),y)
-	$(JOBFILE) $(JOB) $< $@ as asm/preproc $(DEFS) $(CFLAGS) -D__ASM__
-endif
-
-%.o: %.s | depend
-	$(CC) -MD $(DEFS) $(CFLAGS) $(AS_CFLAGS) -D__ASM__ -c -o $@ $<
-ifeq ($(PRECHECK),y)
-	$(JOBFILE) $(JOB) $< $@ as asm $(DEFS) $(CFLAGS) $(EXTRA_FLAGS)
-endif
-
-%.o: %.c | depend
-	$(CC) -MD $(DEFS) $(CFLAGS) $(EXTRA_FLAGS) $(FPU_NO_CFLAGS) $(if $(findstring $<,$(INSTRUMENTED_SOURCES)),$(INSTRUMENTATION)) -c -o $@ $<
-ifeq ($(PRECHECK),y)
-	$(JOBFILE) $(JOB) $< $@ cc core $(DEFS) $(CFLAGS) $(EXTRA_FLAGS) $(FPU_NO_CFLAGS)
-endif
-
-$(REAL_MAP).o: $(REAL_MAP).bin
-	echo "$(AS_PROLOG)""$(SYMTAB_SECTION)"" .incbin \"$<\"" | $(CC) $(CFLAGS) $(AS_CFLAGS) -x assembler -c -o $@ -
-
-$(REAL_MAP).bin: $(LINK) $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS)
-	echo "$(AS_PROLOG)""$(SYMTAB_SECTION)" | $(CC) $(CFLAGS) $(AS_CFLAGS) -x assembler -c -o $(EMPTY_MAP) -
 ifeq ($(CONFIG_LTO),y)
-	$(CC) $(DEFS) $(CFLAGS) $(LD_CFLAGS) -Xlinker -Map -Xlinker $(MAP_PREV) -o $@ $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(EXTRA_OBJECTS) $(EMPTY_MAP)
+	CONFIG_LTO_DEF = -D__CONFIG_LTO__
 else
-	$(LD) $(LFLAGS) -Map $(MAP_PREV) -o $@ $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(EXTRA_OBJECTS) $(EMPTY_MAP)
+	CONFIG_LTO_DEF = -U__CONFIG_LTO__
 endif
-	$(OBJDUMP) -t $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) > $(DUMP)
-	$(GENMAP) $(MAP_PREV) $(DUMP) $@
-	
-	# Do it once again, this time to get correct even the symbols
-	# on architectures that have bss after symtab
-	
-	echo "$(AS_PROLOG)""$(SYMTAB_SECTION)"" .incbin \"$@\"" | $(CC) $(CFLAGS) $(AS_CFLAGS) -x assembler -c -o $(SIZEOK_MAP) -
-ifeq ($(CONFIG_LTO),y)
-	$(CC) $(DEFS) $(CFLAGS) $(LD_CFLAGS) -Xlinker -Map -Xlinker $(MAP_PREV) -o $@ $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(EXTRA_OBJECTS) $(SIZEOK_MAP)
-else
-	$(LD) $(LFLAGS) -Map $(MAP_PREV) -o $@ $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(EXTRA_OBJECTS) $(SIZEOK_MAP)
-endif
-	$(OBJDUMP) -t $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) > $(DUMP)
-	$(GENMAP) $(MAP_PREV) $(DUMP) $@
 
-$(AUTOGENS_H): $(AGDEPEND)
+build.ninja: build.ninja.in $(ALL_MAKEFILES)
+	@echo "Generating build script for ninja."
+	@$(CC) -E -P -undef -x c build.ninja.in -o $@.new \
+		-D__KARCH__='$(KARCH)' \
+		-D__CC__='$(CC)' \
+		-D__LD__='$(LD)' \
+		-D__AUTOGEN__='$(AUTOGEN)' \
+		-D__CC_AUTOGEN__='$(CC_AUTOGEN)' \
+		-D__LINKER_SCRIPT__='$(LINK)' \
+		-D__LFLAGS__='$(LFLAGS)' \
+		-D__LD_CFLAGS__='$(addprefix -Xlinker ,$(LFLAGS))' \
+		-D__DEFS__='$(DEFS)' \
+		-D__CFLAGS__='$(CFLAGS)' \
+		-D__EXTRA_FLAGS__='$(EXTRA_FLAGS)' \
+		-D__FPU_NO_CFLAGS__='$(FPU_NO_CFLAGS)' \
+		-D__INSTRUMENTATION__='$(INSTRUMENTATION)' \
+		-D__AS_CFLAGS__='$(AS_CFLAGS)' \
+		-D__OBJCOPY__='$(OBJCOPY)' \
+		-D__OBJDUMP__='$(OBJDUMP)' \
+		-D__GENMAP__='$(GENMAP)' \
+		$(CONFIG_LTO_DEF)
 
-$(AGDEPEND): $(AUTOGENS_AG)
-	echo "# DO NOT EDIT" >$@
-	for g in $^; do \
-		h=`dirname $$g`/`basename $$g .ag`.h; \
-		for l in `$(AUTOGEN) depend $$g`; do \
-			echo "$$h: $$l" >>$@; \
-		done \
-	done
+	@echo 'build $@: remake $@.in | $(ALL_MAKEFILES) $(AUTOGENS_AG:.ag=.ag.s.d)' >> $@.new
+	@echo 'build $(BIN): objcopy $(RAW)' >> $@.new
+	@echo '    flags = -O $(BFD)' >> $@.new
+	@echo 'build $(DISASM): disasm $(RAW)' >> $@.new
+	@echo 'build $(RAW) | $(RAW).map: link $(ALL_OBJECTS) | $$linker_script' >> $@.new
+	@echo 'build $$linker_script: pp $$linker_script.in || ag-headers' >> $@.new
+	@echo '    defines = $(INCLUDES_FLAGS) $(DEFS) -D__ASM__ -D__LINKER__ -imacros $(CONFIG_HEADER)' >> $@.new
 
-depend: $(AUTOGENS_H)
+	@echo 'build almost-all: phony $(ALMOST_ALL_OBJECTS)' >> $@.new
 
-autogen_clean:
-	-rm $(ARCH_AUTOGENS_H) $(ARCH_AUTOGENS_PROBE_C) $(ARCH_AUTOGENS_PROBE_S)
-	-rm $(GENARCH_AUTOGENS_H) $(GENARCH_AUTOGENS_PROBE_C) $(GENARCH_AUTOGENS_PROBE_S)
-	-rm $(AGDEPEND)
+	@echo 'build $(EMPTY_MAP).bin: touch' >> $@.new
+	@echo 'build $(EMPTY_MAP).o: pack $(EMPTY_MAP).bin' >> $@.new
+	@echo '    section_name = "symtab.data"' >> $@.new
+
+	@echo 'build $(SIZEOK_MAP).raw | $(SIZEOK_MAP).raw.map: link $(ALMOST_ALL_OBJECTS) $(EMPTY_MAP).o | $$linker_script' >> $@.new
+	@echo 'build $(SIZEOK_MAP).syms: symbol_dump $(ALMOST_ALL_OBJECTS)' >> $@.new
+	@echo 'build $(SIZEOK_MAP).bin: genmap $(SIZEOK_MAP).raw.map $(SIZEOK_MAP).syms' >> $@.new
+	@echo 'build $(SIZEOK_MAP).o: pack $(SIZEOK_MAP).bin' >> $@.new
+	@echo '    section_name = "symtab.data"' >> $@.new
+
+	@# Do it once again, this time to get correct even the symbols
+	@# on architectures that have bss after symtab
+	@echo 'build $(REAL_MAP).raw | $(REAL_MAP).raw.map: link $(ALMOST_ALL_OBJECTS) $(SIZEOK_MAP).o | $$linker_script' >> $@.new
+	@echo 'build $(REAL_MAP).syms: symbol_dump $(ALMOST_ALL_OBJECTS)' >> $@.new
+	@echo 'build $(REAL_MAP).bin: genmap $(REAL_MAP).raw.map $(REAL_MAP).syms' >> $@.new
+	@echo 'build $(REAL_MAP).o: pack $(REAL_MAP).bin' >> $@.new
+	@echo '    section_name = "symtab.data"' >> $@.new
+
+	@echo 'build ag-headers: phony $(AUTOGENS_AG:.ag=.h)' >> $@.new
+
+	@$(foreach source,$(AUTOGENS_AG),echo 'build $(source).c: ag_probe $(source)' >> $@.new;)
+	@$(foreach source,$(AUTOGENS_AG),echo 'build $(source).s.d: ag_deps $(source).c' >> $@.new; echo '    target = $(source).s' >> $@.new;)
+	@$(foreach source,$(AUTOGENS_AG),echo 'build $(source).s: ag_cc $(source).c | $(source).s.d' >> $@.new;)
+	@$(foreach source,$(AUTOGENS_AG),echo 'build $(source:.ag=.h): ag_generate $(source).s $(source)' >> $@.new;)
+
+	@$(foreach source,$(UNINSTRUMENTED_SOURCES),echo 'build $(source:.c=.o): cc $(source) || ag-headers' >> $@.new;)
+	@$(foreach source,$(INSTRUMENTED_SOURCES),echo 'build $(source:.c=.o): cc_instrumented $(source) || ag-headers' >> $@.new;)
+	@$(foreach source,$(ASM_SOURCES),echo 'build $(source:.s=.o): asm $(source) || ag-headers' >> $@.new;)
+	@$(foreach source,$(PREASM_SOURCES),echo 'build $(source:.S=.o): asm $(source) || ag-headers' >> $@.new;)
+	mv $@.new $@
+

@@ -1,0 +1,109 @@
+karch = __KARCH__
+cc = __CC__
+cc_autogen = __CC_AUTOGEN__
+ld = __LD__
+objcopy = __OBJCOPY__
+objdump = __OBJDUMP__
+autogen = __AUTOGEN__
+genmap = __GENMAP__
+
+linker_script = __LINKER_SCRIPT__
+
+cflags = __DEFS__ __CFLAGS__ __EXTRA_FLAGS__ __FPU_NO_CFLAGS__
+cflags_instrumented = $cflags __INSTRUMENTATION__
+cflags_assembler = $cflags __AS_CFLAGS__ -D"__ASM__"
+
+// `touch` is necessary because we sometimes need to "rebuild"
+// build.ninja even when no inputs have changed, to reload
+// dependency files updated while ninja was already running.
+// make will not update the timestamp in that case.
+rule remake
+	command = make -r $out && touch $out
+	description = MAKE $out
+	generator = y
+
+rule cc
+	depfile = $out.d
+	deps = gcc
+	command = $cc -MD -MF $out.d $cflags -c -o $out $in
+	description = CC $in
+
+rule cc_instrumented
+	depfile = $out.d
+	deps = gcc
+	command = $cc -MD -MF $out.d $cflags_instrumented -c -o $out $in
+	description = CC $instrumentation $in
+
+rule asm
+	depfile = $out.d
+	deps = gcc
+	command = $cc -MD -MF $out.d $cflags_assembler -c -o $out $in
+	description = ASM $in
+
+rule objcopy
+	command = $objcopy $flags $in $out
+	description = OBJCOPY $flags $in $out
+
+rule symbol_dump
+	command = $objdump -t $in > $out
+	description = Dumping symbol table into $out.
+
+rule disasm
+	command = $objdump -d -S $in > $out
+	description = DISASM $in
+
+rule pp
+	depfile = $out.d
+	deps = gcc
+	command = $cc -MD -MF $out.d -E -P $defines -x c $in -o $out
+	description = PP $out
+
+rule ag_probe
+	command = $autogen probe $in > $out
+	description = AUTOGEN(probe) $in
+
+rule ag_deps
+	command = $cc_autogen -M -MG -MF $out -MT $target $cflags $in -o /dev/null && $
+		sed -i 's/ arch\/$karch\/include\/arch\// arch\//g' $out && $
+		sed -i 's/ arch\// arch\/$karch\/include\/arch\//g' $out
+	description = AUTOGEN(deps) $in
+
+rule ag_cc
+	depfile = $out.d
+	command = $cc_autogen -MD -MF $out.d -MT $out $cflags -S $in -o $out
+	description = AUTOGEN(cc) $in
+
+rule ag_generate
+	command = $autogen generate < $in > $out
+	description = AUTOGEN(generate) $out
+
+rule touch
+	command = touch $out
+	description = Touching $out inappropriately
+
+rule pack
+	command = $cc $cflags -x c -c -o $out - </dev/null && $objcopy --add-section "$section_name"=$in $out
+	description = PACK $in
+
+rule genmap
+	command = $genmap $in $out
+	description = GENMAP $out
+
+#ifdef __CONFIG_LTO__
+
+cflags_linker = $cflags __LD_CFLAGS__
+
+rule link
+	command = $cc $cflags_linker "-Wl,-Map,$out.map" -o $out $in
+	description = LINK $out <= $in
+
+#else  // __CONFIG_LTO__
+
+lflags = __LFLAGS__
+
+rule link
+	command = $ld $lflags -Map $out.map -o $out $in
+	description = LINK $out <= $in
+
+#endif  // __CONFIG_LTO__
+
