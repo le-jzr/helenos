@@ -91,6 +91,7 @@ ifneq ($(BINARY),)
 endif
 
 ifneq ($(LIBRARY),)
+	SHORTNAME = $(LIBRARY:lib%=%)
 	JOB = $(LIBRARY).job
 	TEST_BINARY = test-$(LIBRARY)
 	OUTPUTS += $(DIST_LIB_PREFIX)/$(LIBRARY).a
@@ -140,6 +141,12 @@ else
 	endif
 endif
 
+# FIXME: libc is a bit special. We only link libraries to it when explicitly asked.
+#        This is to allow softint and softfloat to build before libc.
+ifneq ($(BINARY),)
+	LIBS += c
+endif
+
 ifneq ($(STATIC_BUILD),y)
 	LINK_DYNAMIC = y
 endif
@@ -150,6 +157,7 @@ ifeq ($(LINK_DYNAMIC),y)
 	LFLAGS += -Bdynamic
 	LINKER_SCRIPT ?= $(LIBC_PREFIX)/arch/$(UARCH)/_link-dlexe.ld
 else
+	LFLAGS += -Bstatic
 	LINKER_SCRIPT ?= $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld
 endif
 
@@ -164,6 +172,8 @@ endif
 INCLUDES_FLAGS += $(LIBC_INCLUDES_FLAGS)
 
 PUBDEP_CFLAG_FILES = $(foreach lib,$(LIBS_PUBLIC),$(INC_PREFIX)/lib$(lib).flags)
+DEP_LDFLAG_FILES = $(foreach lib,$(LIBS) $(LIBS_PUBLIC),$(DIST_LIB_PREFIX)/lib$(lib).flags)
+DEP_STATIC_LDFLAG_FILES = $(foreach lib,$(LIBS) $(LIBS_PUBLIC),$(DIST_LIB_PREFIX)/lib$(lib)-static.flags)
 
 # PCUT-based unit tests
 ifneq ($(TEST_SOURCES),)
@@ -260,7 +270,12 @@ TEST_OBJECTS := $(addsuffix .test.o,$(basename $(TEST_SOURCES)))
 DEPENDS := $(addsuffix .d,$(basename $(SOURCES))) $(addsuffix .test.d,$(basename $(TEST_SOURCES)))
 
 LIBTAGS := $(foreach lib,$(LIBS) c softfloat softint, $(USPACE_PREFIX)/lib/$(lib)/tag)
-LIBARGS := $(addprefix -l, $(LIBS))
+
+ifeq ($(STATIC_BUILD),y)
+LIBARGS := $(addprefix @,$(DEP_STATIC_LDFLAG_FILES))
+else
+LIBARGS := $(addprefix @,$(DEP_LDFLAG_FILES))
+endif
 
 .PHONY: all all-test headers clean fasterclean depend
 
@@ -281,13 +296,24 @@ depend: $(PRE_DEPEND)
 
 ifneq ($(LIBRARY),)
 depend: headers
-headers: $(EXPORTED_HEADERS) $(INC_PREFIX)/$(LIBRARY).flags
+headers: $(EXPORTED_HEADERS) $(INC_PREFIX)/$(LIBRARY).flags $(DIST_LIB_PREFIX)/$(LIBRARY).flags $(DIST_LIB_PREFIX)/$(LIBRARY)-static.flags
 
 $(EXPORTED_HEADERS): $(EXPORT_PATH)/%: $(HEADER_PATH)/%
 	mkdir -p $(dir $@); cp -L $< $@
 
 $(INC_PREFIX)/$(LIBRARY).flags: Makefile $(PUBDEP_CFLAG_FILES)
-	$(file >$@, -I=/$(LIBRARY) $(foreach dep, $(PUBDEP_CFLAG_FILES), $(file <$(dep))))
+	$(file >$@,$(strip -I=/$(LIBRARY) $(foreach dep, $(PUBDEP_CFLAG_FILES), $(file <$(dep)))))
+
+$(DIST_LIB_PREFIX)/$(LIBRARY)-static.flags: Makefile $(DEP_STATIC_LDFLAG_FILES)
+	$(file >$@,$(strip -l$(SHORTNAME) $(foreach dep, $(DEP_STATIC_LDFLAG_FILES), $(file <$(dep)))))
+
+ifeq ($(SLIBRARY),)
+$(DIST_LIB_PREFIX)/$(LIBRARY).flags: Makefile $(DEP_LDFLAG_FILES)
+	$(file >$@,$(strip -l$(SHORTNAME) $(foreach dep, $(DEP_LDFLAG_FILES), $(file <$(dep)))))
+else
+$(DIST_LIB_PREFIX)/$(LIBRARY).flags: Makefile
+	$(file >$@,$(strip -l$(SHORTNAME)))
+endif
 endif
 
 # "Tag" files are used to force relink of binaries when dependencies get rebuilt,
@@ -339,8 +365,8 @@ tag: $(SLIBRARY)
 $(LIBRARY).la: $(LOBJECTS)
 	$(AR) rc $@ $(LOBJECTS)
 
-$(SLIBRARY): $(LIB_LINKER_SCRIPT) $(LIBRARY).la
-	$(LD) $(LIB_LFLAGS) -T $(LIB_LINKER_SCRIPT) -Map $@.map -o $@ --whole-archive $(LIBRARY).la --no-whole-archive
+$(SLIBRARY): $(LIB_LINKER_SCRIPT) $(LIBRARY).la $(LIBTAGS)
+	$(LD) $(LIB_LFLAGS) -T $(LIB_LINKER_SCRIPT) -Map $@.map -o $@ --whole-archive $(LIBRARY).la --no-whole-archive $(LIBARGS) $(BASE_LIBS)
 
 $(DIST_LIB_PREFIX)/$(SLIBRARY): $(SLIBRARY)
 	cp $< $@

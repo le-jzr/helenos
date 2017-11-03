@@ -35,5 +35,6 @@ include helenos.test.mak
 all-test: $(SELF_TESTS)
 
 test-libpcut-%: $(LIBRARY).a
-	$(LD) -n $(LFLAGS) -T $(LINKER_SCRIPT) -o $@ $(STARTUP) $^ $(LIBRARY).a $(BASE_LIBS)
+	$(LD) -n $(LFLAGS) -T $(LINKER_SCRIPT) -o $@ $(STARTUP) $^ $(LIBRARY).a \
+		@$(DIST_LIB_PREFIX)/libc.flags $(BASE_LIBS)
 
