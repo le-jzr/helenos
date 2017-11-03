@@ -29,6 +29,11 @@
 USPACE_PREFIX = ../..
 LIBRARY = libscsi
 
+EXPORT_HEADERS = \
+	scsi/mmc.h \
+	scsi/sbc.h \
+	scsi/spc.h
+
 SOURCES = \
 	src/spc.c
 

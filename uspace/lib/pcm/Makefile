@@ -30,8 +30,13 @@ USPACE_PREFIX = ../..
 EXTRA_CFLAGS = -Iinclude/pcm
 LIBRARY = libpcm
 
+EXPORT_HEADERS = \
+	pcm/format.h \
+	pcm/sample_format.h
+
 SOURCES = \
 	src/format.c
+
 include $(USPACE_PREFIX)/Makefile.common
 
 

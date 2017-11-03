@@ -32,6 +32,14 @@ EXTRA_CFLAGS += \
 	-Iinclude/usb/host
 LIBS = usb drv
 
+EXPORT_HEADERS = \
+	usb/host/utils/malloc32.h \
+	usb/host/ddf_helpers.h \
+	usb/host/endpoint.h \
+	usb/host/hcd.h \
+	usb/host/usb_bus.h \
+	usb/host/usb_transfer_batch.h
+
 SOURCES = \
 	src/ddf_helpers.c \
 	src/endpoint.c \

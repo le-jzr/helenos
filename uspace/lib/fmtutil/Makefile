@@ -29,6 +29,9 @@
 USPACE_PREFIX = ../..
 LIBRARY = libfmtutil
 
+EXPORT_HEADERS = \
+	fmtutil.h
+
 SOURCES = \
 	fmtutil.c
 

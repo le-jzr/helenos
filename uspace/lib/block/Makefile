@@ -30,6 +30,9 @@
 USPACE_PREFIX = ../..
 LIBRARY = libblock
 
+EXPORT_HEADERS = \
+	block.h
+
 SOURCES = \
 	block.c
 

@@ -29,6 +29,9 @@
 USPACE_PREFIX = ../..
 LIBRARY = liburi
 
+EXPORT_HEADERS = \
+	uri.h
+
 SOURCES = \
 	uri.c
 

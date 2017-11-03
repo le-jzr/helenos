@@ -30,6 +30,12 @@ USPACE_PREFIX = ../..
 LIBRARY = libhttp
 EXTRA_CFLAGS += -Iinclude
 
+EXPORT_HEADERS = \
+	http/ctype.h \
+	http/errno.h \
+	http/http.h \
+	http/receive-buffer.h
+
 SOURCES = \
 	src/http.c \
 	src/headers.c \

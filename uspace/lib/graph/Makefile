@@ -29,6 +29,9 @@
 USPACE_PREFIX = ../..
 LIBRARY = libgraph
 
+EXPORT_HEADERS = \
+	graph.h
+
 SOURCES = \
 	graph.c
 

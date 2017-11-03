@@ -37,6 +37,8 @@
 #   LINKER_SCRIPT      linker script
 #   PRE_DEPEND         targets required for dependency check
 #
+#   EXPORT_HEADERS     headers to export
+#
 #   BINARY         (/) binary output name (like appname)
 #   LIBRARY        (/) library output name (like libname)
 #
@@ -99,9 +101,9 @@ LIB_PREFIX = $(USPACE_PREFIX)/lib
 
 LIBC_PREFIX = $(LIB_PREFIX)/c
 LIBC_INCLUDES_FLAGS = \
-	-I$(LIBC_PREFIX)/include \
-	-I$(LIBC_PREFIX)/arch/$(UARCH)/include \
-	-I$(ROOT_PATH)/abi/include
+	-isystem $(LIBC_PREFIX)/include \
+	-isystem $(LIBC_PREFIX)/arch/$(UARCH)/include \
+	-isystem $(ROOT_PATH)/abi/include
 LIBSOFTFLOAT_PREFIX = $(LIB_PREFIX)/softfloat
 LIBSOFTINT_PREFIX = $(LIB_PREFIX)/softint
 
@@ -112,6 +114,8 @@ LIBMATH_INCLUDES_FLAGS = \
 
 LIBPOSIX_PREFIX = $(LIB_PREFIX)/posix
 LIBDLTEST_PREFIX = $(LIB_PREFIX)/dltest
+
+INC_PREFIX = $(USPACE_PREFIX)/dist/inc
 
 AFLAGS = --fatal-warnings
 LFLAGS = --fatal-warnings --warn-common
@@ -148,23 +152,18 @@ endif
 
 LIB_LINKER_SCRIPT = $(LIBC_PREFIX)/arch/$(UARCH)/_link-shlib.ld
 
-INCLUDES_FLAGS = $(LIBC_INCLUDES_FLAGS)
+INCLUDES_FLAGS += $(addprefix -I=/lib, $(LIBS))
 
 ifneq ($(LIBRARY),)
-	INCLUDES_FLAGS += -Iinclude -I.
+	INCLUDES_FLAGS += -I=/$(LIBRARY)
 endif
 
-INCLUDES_FLAGS += $(foreach lib,$(LIBS), -I$(LIB_PREFIX)/$(lib) -I$(LIB_PREFIX)/$(lib)/include)
-
-# TODO: get rid of this special case
-ifneq ($(filter math, $(LIBS)),)
-	INCLUDES_FLAGS += $(LIBMATH_INCLUDES_FLAGS)
-endif
+INCLUDES_FLAGS += $(LIBC_INCLUDES_FLAGS)
 
 # PCUT-based unit tests
 ifneq ($(TEST_SOURCES),)
 	TEST_OUTPUTS = $(TEST_BINARY) $(TEST_BINARY).disasm
-	TEST_CFLAGS = -I$(LIB_PREFIX)/pcut/include -D__helenos__
+	TEST_CFLAGS = -I=/libpcut -D__helenos__
 	TEST_BINARY_LIBS = $(LIB_PREFIX)/pcut/libpcut.a
 	EXTRA_CLEAN += $(TEST_OUTPUTS) $(TEST_BINARY).map
 ifneq ($(LIBRARY),)
@@ -173,7 +172,25 @@ endif
 	TEST_BINARY_LIBS += $(TEST_LIBS)
 endif
 
-COMMON_CFLAGS = $(INCLUDES_FLAGS) -O$(OPTIMIZATION) -imacros $(CONFIG_HEADER) \
+ifneq ($(LIBRARY),)
+	# TODO: Currently platform headers (i.e. c, posix) aren't copied to INCLUDE_DIR
+	#       with the rest of uspace libraries. Instead, they stay where they are,
+	#       and the Makefile has special compiler flags for them.
+	#       This should change in the future.
+
+	# Check whether the library has the 'include' directory or not.
+	_ := $(shell test -d include)
+	ifeq ($(.SHELLSTATUS),0)
+		HEADER_PATH := include
+	else
+		HEADER_PATH := .
+	endif
+
+	EXPORT_PATH := $(INC_PREFIX)/$(LIBRARY)
+	EXPORTED_HEADERS := $(addprefix $(EXPORT_PATH)/,$(EXPORT_HEADERS))
+endif
+
+COMMON_CFLAGS = -isysroot $(INC_PREFIX) $(INCLUDES_FLAGS) -O$(OPTIMIZATION) -imacros $(CONFIG_HEADER) \
 	-ffreestanding -fno-builtin -nostdlib -nostdinc -fexec-charset=UTF-8 \
 	-finput-charset=UTF-8 -D__$(ENDIANESS)__ -fno-common \
 	-fdebug-prefix-map=$(realpath $(ROOT_PATH))=.
@@ -239,7 +256,7 @@ DEPENDS := $(addsuffix .d,$(basename $(SOURCES))) $(addsuffix .test.d,$(basename
 LIBTAGS := $(foreach lib,$(LIBS), $(USPACE_PREFIX)/lib/$(lib)/tag)
 LIBARGS := $(addprefix -L$(USPACE_PREFIX)/lib/, $(LIBS)) $(addprefix -l, $(LIBS))
 
-.PHONY: all all-test clean fasterclean depend
+.PHONY: all all-test headers clean fasterclean depend
 
 all: tag $(OUTPUTS)
 
@@ -254,7 +271,12 @@ clean:
 fasterclean:
 	rm -f $(JOB) $(OUTPUTS) $(EXTRA_CLEAN) tag deps.mk
 
-depend: $(PRE_DEPEND)
+depend: $(PRE_DEPEND) headers
+
+$(EXPORTED_HEADERS): $(EXPORT_PATH)/%: $(HEADER_PATH)/%
+	mkdir -p $(dir $@); cp -L $< $@
+
+headers: $(EXPORTED_HEADERS)
 
 # "Tag" files are used to force relink of binaries when dependencies get rebuilt,
 # regardless of whether the dependency was linked statically or dynamically,

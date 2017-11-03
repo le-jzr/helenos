@@ -27,3 +27,5 @@
 #
 
 ARCH_SOURCES =
+ARCH_HEADERS = \
+	math.h

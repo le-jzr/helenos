@@ -67,4 +67,20 @@ SOURCES = \
 	$(GENERIC_SOURCES) \
 	$(ARCH_SOURCES)
 
+# TODO: Put the headers into a subdirectory.
+EXPORT_HEADERS = \
+	math.h \
+	mathtypes.h \
+	$(GENERIC_SOURCES:generic/%.c=%.h)
+
 include $(USPACE_PREFIX)/Makefile.common
+
+# Extra architecture headers.
+
+EXTRA_HEADERS := $(addprefix $(EXPORT_PATH)/libarch/,$(ARCH_HEADERS))
+
+$(EXTRA_HEADERS): $(EXPORT_PATH)/libarch/%: arch/$(UARCH)/include/libarch/%
+	mkdir -p $(dir $@); cp -L $< $@
+
+headers: $(EXTRA_HEADERS)
+

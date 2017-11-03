@@ -29,6 +29,10 @@
 USPACE_PREFIX = ../..
 LIBRARY = libcompress
 
+EXPORT_HEADERS = \
+	inflate.h \
+	gzip.h
+
 SOURCES = \
 	inflate.c \
 	gzip.c

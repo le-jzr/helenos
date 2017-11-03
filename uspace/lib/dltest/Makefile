@@ -30,6 +30,9 @@ USPACE_PREFIX = ../..
 LIBRARY = libdltest
 SOVERSION = 0.0
 
+EXPORT_HEADERS = \
+	libdltest.h
+
 SOURCES = \
 	dltest.c
 

@@ -30,3 +30,7 @@ ARCH_SOURCES = \
 	arch/$(UARCH)/src/sin.S \
 	arch/$(UARCH)/src/cos.S \
 	arch/$(UARCH)/src/trunc.S
+
+ARCH_HEADERS = \
+	math.h \
+	x87.h

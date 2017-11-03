@@ -31,6 +31,19 @@ LIBRARY = libbithenge
 EXTRA_CFLAGS = -D__HELENOS__
 LIBS = block
 
+EXPORT_HEADERS = \
+	bithenge/blob.h \
+	bithenge/compound.h \
+	bithenge/expression.h \
+	bithenge/file.h \
+	bithenge/os.h \
+	bithenge/print.h \
+	bithenge/script.h \
+	bithenge/sequence.h \
+	bithenge/source.h \
+	bithenge/transform.h \
+	bithenge/tree.h
+
 SOURCES = \
 	src/helenos/block.c \
 	src/blob.c \

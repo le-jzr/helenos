@@ -30,6 +30,16 @@ USPACE_PREFIX = ../..
 LIBRARY = libusb
 LIBS = drv
 
+EXPORT_HEADERS = \
+	usb/classes/classes.h \
+	usb/classes/hub.h \
+	usb/classes/massstor.h \
+	usb/debug.h \
+	usb/descriptor.h \
+	usb/dev.h \
+	usb/request.h \
+	usb/usb.h
+
 SOURCES = \
 	src/class.c \
 	src/dev.c \

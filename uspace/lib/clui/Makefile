@@ -29,6 +29,10 @@
 USPACE_PREFIX = ../..
 LIBRARY = libclui
 
+EXPORT_HEADERS = \
+	nchoice.h \
+	tinput.h
+
 SOURCES = \
 	nchoice.c \
 	tinput.c
