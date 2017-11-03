@@ -73,6 +73,11 @@ CONFIG_HEADER = $(ROOT_PATH)/config.h
 -include $(COMMON_MAKEFILE)
 -include $(CONFIG_MAKEFILE)
 
+LIB_PREFIX = $(USPACE_PREFIX)/lib
+DIST_PREFIX = $(USPACE_PREFIX)/dist
+INC_PREFIX = $(DIST_PREFIX)/inc
+DIST_LIB_PREFIX = $(DIST_PREFIX)/lib
+
 OUTPUTS = $(EXTRA_OUTPUT)
 
 ifneq ($(BINARY),)
@@ -85,27 +90,25 @@ endif
 ifneq ($(LIBRARY),)
 	JOB = $(LIBRARY).job
 	TEST_BINARY = test-$(LIBRARY)
-	OUTPUTS += $(LIBRARY).a
+	OUTPUTS += $(DIST_LIB_PREFIX)/$(LIBRARY).a
 endif
 
 ifeq ($(CONFIG_BUILD_SHARED_LIBS),y)
 	ifneq ($(SOVERSION),)
 		SLIBRARY = $(LIBRARY).so.$(SOVERSION)
 		LSONAME = $(LIBRARY).so.$(basename $(SOVERSION))
-		OUTPUTS += $(SLIBRARY) $(SLIBRARY).disasm $(LSONAME)
+		OUTPUTS += $(SLIBRARY) $(SLIBRARY).disasm \
+			$(DIST_LIB_PREFIX)/$(SLIBRARY) \
+			$(DIST_LIB_PREFIX)/$(LSONAME)
 		EXTRA_CLEAN += $(LIBRARY).la $(SLIBRARY).map
 	endif
 endif
-
-LIB_PREFIX = $(USPACE_PREFIX)/lib
 
 LIBC_PREFIX = $(LIB_PREFIX)/c
 LIBC_INCLUDES_FLAGS = \
 	-isystem $(LIBC_PREFIX)/include \
 	-isystem $(LIBC_PREFIX)/arch/$(UARCH)/include \
 	-isystem $(ROOT_PATH)/abi/include
-LIBSOFTFLOAT_PREFIX = $(LIB_PREFIX)/softfloat
-LIBSOFTINT_PREFIX = $(LIB_PREFIX)/softint
 
 LIBMATH_PREFIX = $(LIB_PREFIX)/math
 LIBMATH_INCLUDES_FLAGS = \
@@ -118,7 +121,7 @@ LIBDLTEST_PREFIX = $(LIB_PREFIX)/dltest
 INC_PREFIX = $(USPACE_PREFIX)/dist/inc
 
 AFLAGS = --fatal-warnings
-LFLAGS = --fatal-warnings --warn-common
+LFLAGS = --fatal-warnings --warn-common --sysroot=$(DIST_LIB_PREFIX) -L=
 
 ifeq ($(STATIC_NEEDED),y)
 	STATIC_BUILD = y
@@ -134,14 +137,11 @@ else
 	endif
 endif
 
-ifeq ($(STATIC_BUILD),y)
-	BASE_LIBS = $(LIBC_PREFIX)/libc.a
-else
-	BASE_LIBS = $(LIBC_PREFIX)/libc.so.0
+ifneq ($(STATIC_BUILD),y)
 	LINK_DYNAMIC = y
 endif
 
-BASE_LIBS += $(LIBSOFTFLOAT_PREFIX)/libsoftfloat.a $(LIBSOFTINT_PREFIX)/libsoftint.a
+BASE_LIBS = -lc -lsoftfloat -lsoftint
 
 ifeq ($(LINK_DYNAMIC),y)
 	LFLAGS += -Bdynamic
@@ -164,10 +164,10 @@ INCLUDES_FLAGS += $(LIBC_INCLUDES_FLAGS)
 ifneq ($(TEST_SOURCES),)
 	TEST_OUTPUTS = $(TEST_BINARY) $(TEST_BINARY).disasm
 	TEST_CFLAGS = -I=/libpcut -D__helenos__
-	TEST_BINARY_LIBS = $(LIB_PREFIX)/pcut/libpcut.a
+	TEST_BINARY_LIBS = $(DIST_LIB_PREFIX)/libpcut.a
 	EXTRA_CLEAN += $(TEST_OUTPUTS) $(TEST_BINARY).map
 ifneq ($(LIBRARY),)
-	TEST_BINARY_LIBS += $(LIBRARY).a
+	TEST_BINARY_LIBS += $(DIST_LIB_PREFIX)/$(LIBRARY).a
 endif
 	TEST_BINARY_LIBS += $(TEST_LIBS)
 endif
@@ -253,8 +253,8 @@ LOBJECTS := $(addsuffix .lo,$(basename $(SOURCES)))
 TEST_OBJECTS := $(addsuffix .test.o,$(basename $(TEST_SOURCES)))
 DEPENDS := $(addsuffix .d,$(basename $(SOURCES))) $(addsuffix .test.d,$(basename $(TEST_SOURCES)))
 
-LIBTAGS := $(foreach lib,$(LIBS), $(USPACE_PREFIX)/lib/$(lib)/tag)
-LIBARGS := $(addprefix -L$(USPACE_PREFIX)/lib/, $(LIBS)) $(addprefix -l, $(LIBS))
+LIBTAGS := $(foreach lib,$(LIBS) c softfloat softint, $(USPACE_PREFIX)/lib/$(lib)/tag)
+LIBARGS := $(addprefix -l, $(LIBS))
 
 .PHONY: all all-test headers clean fasterclean depend
 
@@ -302,12 +302,12 @@ else
 endif
 
 ifneq ($(BINARY),)
-$(BINARY): $(LINKER_SCRIPT) $(OBJECTS) $(LIBTAGS) $(BASE_LIBS)
+$(BINARY): $(LINKER_SCRIPT) $(OBJECTS) $(LIBTAGS)
 	$(LD) $(LFLAGS) -T $(LINKER_SCRIPT) -Map $@.map -o $@ $(OBJECTS) $(LIBARGS) $(BASE_LIBS)
 endif
 
 ifneq ($(TEST_BINARY),)
-$(TEST_BINARY): $(LINKER_SCRIPT) $(TEST_OBJECTS) $(TEST_BINARY_LIBS) $(LIBTAGS) $(BASE_LIBS)
+$(TEST_BINARY): $(LINKER_SCRIPT) $(TEST_OBJECTS) $(TEST_BINARY_LIBS) $(LIBTAGS)
 	$(LD) $(LFLAGS) -T $(LINKER_SCRIPT) -Map $@.map -o $@ $(TEST_OBJECTS) $(TEST_BINARY_LIBS) $(LIBARGS) $(BASE_LIBS)
 endif
 
@@ -316,6 +316,9 @@ tag: $(LIBRARY).a
 
 $(LIBRARY).a: $(OBJECTS)
 	$(AR) rc $@ $(OBJECTS)
+
+$(DIST_LIB_PREFIX)/$(LIBRARY).a: $(LIBRARY).a
+	cp $< $@
 endif
 
 ifneq ($(SLIBRARY),)
@@ -327,8 +330,11 @@ $(LIBRARY).la: $(LOBJECTS)
 $(SLIBRARY): $(LIB_LINKER_SCRIPT) $(LIBRARY).la
 	$(LD) $(LIB_LFLAGS) -T $(LIB_LINKER_SCRIPT) -Map $@.map -o $@ --whole-archive $(LIBRARY).la --no-whole-archive
 
-$(LSONAME):
-	ln -s $(SLIBRARY) $@
+$(DIST_LIB_PREFIX)/$(SLIBRARY): $(SLIBRARY)
+	cp $< $@
+
+$(DIST_LIB_PREFIX)/$(LSONAME):
+	ln -s -r $(DIST_LIB_PREFIX)/$(SLIBRARY) $@
 endif
 
 %.o: %.S | depend

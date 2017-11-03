@@ -145,23 +145,6 @@ RD_DRV_CFG =
 RD_DRVS_FW_NON_ESSENTIAL = \
 	nic/ar9271
 
-RD_LIBS =
-
-ifeq ($(CONFIG_DEVEL_FILES), y)
-	RD_LIBS += \
-		$(USPACE_PATH)/lib/c/libc.a \
-		$(USPACE_PATH)/lib/softint/libsoftint.a \
-		$(USPACE_PATH)/lib/softfloat/libsoftfloat.a
-endif
-
-ifeq ($(CONFIG_BUILD_SHARED_LIBS), y)
-	RD_LIBS += \
-		$(USPACE_PATH)/lib/c/libc.so.0 \
-		$(USPACE_PATH)/lib/softint/libsoftint.so.0 \
-		$(USPACE_PATH)/lib/math/libmath.so.0 \
-		$(USPACE_PATH)/lib/dltest/libdltest.so.0
-endif
-
 RD_APPS_ESSENTIAL = \
 	$(USPACE_PATH)/app/bdsh/bdsh \
 	$(USPACE_PATH)/app/getterm/getterm \

@@ -251,6 +251,8 @@ BUILDS_TESTS := $(addsuffix .build-test,$(DIRS) $(LIBS) $(BASE_LIBS))
 DEPS = $(addsuffix /deps.mk,$(DIRS) $(LIBS))
 CLEANS := $(addsuffix .clean,$(DIRS) $(LIBS) $(BASE_LIBS))
 
+_ := $(shell mkdir -p dist/lib dist/inc)
+
 .PHONY: all $(BASE_BUILDS) $(BUILDS) $(BUILDS_TESTS) $(CLEANS) clean
 
 all: $(BUILDS) $(BUILDS_TESTS)

@@ -48,9 +48,6 @@ build_dist: clean_dist
 	for file in $(RD_SRVS) ; do \
 		cp "$$file" "$(DIST_PATH)/srv/" ; \
 	done
-	for file in $(RD_LIBS) ; do \
-		cp "$$file" "$(DIST_PATH)/lib/" ; \
-	done
 ifeq ($(CONFIG_DEVEL_FILES), y)
 	mkdir -p "$(DIST_PATH)/inc/c/"
 	cp -r -L "$(USPACE_PATH)/lib/c/include/." "$(DIST_PATH)/inc/c/"
