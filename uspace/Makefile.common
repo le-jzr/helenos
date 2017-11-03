@@ -32,6 +32,9 @@
 #   USPACE_PREFIX  (*) relative path to uspace/ directory
 #   SOURCES        (*) list of source files
 #   LIBS               libraries to link with
+#   LIBS_PUBLIC        same as above, but also publicly reexport the dependency
+#                      (use this if you include the dependency's headers in
+#                       your own public headers).
 #   DEFS               compiler defines
 #   EXTRA_CFLAGS       additional flags to pass to C compiler
 #   LINKER_SCRIPT      linker script
@@ -152,13 +155,15 @@ endif
 
 LIB_LINKER_SCRIPT = $(LIBC_PREFIX)/arch/$(UARCH)/_link-shlib.ld
 
-INCLUDES_FLAGS += $(addprefix -I=/lib, $(LIBS))
+INCLUDES_FLAGS += $(foreach lib,$(LIBS) $(LIBS_PUBLIC),@$(INC_PREFIX)/lib$(lib).flags)
 
 ifneq ($(LIBRARY),)
 	INCLUDES_FLAGS += -I=/$(LIBRARY)
 endif
 
 INCLUDES_FLAGS += $(LIBC_INCLUDES_FLAGS)
+
+PUBDEP_CFLAG_FILES = $(foreach lib,$(LIBS_PUBLIC),$(INC_PREFIX)/lib$(lib).flags)
 
 # PCUT-based unit tests
 ifneq ($(TEST_SOURCES),)
@@ -193,7 +198,8 @@ endif
 COMMON_CFLAGS = -isysroot $(INC_PREFIX) $(INCLUDES_FLAGS) -O$(OPTIMIZATION) -imacros $(CONFIG_HEADER) \
 	-ffreestanding -fno-builtin -nostdlib -nostdinc -fexec-charset=UTF-8 \
 	-finput-charset=UTF-8 -D__$(ENDIANESS)__ -fno-common \
-	-fdebug-prefix-map=$(realpath $(ROOT_PATH))=.
+	-fdebug-prefix-map=$(realpath $(ROOT_PATH))=. \
+	-Wsystem-headers -Wunknown-pragmas
 
 GCC_CFLAGS = -ffunction-sections -Wall -Wextra -Wno-clobbered \
 	-Wno-unused-parameter -Wmissing-prototypes -std=gnu99 \
@@ -271,12 +277,18 @@ clean:
 fasterclean:
 	rm -f $(JOB) $(OUTPUTS) $(EXTRA_CLEAN) tag deps.mk
 
-depend: $(PRE_DEPEND) headers
+depend: $(PRE_DEPEND)
+
+ifneq ($(LIBRARY),)
+depend: headers
+headers: $(EXPORTED_HEADERS) $(INC_PREFIX)/$(LIBRARY).flags
 
 $(EXPORTED_HEADERS): $(EXPORT_PATH)/%: $(HEADER_PATH)/%
 	mkdir -p $(dir $@); cp -L $< $@
 
-headers: $(EXPORTED_HEADERS)
+$(INC_PREFIX)/$(LIBRARY).flags: Makefile $(PUBDEP_CFLAG_FILES)
+	$(file >$@, -I=/$(LIBRARY) $(foreach dep, $(PUBDEP_CFLAG_FILES), $(file <$(dep))))
+endif
 
 # "Tag" files are used to force relink of binaries when dependencies get rebuilt,
 # regardless of whether the dependency was linked statically or dynamically,
@@ -289,7 +301,7 @@ tag:
 # This is needed to ensure correct build order of libraries and code depending on them.
 deps.mk: Makefile
 	echo > $@.new
-	for lib in $(LIBS); do \
+	for lib in $(LIBS) $(LIBS_PUBLIC); do \
 		echo "$(SELF_TARGET): lib/$$lib.build" >> $@.new; \
 	done
 	mv -f $@.new $@
