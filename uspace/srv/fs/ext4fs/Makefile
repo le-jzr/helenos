@@ -27,7 +27,7 @@
 #
 
 USPACE_PREFIX = ../../..
-LIBS = ext4 block fs crypto
+LIBS = ext4 fs
 BINARY = ext4fs
 STATIC_NEEDED = y
 

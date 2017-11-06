@@ -31,7 +31,7 @@ BINARY = hound
 
 EXTRA_CFLAGS = -DNAME="\"hound\""
 
-LIBS = drv hound pcm
+LIBS = drv hound
 
 SOURCES = \
 	audio_data.c \

@@ -28,7 +28,7 @@
 
 USPACE_PREFIX = ../../..
 
-LIBS = draw softrend drv compress math
+LIBS = draw
 
 BINARY = compositor
 
