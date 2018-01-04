@@ -587,11 +587,11 @@ static int file_save(char const *fname)
 
 	rc = file_save_range(fname, &sp, &ep);
 
-	switch (rc) {
-	case EINVAL:
+	switch ((case_errno_t) rc) {
+	case (case_errno_t) EINVAL:
 		status_display("Error opening file!");
 		break;
-	case EIO:
+	case (case_errno_t) EIO:
 		status_display("Error writing data!");
 		break;
 	default:

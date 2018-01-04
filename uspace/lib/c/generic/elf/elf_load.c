@@ -79,11 +79,11 @@ int elf_load(int file, elf_info_t *info)
 	DPRINTF( "- prog dynamic: %p\n", info->finfo.dynamic);
 
 	errno_t rc2 = rtld_prog_process(&info->finfo, &env);
-	switch (rc2) {
-	case EOK:
+	switch ((case_errno_t) rc2) {
+	case (case_errno_t) EOK:
 		rc = EE_OK;
 		break;
-	case ENOMEM:
+	case (case_errno_t) ENOMEM:
 		rc = EE_MEMORY;
 		break;
 	default:

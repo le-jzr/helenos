@@ -97,10 +97,10 @@ const char *symtab_fmt_name_lookup(uintptr_t addr)
 	const char *name;
 	errno_t rc = symtab_name_lookup(addr, &name, NULL);
 	
-	switch (rc) {
-	case EOK:
+	switch ((case_errno_t) rc) {
+	case (case_errno_t) EOK:
 		return name;
-	case ENOENT:
+	case (case_errno_t) ENOENT:
 		return "unknown";
 	default:
 		return "N/A";

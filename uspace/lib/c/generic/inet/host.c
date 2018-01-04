@@ -209,12 +209,12 @@ errno_t inet_host_plookup_one(const char *str, ip_ver_t version, inet_addr_t *ad
 
 	rc = inet_host_parse(str, &host, endptr != NULL ? &eptr : NULL);
 	if (rc != EOK) {
-		switch (rc) {
-		case EINVAL:
+		switch ((case_errno_t) rc) {
+		case (case_errno_t) EINVAL:
 			if (errmsg != NULL)
 				*errmsg = "Invalid format";
 			goto error;
-		case ENOMEM:
+		case (case_errno_t) ENOMEM:
 			if (errmsg != NULL)
 				*errmsg = "Out of memory";
 			goto error;
