@@ -71,7 +71,6 @@ EXTRA_OUTPUT = $(FIXED_C_LIBRARY) $(FIXED_POSIX_LIBRARY) $(MERGED_C_LIBRARY) $(S
 SOURCES = \
 	src/ctype.c \
 	src/dlfcn.c \
-	src/fcntl.c \
 	src/fnmatch.c \
 	src/locale.c \
 	src/pthread/condvar.c \

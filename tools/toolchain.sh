@@ -401,7 +401,7 @@ build_target() {
 	check_error $? "Error configuring binutils."
 
 	change_title "binutils: make (${PLATFORM})"
-	make all
+	make all -j`nproc`
 	check_error $? "Error compiling binutils."
 
 	change_title "binutils: install (${PLATFORM})"
@@ -425,7 +425,7 @@ build_target() {
 	check_error $? "Error configuring GCC."
 
 	change_title "GCC: make (${PLATFORM})"
-	PATH="${PATH}:${PREFIX}/bin:${INSTALL_DIR}/${PREFIX}/bin" make all-gcc
+	PATH="${PATH}:${PREFIX}/bin:${INSTALL_DIR}/${PREFIX}/bin" make all-gcc -j`nproc`
 	check_error $? "Error compiling GCC."
 
 	change_title "GCC: install (${PLATFORM})"
@@ -448,7 +448,7 @@ build_target() {
 		check_error $? "Error configuring GDB."
 
 		change_title "GDB: make (${PLATFORM})"
-		PATH="${PATH}:${PREFIX}/bin:${INSTALL_DIR}/${PREFIX}/bin" make all
+		PATH="${PATH}:${PREFIX}/bin:${INSTALL_DIR}/${PREFIX}/bin" make all -j`nproc`
 		check_error $? "Error compiling GDB."
 
 		change_title "GDB: make (${PLATFORM})"
