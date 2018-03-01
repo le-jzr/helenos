@@ -1,5 +1,5 @@
 #ifndef SHLIB
-STARTUP(LIBC_PATH/arch/UARCH/src/entry.o)
+STARTUP(entry.o)
 ENTRY(__entry)
 #endif
 

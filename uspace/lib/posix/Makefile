@@ -34,19 +34,19 @@ EXTRA_CFLAGS = -Iinclude/
 
 INCLUDE_LIBC = ./include/libc
 
-LIBC_FILE = $(LIBC_PREFIX)/libc.a
+LIBC_FILE = $(LIBDIR)/libc.a
 
-FIXED_C_LIBRARY = libc4posix.a
+FIXED_C_LIBRARY = $(LIBDIR)/libc4posix.a
 MERGED_C_LIBRARY = libc.a
 MERGE_LIBRARIES = \
 	$(FIXED_C_LIBRARY) \
-	$(LIBRARY).a \
-	$(LIBSOFTFLOAT_PREFIX)/libsoftfloat.a \
-	$(LIBSOFTINT_PREFIX)/libsoftint.a
+	$(LIBDIR)/$(LIBRARY).a \
+	$(LIBDIR)/libsoftfloat.a \
+	$(LIBDIR)/libsoftint.a
 
 SPECS = gcc.specs
-LIBC_LINKER_SCRIPT = $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld
-LIBC_STARTUP_FILE = $(shell sed -n -e 's/^.*STARTUP(\(.*\)).*$$/\1/p' $(LIBC_LINKER_SCRIPT))
+LIBC_LINKER_SCRIPT = $(LIBDIR)/_link.ld
+LIBC_STARTUP_FILE = $(LIBDIR)/entry.o
 EXPORT_LINKER_SCRIPT = link.ld
 EXPORT_STARTUP_FILE = crt0.o
 

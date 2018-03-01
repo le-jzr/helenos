@@ -33,13 +33,13 @@ ROOT_PATH = $(USPACE_PREFIX)/..
 CONFIG_MAKEFILE = $(ROOT_PATH)/Makefile.config
 
 LINKER_SCRIPTS = \
-	$(LIBC_PREFIX)/arch/$(UARCH)/_link.ld \
-	$(LIBC_PREFIX)/arch/$(UARCH)/_link-loader.ld \
-	$(LIBC_PREFIX)/arch/$(UARCH)/_link-shlib.ld \
-	$(LIBC_PREFIX)/arch/$(UARCH)/_link-dlexe.ld
+	$(LIBDIR)/_link.ld \
+	$(LIBDIR)/_link-loader.ld \
+	$(LIBDIR)/_link-shlib.ld \
+	$(LIBDIR)/_link-dlexe.ld
 
 PRE_DEPEND =
-EXTRA_OUTPUT = $(LINKER_SCRIPTS)
+EXTRA_OUTPUT = $(LINKER_SCRIPTS) $(LIBDIR)/entry.o
 EXTRA_CLEAN = $(LINKER_SCRIPTS)
 LIBRARY = libc
 SOVERSION = 0.0
@@ -198,14 +198,22 @@ include $(USPACE_PREFIX)/Makefile.common
 	$(CC_AUTOGEN) $(DEFS) $(CFLAGS) -S -o $<.probe.s $<.probe.c
 	$(AUTOGEN) generate $< <$<.probe.s >$@
 
-$(LIBC_PREFIX)/arch/$(UARCH)/_link.ld: $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld.in
-	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(CURDIR) -E -x c $< | grep -v "^\#" > $@
+$(LIBDIR)/entry.o: arch/$(UARCH)/src/entry.o
+	@$(MKDIR_P) $(@D)
+	cp $< $@
 
-$(LIBC_PREFIX)/arch/$(UARCH)/_link-loader.ld: $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld.in
-	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(CURDIR) -DLOADER -E -x c $< | grep -v "^\#" > $@
+$(LIBDIR)/_link.ld: arch/$(UARCH)/_link.ld.in
+	@$(MKDIR_P) $(@D)
+	$(PP) -o $@ $< $(DEFS) $(CFLAGS)
 
-$(LIBC_PREFIX)/arch/$(UARCH)/_link-shlib.ld: $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld.in
-	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(CURDIR) -DSHLIB -E -x c $< | grep -v "^\#" > $@
+$(LIBDIR)/_link-loader.ld: arch/$(UARCH)/_link.ld.in
+	@$(MKDIR_P) $(@D)
+	$(PP) -o $@ $< $(DEFS) $(CFLAGS) -DLOADER
 
-$(LIBC_PREFIX)/arch/$(UARCH)/_link-dlexe.ld: $(LIBC_PREFIX)/arch/$(UARCH)/_link.ld.in
-	$(CC) $(DEFS) $(CFLAGS) -DLIBC_PATH=$(CURDIR) -DDLEXE -E -x c $< | grep -v "^\#" > $@
+$(LIBDIR)/_link-shlib.ld: arch/$(UARCH)/_link.ld.in
+	@$(MKDIR_P) $(@D)
+	$(PP) -o $@ $< $(DEFS) $(CFLAGS) -DSHLIB
+
+$(LIBDIR)/_link-dlexe.ld: arch/$(UARCH)/_link.ld.in
+	@$(MKDIR_P) $(@D)
+	$(PP) -o $@ $< $(DEFS) $(CFLAGS) -DDLEXE
