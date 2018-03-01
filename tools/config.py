@@ -41,10 +41,13 @@ import subprocess
 import xtui
 import random
 
+# Assumes this script resides in the `tools` subdirectory of the root.
+HELENOS_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), ".."))
+
 RULES_FILE = sys.argv[1]
 MAKEFILE = 'Makefile.config'
 MACROS = 'config.h'
-PRESETS_DIR = 'defaults'
+PRESETS_DIR = os.path.join(HELENOS_ROOT, 'defaults')
 
 def read_config(fname, config):
 	"Read saved values from last configuration run or a preset file"

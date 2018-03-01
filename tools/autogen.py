@@ -33,7 +33,8 @@ import re
 
 def usage():
 	print("%s - Automated structure and offsets generator" % sys.argv[0])
-	print("%s file.ag depend|probe|generate struct.ag" % sys.argv[0])
+	print("%s file.ag probe|generate struct.ag" % sys.argv[0])
+	print("%s file.ag depend struct.ag target_name" % sys.argv[0])
 	sys.exit()
 
 def depend(struct):
@@ -161,7 +162,7 @@ def filter_pairs(lines):
 	
 
 def run():
-	if len(sys.argv) != 3:
+	if len(sys.argv) < 3:
 		usage()
 
 	with open(sys.argv[2], "rb") as fp:
@@ -169,7 +170,8 @@ def run():
 
 	if sys.argv[1] == "depend":
 		deps = depend(struct)
-		print(deps)
+		for dep in deps.splitlines():
+			print("{}: {}".format(sys.argv[3], dep))
 	elif sys.argv[1] == "probe":
 		code = probe(struct)
 		print(code)

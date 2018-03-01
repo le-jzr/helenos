@@ -26,7 +26,10 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-VPATH ?= .
+ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+VPATH := $(ROOT)
+
+MKDIR_P ?= mkdir -p
 
 -include ../Makefile.common
 -include ../Makefile.config
@@ -278,10 +281,12 @@ $(CLEANS):
 	-$(MAKE) -r -C $(basename $@) fasterclean
 
 $(BASE_BUILDS) $(BUILDS):
+	@$(MKDIR_P) $(@D)
 	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK)
 
 $(DEPS): %/deps.mk: %/Makefile
-	$(MAKE) -r -C $(@D) deps.mk SELF_TARGET="$(@D).build"
+	@$(MKDIR_P) $(@D)
+	$(MAKE) -r -C $(@D) -f $< deps.mk SELF_TARGET="$(@D).build"
 
 # Special case for base libraries.
 lib/c.build: lib/softfloat.build lib/softint.build

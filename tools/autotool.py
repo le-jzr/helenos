@@ -52,7 +52,7 @@ PACKAGE_GCC = "preferably version 4.7.0 or newer"
 PACKAGE_CROSS = "use tools/toolchain.sh to build the cross-compiler toolchain"
 PACKAGE_CLANG = "reasonably recent version of clang needs to be installed"
 
-COMPILER_FAIL = "The compiler is probably not capable to compile HelenOS."
+COMPILER_FAIL = "The compiler is probably not capable of compiling HelenOS."
 COMPILER_WARNING = "The compilation of HelenOS might fail."
 
 PROBE_HEAD = """#define AUTOTOOL_DECLARE(category, tag, name, signedness, base, size, compatible) \\

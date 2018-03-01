@@ -29,15 +29,21 @@
 # Just for this Makefile. Sub-makes will run in parallel if requested.
 .NOTPARALLEL:
 
-CCHECK = tools/sycek/ccheck
+VPATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+ROOT_PATH := $(VPATH)
+
+PYTHON_ENV = PYTHONDONTWRITEBYTECODE=y
+
+MKDIR_P ?= mkdir -p
+CCHECK = $(ROOT_PATH)/tools/sycek/ccheck
 CSCOPE = cscope
 FORMAT = clang-format
-CHECK = tools/check.sh
-CONFIG = tools/config.py
-AUTOTOOL = tools/autotool.py
+CHECK = $(ROOT_PATH)/tools/check.sh
+CONFIG = $(PYTHON_ENV) $(ROOT_PATH)/tools/config.py
+AUTOTOOL = $(PYTHON_ENV) $(ROOT_PATH)/tools/autotool.py
 SANDBOX = autotool
 
-CONFIG_RULES = HelenOS.config
+CONFIG_RULES = $(ROOT_PATH)/HelenOS.config
 
 COMMON_MAKEFILE = Makefile.common
 COMMON_HEADER = common.h
@@ -50,15 +56,18 @@ ERRNO_INPUT = abi/include/abi/errno.in
 .PHONY: all precheck cscope cscope_parts autotool config_auto config_default config distclean clean check releasefile release common boot kernel uspace export-posix
 
 all: kernel uspace
-	$(MAKE) -r -C boot PRECHECK=$(PRECHECK)
+	$(MKDIR_P) boot
+	$(MAKE) -r -C boot -f $(ROOT_PATH)/boot/Makefile PRECHECK=$(PRECHECK)
 
 common: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER)
 
 kernel: common
-	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK)
+	$(MKDIR_P) kernel
+	$(MAKE) -r -C kernel -f $(ROOT_PATH)/kernel/Makefile PRECHECK=$(PRECHECK)
 
 uspace: common
-	$(MAKE) -r -C uspace PRECHECK=$(PRECHECK)
+	$(MKDIR_P) uspace
+	$(MAKE) -r -C uspace -f $(ROOT_PATH)/uspace/Makefile PRECHECK=$(PRECHECK)
 
 export-posix: common
 ifndef EXPORT_DIR
@@ -111,7 +120,7 @@ check_errno:
 
 # Autotool (detects compiler features)
 
-autotool $(COMMON_MAKEFILE) $(COMMON_HEADER): $(CONFIG_MAKEFILE) $(AUTOTOOL)
+autotool $(COMMON_MAKEFILE) $(COMMON_HEADER): $(CONFIG_MAKEFILE)
 	$(AUTOTOOL)
 	diff -q $(COMMON_HEADER).new $(COMMON_HEADER) 2> /dev/null; if [ $$? -ne 0 ]; then mv -f $(COMMON_HEADER).new $(COMMON_HEADER); fi
 

@@ -29,16 +29,21 @@
 ## Configuration
 #
 
-ROOT_PATH = ..
+ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+VPATH := $(ROOT)
 
-VERSION_DEF = $(ROOT_PATH)/version
+HELENOS_ROOT := $(abspath $(ROOT)/..)
 
-COMMON_MAKEFILE = $(ROOT_PATH)/Makefile.common
-COMMON_HEADER = $(ROOT_PATH)/common.h
+VERSION_DEF = $(HELENOS_ROOT)/version
+
+MKDIR_P ?= mkdir -p
+
+COMMON_MAKEFILE = ../Makefile.common
+COMMON_HEADER = ../common.h
 COMMON_HEADER_ARCH = arch/$(KARCH)/include/arch/common.h
 
-CONFIG_MAKEFILE = $(ROOT_PATH)/Makefile.config
-CONFIG_HEADER = $(ROOT_PATH)/config.h
+CONFIG_MAKEFILE = ../Makefile.config
+CONFIG_HEADER = ../config.h
 
 -include $(VERSION_DEF)
 -include $(COMMON_MAKEFILE)
@@ -47,7 +52,6 @@ CONFIG_HEADER = $(ROOT_PATH)/config.h
 ## Common names
 #
 
-AGDEPEND = Makefile.ag.depend
 RAW = kernel.raw
 BIN = kernel.bin
 MAP = kernel.map
@@ -57,14 +61,14 @@ DISASM = kernel.disasm
 DUMP = kernel.dump
 REAL_MAP = generic/src/debug/real_map
 
-GENMAP = tools/genmap.py
+GENMAP = $(HELENOS_ROOT)/kernel/tools/genmap.py
 
 LINK = arch/$(KARCH)/_link.ld
 EMPTY_MAP = generic/src/debug/empty_map.o
 SIZEOK_MAP = generic/src/debug/sizeok_map.o
 
 ifeq ($(PRECHECK),y)
-	JOBFILE = $(ROOT_PATH)/tools/jobfile.py
+	JOBFILE = $(HELENOS_ROOT)/tools/jobfile.py
 	# XXX: Do not change the order of arguments.
 	CC_JOB = $(JOBFILE) $(JOB) $(CC) $< -o $@
 else
@@ -83,7 +87,16 @@ clean: autogen_clean
 ## Common compiler flags
 #
 
-INCLUDES = generic/include genarch/include arch/$(KARCH)/include ../abi/include
+INCLUDES = \
+	../abi/include \
+	generic/include \
+	genarch/include \
+	arch/$(KARCH)/include \
+	$(HELENOS_ROOT)/abi/include \
+	$(HELENOS_ROOT)/kernel/generic/include \
+	$(HELENOS_ROOT)/kernel/genarch/include \
+	$(HELENOS_ROOT)/kernel/arch/$(KARCH)/include
+
 INCLUDES_FLAGS = $(addprefix -I,$(INCLUDES))
 
 DEFS = -DKERNEL -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)" -D__$(BITS)_BITS__ -D__$(ENDIANESS)__
@@ -91,7 +104,8 @@ DEFS = -DKERNEL -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)"
 COMMON_CFLAGS = $(INCLUDES_FLAGS) -O$(OPTIMIZATION) -imacros $(CONFIG_HEADER) \
 	-ffreestanding -nostdlib -nostdinc \
 	-fexec-charset=UTF-8 -finput-charset=UTF-8 -fno-common \
-	-fdebug-prefix-map=$(realpath $(ROOT_PATH))=.
+	-fdebug-prefix-map=$(realpath ..)=. \
+	-fdebug-prefix-map=$(realpath $(HELENOS_ROOT))=.
 
 GCC_CFLAGS = -std=gnu99 -Wall -Wextra -Wno-unused-parameter \
 	-Wmissing-prototypes -Werror-implicit-function-declaration \
@@ -129,9 +143,8 @@ endif
 # Mind the mutual ordering with the initialization of AFLAGS and LFLAGS.
 # The arch Makefile.inc must be included after the initialization.
 #
--include arch/$(KARCH)/Makefile.inc
--include genarch/Makefile.inc
--include $(AGDEPEND)
+-include $(HELENOS_ROOT)/kernel/arch/$(KARCH)/Makefile.inc
+-include $(HELENOS_ROOT)/kernel/genarch/Makefile.inc
 
 ## The at-sign
 #
@@ -282,7 +295,7 @@ endif
 #
 
 ifeq ($(CONFIG_TEST),y)
-	CFLAGS += -Itest/
+	CFLAGS += -Itest/ -I$(HELENOS_ROOT)/kernel/test
 	GENERIC_SOURCES += \
 		test/test.c \
 		test/atomic/atomic1.c \
@@ -356,13 +369,16 @@ GENARCH_DEPENDS := $(addsuffix .d,$(basename $(GENARCH_SOURCES)))
 GENARCH_AUTOGENS_H := $(addsuffix .h,$(basename $(GENARCH_AUTOGENS_AG)))
 GENARCH_AUTOGENS_PROBE_C := $(addsuffix .ag.probe.c,$(basename $(GENARCH_AUTOGENS_AG)))
 GENARCH_AUTOGENS_PROBE_S := $(addsuffix .ag.probe.s,$(basename $(GENARCH_AUTOGENS_AG)))
+GENARCH_AUTOGENS_D := $(addsuffix .ag.d,$(basename $(GENARCH_AUTOGENS_AG)))
 
 ARCH_AUTOGENS_H := $(addsuffix .h,$(basename $(ARCH_AUTOGENS_AG)))
 ARCH_AUTOGENS_PROBE_C := $(addsuffix .ag.probe.c,$(basename $(ARCH_AUTOGENS_AG)))
 ARCH_AUTOGENS_PROBE_S := $(addsuffix .ag.probe.s,$(basename $(ARCH_AUTOGENS_AG)))
+ARCH_AUTOGENS_D := $(addsuffix .ag.d,$(basename $(ARCH_AUTOGENS_AG)))
 
 AUTOGENS_H := $(ARCH_AUTOGENS_H) $(GENARCH_AUTOGENS_H)
 AUTOGENS_AG := $(ARCH_AUTOGENS_AG) $(GENARCH_AUTOGENS_AG)
+AUTOGENS_D := $(ARCH_AUTOGENS_D) $(GENARCH_AUTOGENS_D)
 
 AS_CFLAGS := $(addprefix -Xassembler ,$(AFLAGS))
 LD_CFLAGS := $(addprefix -Xlinker ,$(LFLAGS))
@@ -370,6 +386,7 @@ LD_CFLAGS := $(addprefix -Xlinker ,$(LFLAGS))
 -include $(GENERIC_DEPENDS)
 -include $(ARCH_DEPENDS)
 -include $(GENARCH_DEPENDS)
+-include $(AUTOGENS_D)
 
 ifeq ($(COMPILER),clang)
 	AS_CFLAGS += -mllvm -asm-macro-max-nesting-depth=1000
@@ -392,6 +409,7 @@ else
 endif
 
 $(RAW): $(LINK) $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(SYMTAB_OBJECTS)
+	@$(MKDIR_P) $(@D)
 ifeq ($(CONFIG_LTO),y)
 	$(CC) $(DEFS) $(CFLAGS) $(LD_CFLAGS) -Xlinker -Map -Xlinker $(MAP) -o $@ $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(EXTRA_OBJECTS) $(SYMTAB_OBJECTS)
 else
@@ -399,26 +417,40 @@ else
 endif
 
 $(LINK): $(LINK).in | depend
+	@$(MKDIR_P) $(@D)
 	$(CC) $(DEFS) $(CFLAGS) -D__ASM__ -D__LINKER__ -E -x c $< | grep -v "^\#" > $@
 
-%.h: %.ag
-	$(AUTOGEN) probe $< >$<.probe.c
-	$(CC_AUTOGEN) $(DEFS) $(CFLAGS) -S -o $<.probe.s $<.probe.c
-	$(AUTOGEN) generate $< <$<.probe.s >$@
+%.ag.probe.c: %.ag
+	@$(MKDIR_P) $(@D)
+	$(AUTOGEN) probe $< >$@
+
+%.ag.probe.s: %.ag.probe.c %.ag.d
+	$(CC_AUTOGEN) $(DEFS) $(CFLAGS) -S -o $@ $<
+
+%.h: %.ag %.ag.probe.s
+	$(AUTOGEN) generate $< < $(lastword $^) >$@
+
+%.ag.d: %.ag
+	@$(MKDIR_P) $(@D)
+	$(AUTOGEN) depend $< $(@:%.ag.d=%.ag.probe.c) > $@
 
 %.o: %.S | depend
+	@$(MKDIR_P) $(@D)
 	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS) $(AS_CFLAGS) -D__ASM__
 
 %.o: %.s | depend
+	@$(MKDIR_P) $(@D)
 	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS) $(AS_CFLAGS) -D__ASM__
 
 %.o: %.c | depend
+	@$(MKDIR_P) $(@D)
 	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS) $(EXTRA_FLAGS) $(FPU_NO_CFLAGS) $(if $(findstring $<,$(INSTRUMENTED_SOURCES)),$(INSTRUMENTATION))
 
 $(REAL_MAP).o: $(REAL_MAP).bin
 	echo "$(AS_PROLOG)""$(SYMTAB_SECTION)"" .incbin \"$<\"" | $(CC) $(CFLAGS) $(AS_CFLAGS) -x assembler -c -o $@ -
 
 $(REAL_MAP).bin: $(LINK) $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS)
+	@$(MKDIR_P) $(@D)
 	echo "$(AS_PROLOG)""$(SYMTAB_SECTION)" | $(CC) $(CFLAGS) $(AS_CFLAGS) -x assembler -c -o $(EMPTY_MAP) -
 ifeq ($(CONFIG_LTO),y)
 	$(CC) $(DEFS) $(CFLAGS) $(LD_CFLAGS) -Xlinker -Map -Xlinker $(MAP_PREV) -o $@ $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) $(EXTRA_OBJECTS) $(EMPTY_MAP)
@@ -440,20 +472,4 @@ endif
 	$(OBJDUMP) -t $(ARCH_OBJECTS) $(GENARCH_OBJECTS) $(GENERIC_OBJECTS) > $(DUMP)
 	$(GENMAP) $(MAP_PREV) $(DUMP) $@
 
-$(AUTOGENS_H): $(AGDEPEND)
-
-$(AGDEPEND): $(AUTOGENS_AG)
-	echo "# DO NOT EDIT" >$@
-	for g in $^; do \
-		h=`dirname $$g`/`basename $$g .ag`.h; \
-		for l in `$(AUTOGEN) depend $$g`; do \
-			echo "$$h: $$l" >>$@; \
-		done \
-	done
-
 depend: $(AUTOGENS_H)
-
-autogen_clean:
-	-rm $(ARCH_AUTOGENS_H) $(ARCH_AUTOGENS_PROBE_C) $(ARCH_AUTOGENS_PROBE_S)
-	-rm $(GENARCH_AUTOGENS_H) $(GENARCH_AUTOGENS_PROBE_C) $(GENARCH_AUTOGENS_PROBE_S)
-	-rm $(AGDEPEND)
