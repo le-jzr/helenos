@@ -69,6 +69,7 @@ void page_arch_init(void)
 #ifdef HIGH_EXCEPTION_VECTORS
 	/* Create mapping for exception table at high offset */
 	uintptr_t ev_frame = frame_alloc(1, FRAME_NONE, 0);
+	printf("Allocated frame for exception table: 0x%x\n", ev_frame);
 	page_mapping_insert(AS_KERNEL, EXC_BASE_ADDRESS, ev_frame, flags);
 #else
 #error "Only high exception vector supported now"

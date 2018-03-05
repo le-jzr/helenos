@@ -42,6 +42,14 @@ ifeq ($(MACHINE), $(filter $(MACHINE),beagleboardxm beaglebone))
 	POSTBUILD = Makefile.uboot
 endif
 
+ifeq ($(MACHINE), omnia)
+	BOOT_OUTPUT = image.boot
+	POST_OUTPUT = $(ROOT_PATH)/uImage.bin
+	LADDR = 0x00800000
+	SADDR = 0x00800000
+	POSTBUILD = Makefile.uboot
+endif
+
 ifeq ($(MACHINE), raspberrypi)
 	BOOT_OUTPUT = image.boot
 	POST_OUTPUT = $(ROOT_PATH)/uImage.bin

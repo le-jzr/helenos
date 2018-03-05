@@ -125,6 +125,8 @@ static void arch_cpu_identify(cpu_arch_t *cpu)
 	}
 }
 
+#undef ENABLE_CACHE
+
 /** Enables unaligned access and caching for armv6+ */
 void cpu_arch_init(void)
 {
@@ -159,9 +161,11 @@ void cpu_arch_init(void)
 	 * L2 Cache for armv7 is enabled by default (i.e. controlled by
 	 * this flag).
 	 */
+	#if ENABLE_CACHE
 	control_reg |= SCTLR_CACHE_EN_FLAG;
+	#endif
 #endif
-#ifdef PROCESSOR_ARCH_armv7_a
+#if defined(PROCESSOR_ARCH_armv7_a) && ENABLE_CACHE
 	 /* ICache coherency is elaborated on in barrier.h.
 	  * VIPT and PIPT caches need maintenance only on code modify,
 	  * so it should be safe for general use.
@@ -176,6 +180,11 @@ void cpu_arch_init(void)
 		    ~(SCTLR_INST_CACHE_EN_FLAG | SCTLR_BRANCH_PREDICT_EN_FLAG);
 	}
 #endif
+	#ifndef ENABLE_CACHE
+	control_reg &=
+		    ~(SCTLR_INST_CACHE_EN_FLAG | SCTLR_BRANCH_PREDICT_EN_FLAG);
+	#endif
+
 	SCTLR_write(control_reg);
 
 #ifdef CONFIG_FPU

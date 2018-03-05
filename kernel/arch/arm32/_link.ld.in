@@ -14,8 +14,13 @@
 #define KERNEL_LOAD_ADDRESS 0x80a00000
 #elif defined MACHINE_raspberrypi
 #define KERNEL_LOAD_ADDRESS 0x80a08000
-#else
+#elif defined MACHINE_omnia
+#define KERNEL_LOAD_ADDRESS 0x81200000
+#elif defined MACHINE_integratorcp
 #define KERNEL_LOAD_ADDRESS 0x80a00000
+#else
+#error Missing KERNEL_LOAD_ADDRESS
+//#define KERNEL_LOAD_ADDRESS 0x80a00000
 #endif
 
 OUTPUT_ARCH(arm)
@@ -61,3 +66,5 @@ SECTIONS {
 	  *(.note);
 	}
 }
+
+

@@ -40,15 +40,14 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <str.h>
+#include <arch/platform.h>
 
 #ifdef MACHINE_beaglebone
 
-/** Send a byte to the am335x serial console.
- *
- * @param byte		Byte to send.
- */
 static void scons_sendb_bbone(uint8_t byte)
 {
+	/* am335x */
+
 	volatile uint32_t *thr =
 		(volatile uint32_t *) BBONE_SCONS_THR;
 	volatile uint32_t *ssr =
@@ -65,12 +64,10 @@ static void scons_sendb_bbone(uint8_t byte)
 
 #ifdef MACHINE_beagleboardxm
 
-/** Send a byte to the amdm37x serial console.
- *
- * @param byte		Byte to send.
- */
-static void scons_sendb_bbxm(uint8_t byte)
+static void scons_sendb(uint8_t byte)
 {
+	/* amdm37x */
+
 	volatile uint32_t *thr =
 	    (volatile uint32_t *)BBXM_SCONS_THR;
 	volatile uint32_t *ssr =
@@ -87,11 +84,7 @@ static void scons_sendb_bbxm(uint8_t byte)
 
 #ifdef MACHINE_gta02
 
-/** Send a byte to the gta02 serial console.
- *
- * @param byte		Byte to send.
- */
-static void scons_sendb_gta02(uint8_t byte)
+static void scons_sendb(uint8_t byte)
 {
 	volatile uint32_t *utrstat;
 	volatile uint32_t *utxh;
@@ -111,11 +104,7 @@ static void scons_sendb_gta02(uint8_t byte)
 
 #ifdef MACHINE_integratorcp
 
-/** Send a byte to the IntegratorCP serial console.
- *
- * @param byte		Byte to send.
- */
-static void scons_sendb_icp(uint8_t byte)
+static void scons_sendb(uint8_t byte)
 {
 	*((volatile uint8_t *) ICP_SCONS_ADDR) = byte;
 }
@@ -151,8 +140,10 @@ static void scons_init_raspi(void)
 		BCM2835_UART0_CR_RXE);		/* Enable RX */
 }
 
-static void scons_sendb_raspi(uint8_t byte)
+static void scons_sendb(uint8_t byte)
 {
+	/* PL011 UART */
+
 	if (!raspi_init) {
 		scons_init_raspi();
 		raspi_init = 1;
@@ -164,28 +155,26 @@ static void scons_sendb_raspi(uint8_t byte)
 }
 #endif
 
+#ifdef MACHINE_omnia
+static void scons_sendb(uint8_t byte)
+{
+	/* 16550-compatible, with 4-byte register spacing. */
+
+	volatile uint8_t *uart0 = (uint8_t *) 0xf1012000;
+
+	while (!(uart0[20] & 0x20)) {
+		/* Wait until there's space in the buffer. */
+	}
+
+	uart0[0] = byte;
+}
+#endif
+
 /** Send a byte to the serial console.
  *
  * @param byte		Byte to send.
  */
-static void scons_sendb(uint8_t byte)
-{
-#ifdef MACHINE_beaglebone
-	scons_sendb_bbone(byte);
-#endif
-#ifdef MACHINE_beagleboardxm
-	scons_sendb_bbxm(byte);
-#endif
-#ifdef MACHINE_gta02
-	scons_sendb_gta02(byte);
-#endif
-#ifdef MACHINE_integratorcp
-	scons_sendb_icp(byte);
-#endif
-#ifdef MACHINE_raspberrypi
-	scons_sendb_raspi(byte);
-#endif
-}
+static void scons_sendb(uint8_t byte);
 
 /** Display a character
  *

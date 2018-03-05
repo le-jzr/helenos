@@ -102,6 +102,8 @@ NO_TRACE void page_mapping_insert(as_t *as, uintptr_t page, uintptr_t frame,
 	assert(page_mapping_operations);
 	assert(page_mapping_operations->mapping_insert);
 
+	//printf("page_mapping_insert(as: %p, page: 0x%"PRIxPTR", frame: 0x%"PRIxPTR", flags: 0x%x\n", as, page, frame, flags);
+
 	page_mapping_operations->mapping_insert(as, ALIGN_DOWN(page, PAGE_SIZE),
 	    ALIGN_DOWN(frame, FRAME_SIZE), flags);
 

@@ -55,10 +55,10 @@
  * See ch. A3.8.3 page A3-148 for details about memory barrier implementation
  * and functionality on armv7 architecture.
  */
-#define memory_barrier()  asm volatile ("dmb" ::: "memory")
+#define memory_barrier()  asm volatile ("dsb" ::: "memory")
 #define read_barrier()    asm volatile ("dsb" ::: "memory")
-#define write_barrier()   asm volatile ("dsb st" ::: "memory")
-#define inst_barrier()    asm volatile ("isb" ::: "memory")
+#define write_barrier()   asm volatile ("dsb" ::: "memory")
+#define inst_barrier()    asm volatile ("dsb \n isb" ::: "memory")
 #elif defined PROCESSOR_ARCH_armv6 | defined KERNEL
 /*
  * ARMv6 introduced user access of the following commands:

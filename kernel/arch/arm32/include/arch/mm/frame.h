@@ -45,6 +45,8 @@
 
 #define BOOT_PAGE_TABLE_SIZE     0x4000
 
+// TODO: move
+
 #ifdef MACHINE_gta02
 
 #define PHYSMEM_START_ADDR       0x30008000
@@ -65,10 +67,19 @@
 #define PHYSMEM_START_ADDR       0x00000000
 #define BOOT_PAGE_TABLE_ADDRESS  0x00010000
 
-#else
+#elif defined MACHINE_omnia
+
+#define PHYSMEM_START_ADDR       0x00000000
+#define BOOT_PAGE_TABLE_ADDRESS  0x00808000
+
+#elif defined MACHINE_integratorcp
 
 #define PHYSMEM_START_ADDR       0x00000000
 #define BOOT_PAGE_TABLE_ADDRESS  0x00008000
+
+#else
+
+#error Missing PHYSMEM_START_ADDR, BOOT_PAGE_TABLE_ADDRESS.
 
 #endif
 

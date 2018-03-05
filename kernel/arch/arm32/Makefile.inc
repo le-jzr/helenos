@@ -32,7 +32,13 @@ BFD = binary
 
 ATSIGN = %
 
-COMMON_CFLAGS += -fno-omit-frame-pointer -mapcs-frame -march=$(subst _,-,$(PROCESSOR_ARCH)) -mno-unaligned-access -mfpu=vfpv3
+COMMON_CFLAGS += -fno-omit-frame-pointer -mapcs-frame -mno-unaligned-access
+
+ifeq ($(MACHINE),omnia)
+	COMMON_CFLAGS += -mcpu=cortex-a9 -mfpu=vfpv3-d16
+else
+	COMMON_CFLAGS += -march=$(subst _,-,$(PROCESSOR_ARCH)) -mfpu=vfpv3
+endif
 
 ifeq ($(CONFIG_FPU),y)
 	# This is necessary to allow vmsr insn and fpexc manipulation
@@ -90,6 +96,10 @@ endif
 
 ifeq ($(MACHINE),raspberrypi)
 	ARCH_SOURCES += arch/$(KARCH)/src/mach/raspberrypi/raspberrypi.c
+endif
+
+ifeq ($(MACHINE),omnia)
+	ARCH_SOURCES += arch/$(KARCH)/src/mach/turrisomnia/turrisomnia.c
 endif
 
 ifeq ($(CONFIG_PL050),y)

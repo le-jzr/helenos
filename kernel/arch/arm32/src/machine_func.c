@@ -38,11 +38,7 @@
  */
 
 #include <arch/machine_func.h>
-#include <arch/mach/gta02/gta02.h>
-#include <arch/mach/integratorcp/integratorcp.h>
-#include <arch/mach/beagleboardxm/beagleboardxm.h>
-#include <arch/mach/beaglebone/beaglebone.h>
-#include <arch/mach/raspberrypi/raspberrypi.h>
+#include <arch/mach/platform.h>
 
 /** Pointer to machine_ops structure being used. */
 struct arm_machine_ops *machine_ops;
@@ -50,19 +46,7 @@ struct arm_machine_ops *machine_ops;
 /** Initialize machine_ops pointer. */
 void machine_ops_init(void)
 {
-#if defined(MACHINE_gta02)
-	machine_ops = &gta02_machine_ops;
-#elif defined(MACHINE_integratorcp)
-	machine_ops = &icp_machine_ops;
-#elif defined(MACHINE_beagleboardxm)
-	machine_ops = &bbxm_machine_ops;
-#elif defined(MACHINE_beaglebone)
-	machine_ops = &bbone_machine_ops;
-#elif defined(MACHINE_raspberrypi)
-	machine_ops = &raspberrypi_machine_ops;
-#else
-#error Machine type not defined.
-#endif
+	machine_ops = &platform_machine_ops;
 }
 
 /** Maps HW devices to the kernel address space using #hw_map. */

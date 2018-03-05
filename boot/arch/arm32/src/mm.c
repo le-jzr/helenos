@@ -33,10 +33,13 @@
  * @brief Memory management used while booting the kernel.
  */
 
+#include <stdbool.h>
 #include <stdint.h>
+#include <printf.h>
 #include <arch/asm.h>
 #include <arch/mm.h>
 #include <arch/cp15.h>
+#include <arch/l2cache.h>
 
 #ifdef PROCESSOR_ARCH_armv7_a
 static unsigned log2(unsigned val)
@@ -79,7 +82,29 @@ static void cache_invalidate(void)
 	}
 	asm volatile ( "dsb\n" );
 	ICIALLU_write(0);
+	asm volatile ( "dsb\n" );
 	asm volatile ( "isb\n" );
+
+#ifdef L2_CACHE_BASE
+	void *base = (void *)L2_CACHE_BASE;
+	int implementer;
+	int cache_id;
+	int part_number;
+	int rtl_release;
+	uint32_t control = read_reg1_control(base);
+
+	read_cache_id(base, &implementer, &cache_id, &part_number, &rtl_release);
+
+	printf("L2 cache present: implementer = 0x%02x, cache_id = %d, part_number = 0x%02x, rtl_release = 0x%02x, control = 0x%08x\n",
+	    implementer, cache_id, part_number, rtl_release, control);
+
+	// Invalidate all ways.
+	write_reg7_inv_way(base, 0xffff);
+
+	// Wait until invalidation is complete.
+	while (read_reg7_inv_way(base) != 0)
+		;
+#endif
 }
 #endif
 
@@ -97,35 +122,27 @@ static void disable_paging(void)
 /** Check if caching can be enabled for a given memory section.
  *
  * Memory areas used for I/O are excluded from caching.
- * At the moment caching is enabled only on GTA02.
  *
  * @param section	The section number.
  *
- * @return	1 if the given section can be mapped as cacheable, 0 otherwise.
+ * @return	whether the given section can be mapped as cacheable.
 */
-static inline int section_cacheable(pfn_t section)
+static inline bool section_cacheable(pfn_t section)
 {
 	const unsigned long address = section << PTE_SECTION_SHIFT;
-#ifdef MACHINE_gta02
-	if (address < GTA02_IOMEM_START || address >= GTA02_IOMEM_END)
-		return 1;
-#elif defined MACHINE_beagleboardxm
-	if (address >= BBXM_RAM_START && address < BBXM_RAM_END)
-		return 1;
-#elif defined MACHINE_beaglebone
-	if (address >= AM335x_RAM_START && address < AM335x_RAM_END)
-		return 1;
-#elif defined MACHINE_raspberrypi
-	if (address < BCM2835_RAM_END)
-		return 1;
+#if RAM_START == 0
+	return address < RAM_END;
+#else
+	return address >= RAM_START && address < RAM_END;
 #endif
-	return address * 0;
 }
 
 /** Initialize "section" page table entry.
  *
  * Will be readable/writable by kernel with no access from user mode.
- * Will belong to domain 0. No cache or buffering is enabled.
+ * Will belong to domain 0.
+ * Cache or buffering may be enabled for addresses corresponding to physical
+ * RAM, but are disabled for all other areas.
  *
  * @param pte   Section entry to initialize.
  * @param frame First frame in the section (frame number).
@@ -149,9 +166,10 @@ static void init_ptl0_section(pte_level0_section_t* pte,
 	 * set_pt_level1_flags (kernel/arch/arm32/include/arch/mm/page_armv6.h)
 	 * set_ptl0_addr (kernel/arch/arm32/include/arch/mm/page.h)
 	 */
-	pte->tex = section_cacheable(frame) ? 5 : 0;
-	pte->cacheable = section_cacheable(frame) ? 0 : 0;
-	pte->bufferable = section_cacheable(frame) ? 1 : 1;
+	pte->tex = 0; // section_cacheable(frame) ? 5 : 0;
+	// FIXME: what is intended by this?
+	pte->cacheable = 0; // section_cacheable(frame) ? 0 : 0;
+	pte->bufferable = 0; // section_cacheable(frame) ? 1 : 1;
 #else
 	pte->bufferable = section_cacheable(frame);
 	pte->cacheable = section_cacheable(frame);
@@ -170,15 +188,25 @@ static void init_boot_pt(void)
 {
 	/*
 	 * Create 1:1 virtual-physical mapping.
-	 * Physical memory on BBxM a BBone starts at 2GB
-	 * boundary, icp has a memory mirror at 2GB.
-	 * (ARM Integrator Core Module User guide ch. 6.3,  p. 6-7)
-	 * gta02 somehow works (probably due to limited address size),
-	 * s3c2442b manual ch. 5, p.5-1:
-	 * "Address space: 128Mbytes per bank (total 1GB/8 banks)"
+	 *
+	 * Optionally, the physical memory (RAM_START to RAM_END) is
+	 * aliased at offset 0x80000000. This has the result that
+	 * physical mappings in this region are inaccessible to the
+	 * loader. On platforms that currently use it, this is not
+	 * a problem, but a more sophisticated solution may need to
+	 * be devised in the future.
 	 */
-	for (pfn_t page = 0; page < PTL0_ENTRIES; ++page)
-		init_ptl0_section(&boot_pt[page], page);
+	for (pfn_t page = 0; page < PTL0_ENTRIES; ++page) {
+		pfn_t frame = page;
+#if KERNEL_REMAP
+		static const unsigned ram_vstart = RAM_OFFSET >> 20;
+		static const unsigned ram_vend = (RAM_OFFSET + (RAM_END - RAM_START)) >> 20;
+		if (page >= ram_vstart && page < ram_vend) {
+			frame = page - ram_vstart + (RAM_START >> 20);
+		}
+#endif
+		init_ptl0_section(&boot_pt[page], frame);
+	}
 
 	/*
 	 * Tell MMU page might be cached. Keeps this setting in sync
@@ -216,10 +244,13 @@ static void enable_paging(void)
 		 * (and QEMU)
 		 */
 #ifdef PROCESSOR_ARCH_armv6
-		"ldr r1, =0x00801805\n"
+//		"ldr r1, =0x00801805\n"
 #else
-		"ldr r1, =0x00001805\n"
+//		"ldr r1, =0x00001805\n"
 #endif
+
+// XXX: caching disabled for testing
+		"ldr r1, =0x00000001\n"
 
 		"orr r0, r0, r1\n"
 
@@ -227,6 +258,8 @@ static void enable_paging(void)
 		 * ARMv7-A Reference manual, B3.10.3
 		 */
 		"mcr p15, 0, r0, c8, c7, 0\n"
+
+		// XXX: missing sync?
 
 		/* Store settings, enable the MMU */
 		"mcr p15, 0, r0, c1, c0, 0\n"

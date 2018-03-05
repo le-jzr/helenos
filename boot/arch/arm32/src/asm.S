@@ -63,8 +63,6 @@ FUNCTION_BEGIN(jump_to_kernel)
 #define CP15_C1_BP		11
 #define CP15_C1_DC		2
 
-
-#ifndef PROCESSOR_ARCH_armv7_a
 	mrc	p15, 0, r4, c1, c0, 0
 
 	# Disable D-cache before the kernel is started.
@@ -72,12 +70,9 @@ FUNCTION_BEGIN(jump_to_kernel)
 
 	# Disable I-cache and Branch predictors.
 	bic	r4, r4, #(1 << CP15_C1_IC)
-#ifdef PROCESSOR_ARCH_armv6
 	bic	r4, r4, #(1 << CP15_C1_BP)
-#endif
 
 	mcr	p15, 0, r4, c1, c0, 0
-#endif
 
 	# Wait for the operations to complete
 #ifdef PROCESSOR_ARCH_armv7_a
@@ -95,6 +90,7 @@ FUNCTION_BEGIN(jump_to_kernel)
 
 	# Wait for the operations to complete
 #ifdef PROCESSOR_ARCH_armv7_a
+	dsb
 	isb
 	nop
 #elif defined(PROCESSOR_ARCH_armv6)
