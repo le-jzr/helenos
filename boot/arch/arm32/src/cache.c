@@ -1,6 +1,0 @@
-
-void clean_ram()
-{
-	
-}
-

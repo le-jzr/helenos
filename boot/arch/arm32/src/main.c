@@ -46,40 +46,13 @@
 #include <str.h>
 #include <errno.h>
 #include <inflate.h>
-#include <arch/cp15.h>
+#include <arch/sysmgmt.h>
 #include "../../components.h"
 
 #define TOP2ADDR(top)  (((void *) PA2KA(BOOT_OFFSET)) + (top))
 
 extern void *bdata_start;
 extern void *bdata_end;
-
-static inline void clean_dcache_poc(void *address, size_t size)
-{
-	const uintptr_t addr = (uintptr_t) address;
-
-#if !defined(PROCESSOR_ARCH_armv7_a)
-	bool sep;
-	if (MIDR_read() != CTR_read()) {
-		sep = (CTR_read() & CTR_SEP_FLAG) == CTR_SEP_FLAG;
-	} else {
-		printf("Unknown cache type.\n");
-		halt();
-	}
-#endif
-
-	for (uintptr_t a = ALIGN_DOWN(addr, CP15_C7_MVA_ALIGN); a < addr + size;
-	    a += CP15_C7_MVA_ALIGN) {
-#if defined(PROCESSOR_ARCH_armv7_a)
-		DCCMVAC_write(a);
-#else
-		if (sep)
-			DCCMVA_write(a);
-		else
-			CCMVA_write(a);
-#endif
-	}
-}
 
 static bootinfo_t bootinfo;
 
@@ -143,14 +116,14 @@ void bootstrap(void)
 			printf("\n%s: Inflating error %d\n", components[i - 1].name, err);
 			halt();
 		}
-		/* Make sure data are in the memory, ICache will need them */
-		clean_dcache_poc(dest[i - 1], components[i - 1].inflated);
 	}
 
 	printf(".\n");
 
-	/* Flush PT too. We need this if we disable caches later */
-	clean_dcache_poc(boot_pt, PTL0_ENTRIES * PTL0_ENTRY_SIZE);
+	/* Disable caches before jumping to kernel.
+	 * This also takes care of cleaning and invalidating.
+	 */
+	disable_caches();
 
 	printf("Booting the kernel...\n");
 	jump_to_kernel((void *) PA2KA(BOOT_OFFSET), &bootinfo);

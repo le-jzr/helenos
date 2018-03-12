@@ -177,7 +177,7 @@ static void init_ptl0_section(pte_level0_section_t* pte,
 #endif
 	pte->access_permission_1 = 0;
 	pte->shareable = 0;
-	pte->non_global = 0;
+	pte->non_global = 1;
 	pte->should_be_zero_2 = 0;
 	pte->non_secure = 0;
 	pte->section_base_addr = frame;

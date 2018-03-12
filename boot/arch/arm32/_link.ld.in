@@ -1,6 +1,6 @@
 #include <arch/arch.h>
 
-ENTRY(start)
+ENTRY(__start)
 
 SECTIONS {
 	. = BOOT_BASE;
@@ -35,3 +35,4 @@ SECTIONS {
 		*(.note.*);
 	}
 }
+
