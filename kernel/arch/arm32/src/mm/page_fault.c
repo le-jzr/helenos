@@ -33,7 +33,7 @@
  *  @brief Page fault related functions.
  */
 #include <panic.h>
-#include <arch/cp15.h>
+
 #include <arch/exception.h>
 #include <arch/mm/page_fault.h>
 #include <mm/as.h>

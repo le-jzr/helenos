@@ -59,7 +59,9 @@ static bootinfo_t bootinfo;
 void bootstrap(void)
 {
 	/* Enable MMU and caches */
-	mmu_start();
+	armsys_cache_enable();
+	armsys_mmu_start();
+
 	version_print();
 
 	printf("Boot data: %p -> %p\n", &bdata_start, &bdata_end);
@@ -123,7 +125,7 @@ void bootstrap(void)
 	/* Disable caches before jumping to kernel.
 	 * This also takes care of cleaning and invalidating.
 	 */
-	disable_caches();
+	armsys_cache_disable();
 
 	printf("Booting the kernel...\n");
 	jump_to_kernel((void *) PA2KA(BOOT_OFFSET), &bootinfo);

@@ -37,7 +37,7 @@
 #include <arch.h>
 #include <arch/types.h>
 #include <arch/security_ext.h>
-#include <arch/cp15.h>
+
 #include <cpu.h>
 
 #define FPSID_IMPLEMENTER(r)   ((r) >> 24)

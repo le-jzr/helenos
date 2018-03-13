@@ -36,7 +36,7 @@
 #ifndef KERN_arm32_SECURITY_EXT_H_
 #define KERN_arm32_SECURITY_EXT_H_
 
-#include <arch/cp15.h>
+
 #include <arch/regutils.h>
 
 /** Test whether the current cpu supports security extensions.

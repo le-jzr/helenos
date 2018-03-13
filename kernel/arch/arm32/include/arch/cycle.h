@@ -37,7 +37,7 @@
 #define KERN_arm32_CYCLE_H_
 
 #include <trace.h>
-#include <arch/cp15.h>
+
 
 /** Return count of CPU cycles.
  *

@@ -38,7 +38,6 @@
 
 #ifdef KERNEL
 #include <arch/cache.h>
-#include <arch/cp15.h>
 #include <align.h>
 #else
 #include <libarch/cp15.h>
