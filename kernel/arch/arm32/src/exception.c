@@ -38,11 +38,12 @@
 #include <arch/machine_func.h>
 #include <interrupt.h>
 #include <arch/mm/page_fault.h>
-#include <arch/sysmgmt.h>
 #include <arch/barrier.h>
 #include <print.h>
 #include <syscall/syscall.h>
 #include <stacktrace.h>
+
+#include <arch/sysarm.h>
 
 /** Offset used in calculation of exception handler's relative address.
  *

@@ -37,104 +37,24 @@
 #define KERN_arm32_BARRIER_H_
 
 #ifdef KERNEL
-#include <arch/cache.h>
-#include <align.h>
+#include <arch/sysarm.h>
 #else
-#include <libarch/cp15.h>
+#include <libarch/sysarm.h>
 #endif
 
 #define CS_ENTER_BARRIER()  asm volatile ("" ::: "memory")
 #define CS_LEAVE_BARRIER()  asm volatile ("" ::: "memory")
 
-#if defined PROCESSOR_ARCH_armv7_a
-/* ARMv7 uses instructions for memory barriers see ARM Architecture reference
- * manual for details:
- * DMB: ch. A8.8.43 page A8-376
- * DSB: ch. A8.8.44 page A8-378
- * See ch. A3.8.3 page A3-148 for details about memory barrier implementation
- * and functionality on armv7 architecture.
- */
-#define memory_barrier()  asm volatile ("dsb" ::: "memory")
-#define read_barrier()    asm volatile ("dsb" ::: "memory")
-#define write_barrier()   asm volatile ("dsb" ::: "memory")
-#define inst_barrier()    asm volatile ("dsb \n isb" ::: "memory")
-#elif defined PROCESSOR_ARCH_armv6 | defined KERNEL
-/*
- * ARMv6 introduced user access of the following commands:
- * - Prefetch flush
- * - Data synchronization barrier
- * - Data memory barrier
- * - Clean and prefetch range operations.
- * ARM Architecture Reference Manual version I ch. B.3.2.1 p. B3-4
- */
-/* ARMv6- use system control coprocessor (CP15) for memory barrier instructions.
- * Although at least mcr p15, 0, r0, c7, c10, 4 is mentioned in earlier archs,
- * CP15 implementation is mandatory only for armv6+.
- */
-#if defined(PROCESSOR_ARCH_armv6) || defined(PROCESSOR_ARCH_armv7_a)
-#define memory_barrier()  CP15DMB_write(0)
-#else
-#define memory_barrier()  CP15DSB_write(0)
-#endif
-#define read_barrier()    CP15DSB_write(0)
-#define write_barrier()   read_barrier()
-#if defined(PROCESSOR_ARCH_armv6) || defined(PROCESSOR_ARCH_armv7_a)
-#define inst_barrier()    CP15ISB_write(0)
-#else
-#define inst_barrier()
-#endif
-#else
-/* Older manuals mention syscalls as a way to implement cache coherency and
- * barriers. See for example ARM Architecture Reference Manual Version D
- * chapter 2.7.4 Prefetching and self-modifying code (p. A2-28)
- */
-// TODO implement on per PROCESSOR basis or via syscalls
-#define memory_barrier()  asm volatile ("" ::: "memory")
-#define read_barrier()    asm volatile ("" ::: "memory")
-#define write_barrier()   asm volatile ("" ::: "memory")
-#define inst_barrier()    asm volatile ("" ::: "memory")
-#endif
+#define memory_barrier() sysarm_memory_barrier()
+#define read_barrier() sysarm_read_memory_barrier()
+#define write_barrier() sysarm_write_memory_barrier()
 
-#ifdef KERNEL
+#define smc_coherence_block(a, l) { \
+	uintptr_t _a = (uintptr_t) a; \
+	sysarm_flush_modified_code_range(_a, _a + l); \
+}
 
-/*
- * There are multiple ways ICache can be implemented on ARM machines. Namely
- * PIPT, VIPT, and ASID and VMID tagged VIVT (see ARM Architecture Reference
- * Manual B3.11.2 (p. 1383).  However, CortexA8 Manual states: "For maximum
- * compatibility across processors, ARM recommends that operating systems target
- * the ARMv7 base architecture that uses ASID-tagged VIVT instruction caches,
- * and do not assume the presence of the IVIPT extension. Software that relies
- * on the IVIPT extension might fail in an unpredictable way on an ARMv7
- * implementation that does not include the IVIPT extension." (7.2.6 p. 245).
- * Only PIPT invalidates cache for all VA aliases if one block is invalidated.
- *
- * @note: Supporting ASID and VMID tagged VIVT may need to add ICache
- * maintenance to other places than just smc.
- */
-
-#if defined PROCESSOR_ARCH_armv7_a | defined PROCESSOR_ARCH_armv6 | defined KERNEL
-//TODO might be PL1 only on armv5-
-#define smc_coherence(a) \
-do { \
-	dcache_clean_mva_pou(ALIGN_DOWN((uintptr_t) a, CP15_C7_MVA_ALIGN)); \
-	write_barrier();               /* Wait for completion */\
-	icache_invalidate();\
-	inst_barrier();                /* Wait for Inst refetch */\
-} while (0)
-/* @note: Cache type register is not available in uspace. We would need
- * to export the cache line value, or use syscall for uspace smc_coherence */
-#define smc_coherence_block(a, l) \
-do { \
-	for (uintptr_t addr = (uintptr_t) a; addr < (uintptr_t) a + l; \
-	    addr += CP15_C7_MVA_ALIGN) \
-		smc_coherence(addr); \
-} while (0)
-#else
-#define smc_coherence(a)
-#define smc_coherence_block(a, l)
-#endif
-
-#endif	/* KERNEL */
+#define smc_coherence(a) smc_coherence_block(a, 4)
 
 #endif
 

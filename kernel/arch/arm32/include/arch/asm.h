@@ -57,11 +57,7 @@
  */
 NO_TRACE static inline void cpu_sleep(void)
 {
-#ifdef PROCESSOR_ARCH_armv7_a
-	asm volatile ( "wfe" );
-#elif defined(PROCESSOR_ARCH_armv6) | defined(PROCESSOR_arm926ej_s) | defined(PROCESSOR_arm920t)
-	WFI_write(0);
-#endif
+	sysarm_wait_for_event();
 }
 
 NO_TRACE static inline void pio_write_8(ioport8_t *port, uint8_t v)
