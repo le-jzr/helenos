@@ -32,7 +32,6 @@
 /** @file
  *  @brief ASIDs related declarations.
  *
- *  ARM CPUs doesn't support ASIDs.
  */
 
 #ifndef KERN_arm32_ASID_H_
