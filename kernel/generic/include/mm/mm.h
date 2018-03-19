@@ -146,6 +146,13 @@ static inline bool PAGE_FLAGS_VALID(unsigned flags) {
 	return true;
 }
 
+
+
+
+#define PAGE_READ_ONLY  PAGE_READ
+#define PAGE_READ_WRITE (PAGE_READ | PAGE_WRITE)
+#define PAGE_EXECUTE    PAGE_EXEC
+
 #endif
 
 /** @}
