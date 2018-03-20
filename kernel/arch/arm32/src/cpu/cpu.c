@@ -138,13 +138,19 @@ void cpu_arch_init(void)
 	/* Turn off accessed flag, RAZ/WI prior to armv7 */
 	control_reg &= ~(SCTLR_ACCESS_FLAG_EN_FLAG | SCTLR_HW_ACCESS_FLAG_EN_FLAG);
 
-	/* Unaligned access is supported on armv6+ */
-#if defined(PROCESSOR_ARCH_armv7_a) | defined(PROCESSOR_ARCH_armv6)
+#if defined(PROCESSOR_ARCH_armv6)
 	/* Enable unaligned access, RAZ/WI prior to armv6
-	 * switchable on armv6, RAO/WI writes on armv7,
+	 * switchable on armv6, RAO/SBOP on armv7,
 	 * see ARM Architecture Reference Manual ARMv7-A and ARMv7-R edition
 	 * L.3.1 (p. 2456) */
 	control_reg |= SCTLR_UNALIGNED_EN_FLAG;
+
+	/* Enable armv6 page table format. RAO/SBOP in armv7 */
+	control_reg |= SCTLR_EXTENDED_PT_EN_FLAG;
+#endif
+
+	/* Unaligned access is supported on armv6+ */
+#if defined(PROCESSOR_ARCH_armv7_a) | defined(PROCESSOR_ARCH_armv6)
 	/* Disable alignment checks, this turns unaligned access to undefined,
 	 * unless U bit is set. */
 	control_reg &= ~SCTLR_ALIGN_CHECK_EN_FLAG;
@@ -160,21 +166,16 @@ void cpu_arch_init(void)
 	 * this flag).
 	 */
 	control_reg |= SCTLR_CACHE_EN_FLAG;
+	// FIXME: We need to ensure ICACHE coherence everywhere we change
+	// code, and also when we change page mapping.
+	/*
+	control_reg |= SCTLR_INST_CACHE_EN_FLAG;
+	control_reg |= SCTLR_BRANCH_PREDICT_EN_FLAG;
+	*/
 #endif
 #ifdef PROCESSOR_ARCH_armv7_a
-	 /* ICache coherency is elaborated on in barrier.h.
-	  * VIPT and PIPT caches need maintenance only on code modify,
-	  * so it should be safe for general use.
-	  * Enable branch predictors too as they follow the same rules
-	  * as ICache and they can be flushed together
-	  */
-	if ((CTR_read() & CTR_L1I_POLICY_MASK) != CTR_L1I_POLICY_AIVIVT) {
-		control_reg |=
-		    SCTLR_INST_CACHE_EN_FLAG | SCTLR_BRANCH_PREDICT_EN_FLAG;
-	} else {
-		control_reg &=
-		    ~(SCTLR_INST_CACHE_EN_FLAG | SCTLR_BRANCH_PREDICT_EN_FLAG);
-	}
+	/* Disable CP15 barriers, we use the new instructions. */
+	control_reg &= ~SCTLR_CP15_BARRIER_EN_FLAG;
 #endif
 	SCTLR_write(control_reg);
 

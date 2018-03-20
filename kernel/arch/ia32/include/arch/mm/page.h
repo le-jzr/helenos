@@ -182,39 +182,41 @@ typedef struct {
 	unsigned frame_address : 20;
 } __attribute__ ((packed)) pte_t;
 
-NO_TRACE static inline unsigned int get_pt_flags(pte_t *pt, size_t i)
+NO_TRACE static inline unsigned int get_pt_flags(pte_t *pt, size_t i, bool last_level)
 {
 	pte_t *p = &pt[i];
 
-	return ((p->page_cache_disable ? PAGE_NOT_CACHEABLE : PAGE_CACHEABLE) |
-	    (!p->present) << PAGE_NOT_PRESENT_SHIFT |
-	    (p->uaccessible ? PAGE_USER : PAGE_KERNEL) |
-	    _PAGE_READ |
-	    p->writeable << PAGE_WRITE_SHIFT |
-	    _PAGE_EXEC |
-	    p->global << PAGE_GLOBAL_SHIFT);
+	// TODO: Support NX bit and large pages.
+
+	return PAGE_FLAGS(
+		.present = p.present,
+		.next_level = !last_level,
+		.read = 1,
+		.write = p->writeable,
+		.execute = 1,
+		.kernel_only = !p->uaccessible,
+		.global = p->global,
+		.cacheable = !p->page_cache_disable,
+	);
 }
 
 NO_TRACE static inline void set_pt_flags(pte_t *pt, size_t i, int flags)
 {
 	pte_t *p = &pt[i];
 
+	if (flags & PAGE_NOT_PRESENT) {
+		p->present = 0;
+		write_barrier();
+		*p = {0};
+		return;
+	}
+
 	p->page_cache_disable = !(flags & PAGE_CACHEABLE);
-	p->present = !(flags & PAGE_NOT_PRESENT);
 	p->uaccessible = !(flags & PAGE_KERNEL);
 	p->writeable = (flags & _PAGE_WRITE) != 0;
 	p->global = (flags & PAGE_GLOBAL) != 0;
 
-	/*
-	 * Ensure that there is at least one bit set even if the present bit is
-	 * cleared.
-	 */
-	p->soft_valid = true;
-}
-
-NO_TRACE static inline void set_pt_present(pte_t *pt, size_t i)
-{
-	pte_t *p = &pt[i];
+	write_barrier();
 
 	p->present = 1;
 }

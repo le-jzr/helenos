@@ -78,10 +78,15 @@ typedef struct {
 /** Level 1 page table entry (small (4KB) pages used). */
 typedef struct {
 
-	/* 0b10 for small pages, 0b11 for NX small pages */
+	/* 0b10 for small pages, 0b11 for PXN small pages */
 	unsigned descriptor_type : 2;
-	unsigned bufferable : 1;
-	unsigned cacheable : 1;
+	/* This field naming is a historical legacy from earlier ARM
+	 * versions. In ARMv6, bufferable, cacheable and tex are combined
+	 * to determine cacheability and shareability attributes. The
+	 * individual fields do not have their namesake meaning.
+	 */
+	unsigned b : 1;
+	unsigned c : 1;
 	unsigned access_permission_0 : 2;
 	unsigned tex : 3;
 	unsigned access_permission_1 : 1;
@@ -109,7 +114,7 @@ typedef union {
 /** User mode: read/write, privileged mode: read/write. */
 #define PTE_AP0_USER_FULL_KERNEL_FULL    3
 
-/** Allow writes */
+/** Disallow writes */
 #define PTE_AP1_RO   1
 
 
@@ -124,8 +129,11 @@ typedef union {
 /** pte_level1_t small page table flag (used in descriptor type). */
 #define PTE_DESCRIPTOR_SMALL_PAGE	2
 
-/** pte_level1_t small page table flag with NX (used in descriptor type). */
-#define PTE_DESCRIPTOR_SMALL_PAGE_NX	3
+/** pte_level1_t small page table flag with PXN (used in descriptor type).
+ *  This is an OPTIONAL feature that must not be used on CPUs
+ *  that don't support it. Any use must be guarded by runtime feature check.
+ */
+#define PTE_DESCRIPTOR_SMALL_PAGE_PXN	3
 
 
 /**
@@ -161,6 +169,11 @@ do { \
 	read_barrier(); \
 } while (0)
 
+// FIXME: The above use of `read_barrier()` is not based on barrier semantics,
+// and only works because the barrier is defined stronger than necessary,
+// to make this use work.
+// Change it to explicit DSB.
+
 /** Returns level 0 page table entry flags.
  *
  * @param pt Level 0 page table.
@@ -170,9 +183,11 @@ do { \
 NO_TRACE static inline int get_pt_level0_flags(pte_t *pt, size_t i)
 {
 	const pte_level0_t *p = &pt[i].l0;
-	const unsigned np = (p->descriptor_type == PTE_DESCRIPTOR_NOT_PRESENT);
 
-	return (np << PAGE_NOT_PRESENT_SHIFT) | PAGE_NEXT_LEVEL_PT;
+	return PAGE_FLAGS(
+		.present = (p->descriptor_type != PTE_DESCRIPTOR_NOT_PRESENT),
+		.next_level = 1,
+	);
 }
 
 /** Returns level 1 page table entry flags.
@@ -189,15 +204,14 @@ NO_TRACE static inline int get_pt_level1_flags(pte_t *pt, size_t i)
 	const unsigned ap0 = p->access_permission_0;
 	const unsigned ap1 = p->access_permission_1;
 
-	return ((dt == PTE_DESCRIPTOR_NOT_PRESENT) << PAGE_NOT_PRESENT_SHIFT) |
-	    ((dt != PTE_DESCRIPTOR_SMALL_PAGE_NX) << PAGE_EXEC_SHIFT) |
-	    ((ap0 == PTE_AP0_USER_LIMITED_KERNEL_FULL) << PAGE_READ_SHIFT) |
-	    ((ap0 == PTE_AP0_USER_FULL_KERNEL_FULL) << PAGE_READ_SHIFT) |
-	    ((ap0 == PTE_AP0_USER_NO_KERNEL_FULL) << PAGE_READ_SHIFT) |
-	    ((ap0 != PTE_AP0_USER_NO_KERNEL_FULL) << PAGE_USER_SHIFT) |
-	    (((ap1 != PTE_AP1_RO) && (ap0 == PTE_AP0_USER_FULL_KERNEL_FULL)) << PAGE_WRITE_SHIFT) |
-	    (((ap1 != PTE_AP1_RO) && (ap0 == PTE_AP0_USER_NO_KERNEL_FULL)) << PAGE_WRITE_SHIFT) |
-	    (p->bufferable ? PAGE_CACHEABLE : PAGE_NOT_CACHEABLE);
+	return PAGE_FLAGS(
+		.present = (dt != PTE_DESCRIPTOR_NOT_PRESENT),
+		.read = 1,
+		.write = ap1 != PTE_AP1_RO,
+		.execute = (dt != PTE_DESCRIPTOR_SMALL_PAGE_NX),
+		.kernel_only = (ap0 == PTE_AP0_USER_NO_KERNEL_FULL),
+		.cacheable = p->bufferable,
+	);
 }
 
 /** Sets flags of level 0 page table entry.
@@ -213,6 +227,7 @@ NO_TRACE static inline void set_pt_level0_flags(pte_t *pt, size_t i, int flags)
 
 	if (flags & PAGE_NOT_PRESENT) {
 		p->descriptor_type = PTE_DESCRIPTOR_NOT_PRESENT;
+		write_barrier();
 		/*
 		 * Ensures that the entry will be recognized as valid when
 		 * PTE_VALID_ARCH applied.
@@ -220,11 +235,12 @@ NO_TRACE static inline void set_pt_level0_flags(pte_t *pt, size_t i, int flags)
 		p->should_be_zero_0 = 1;
 		p->should_be_zero_1 = 1;
 	} else {
-		p->descriptor_type = PTE_DESCRIPTOR_COARSE_TABLE;
 		p->should_be_zero_0 = 0;
 		p->should_be_zero_1 = 0;
 		p->domain = 0;
 		p->ns = 0;
+		write_barrier();
+		p->descriptor_type = PTE_DESCRIPTOR_COARSE_TABLE;
 	}
 	pt_coherence(p);
 }
@@ -247,11 +263,8 @@ NO_TRACE static inline void set_pt_level1_flags(pte_t *pt, size_t i, int flags)
 
 	if (flags & PAGE_NOT_PRESENT) {
 		p->descriptor_type = PTE_DESCRIPTOR_NOT_PRESENT;
-	} else {
-		if (flags & _PAGE_EXEC)
-			p->descriptor_type = PTE_DESCRIPTOR_SMALL_PAGE;
-		else
-			p->descriptor_type = PTE_DESCRIPTOR_SMALL_PAGE_NX;
+		pt_coherence(p);
+		return;
 	}
 
 	if (flags & PAGE_CACHEABLE) {
@@ -265,6 +278,7 @@ NO_TRACE static inline void set_pt_level1_flags(pte_t *pt, size_t i, int flags)
 		 * init_ptl0_section (boot/arch/arm32/src/mm.c)
 		 * set_ptl0_addr (kernel/arch/arm32/include/arch/mm/page.h)
 		 */
+		// XXX: check this
 		p->tex = 5;
 		p->cacheable = 0;
 		p->bufferable = 1;
@@ -278,42 +292,32 @@ NO_TRACE static inline void set_pt_level1_flags(pte_t *pt, size_t i, int flags)
 		p->bufferable = 1;
 	}
 
+	// XXX: more weirdness here
+
 	/* Shareable is ignored for devices (non-cacheable),
 	 * turn it off for normal memory. */
 	p->shareable = 0;
 
 	p->non_global = !(flags & PAGE_GLOBAL);
 
-	/* default access permission: kernel only*/
-	p->access_permission_0 = PTE_AP0_USER_NO_KERNEL_FULL;
-
-	if (flags & PAGE_USER)
-		p->access_permission_0 = PTE_AP0_USER_FULL_KERNEL_FULL;
-
 	if (!(flags & _PAGE_WRITE))
 		p->access_permission_1 = PTE_AP1_RO;
 
+	if (flags & PAGE_USER)
+		p->access_permission_0 = PTE_AP0_USER_FULL_KERNEL_FULL;
+	else
+		p->access_permission_0 = PTE_AP0_USER_NO_KERNEL_FULL;
+
+	/* Make sure the previous changes are visible before we change the descriptor. */
+	write_barrier();
+
+	if (flags & _PAGE_EXEC)
+		p->descriptor_type = PTE_DESCRIPTOR_SMALL_PAGE;
+	else
+		p->descriptor_type = PTE_DESCRIPTOR_SMALL_PAGE_NX;
+
 	pt_coherence(p);
 }
-
-NO_TRACE static inline void set_pt_level0_present(pte_t *pt, size_t i)
-{
-	pte_level0_t *p = &pt[i].l0;
-
-	p->should_be_zero_0 = 0;
-	p->should_be_zero_1 = 0;
-	p->descriptor_type = PTE_DESCRIPTOR_COARSE_TABLE;
-	pt_coherence(p);
-}
-
-NO_TRACE static inline void set_pt_level1_present(pte_t *pt, size_t i)
-{
-	pte_level1_t *p = &pt[i].l1;
-
-	p->descriptor_type = PTE_DESCRIPTOR_SMALL_PAGE;
-	pt_coherence(p);
-}
-
 
 extern void page_arch_init(void);
 

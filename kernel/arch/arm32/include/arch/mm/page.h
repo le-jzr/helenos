@@ -43,6 +43,10 @@
 #include <arch/cp15.h>
 #include <trace.h>
 
+#ifdef PROCESSOR_ARCH_armv7_a
+#define ICACHE_IS_VIVT ((CTR_read() & CTR_L1I_POLICY_MASK) == CTR_L1I_POLICY_AIVIVT)
+#endif
+
 #define PAGE_WIDTH	FRAME_WIDTH
 #define PAGE_SIZE	FRAME_SIZE
 
@@ -152,10 +156,28 @@
  */
 NO_TRACE static inline void set_ptl0_addr(pte_t *pt)
 {
+
 	uint32_t val = (uint32_t)pt & TTBR_ADDR_MASK;
-#if defined(PROCESSOR_ARCH_armv6) || defined(PROCESSOR_ARCH_armv7_a)
-	// FIXME: TTBR_RGN_WBWA_CACHE is unpredictable on ARMv6
+#if defined(PROCESSOR_ARCH_armv6)
+	val |= TTBR_RGN_WB_CACHE | TTBR_C_FLAG;
+
+	if (all_cpus_shareability() != NOT_SHAREABLE) {
+		/* Multiprocessor. The memory must be kept coherent. */
+		val |= TTBR_S_FLAG;
+	}
+#elif defined(PROCESSOR_ARCH_armv7_a)
 	val |= TTBR_RGN_WBWA_CACHE | TTBR_C_FLAG;
+
+	switch (all_cpus_shareability()) {
+	case INNER_SHAREABLE:
+		/* Shareable, but not outer shareable. */
+		val |= TTBR_NOS_FLAG;
+		/* fallthrough */
+	case OUTER_SHAREABLE:
+		/* Multiprocessor. The memory must be kept coherent. */
+		val |= TTBR_S_FLAG;
+	case NOT_SHAREABLE:
+	}
 #endif
 	TTBR0_write(val);
 }

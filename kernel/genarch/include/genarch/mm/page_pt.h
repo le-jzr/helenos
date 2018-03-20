@@ -119,25 +119,10 @@
 #define SET_PTL3_FLAGS(ptl2, i, x)   SET_PTL3_FLAGS_ARCH(ptl2, i, x)
 #define SET_FRAME_FLAGS(ptl3, i, x)  SET_FRAME_FLAGS_ARCH(ptl3, i, x)
 
-/*
- * These macros are provided to set the present bit within the page tables.
- *
- */
-#define SET_PTL1_PRESENT(ptl0, i)   SET_PTL1_PRESENT_ARCH(ptl0, i)
-#define SET_PTL2_PRESENT(ptl1, i)   SET_PTL2_PRESENT_ARCH(ptl1, i)
-#define SET_PTL3_PRESENT(ptl2, i)   SET_PTL3_PRESENT_ARCH(ptl2, i)
-#define SET_FRAME_PRESENT(ptl3, i)  SET_FRAME_PRESENT_ARCH(ptl3, i)
-
-/*
- * Macros for querying the last-level PTEs.
- *
- */
-#define PTE_VALID(p)       PTE_VALID_ARCH((p))
-#define PTE_PRESENT(p)     PTE_PRESENT_ARCH((p))
-#define PTE_GET_FRAME(p)   PTE_GET_FRAME_ARCH((p))
-#define PTE_READABLE(p)    PTE_READABLE_ARCH((p))
-#define PTE_WRITABLE(p)    PTE_WRITABLE_ARCH((p))
-#define PTE_EXECUTABLE(p)  PTE_EXECUTABLE_ARCH((p))
+/* Check whether an entire page table is empty, and hence eligible for removal. */
+#define PTL1_EMPTY(ptl1) PTL1_EMPTY_ARCH(ptl1)
+#define PTL2_EMPTY(ptl2) PTL2_EMPTY_ARCH(ptl2)
+#define PTL3_EMPTY(ptl3) PTL3_EMPTY_ARCH(ptl3)
 
 extern as_operations_t as_pt_operations;
 extern page_mapping_operations_t pt_mapping_operations;

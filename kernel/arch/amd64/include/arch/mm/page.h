@@ -120,37 +120,27 @@
 
 /* Get PTE flags accessors for each level. */
 #define GET_PTL1_FLAGS_ARCH(ptl0, i) \
-	get_pt_flags((pte_t *) (ptl0), (size_t) (i))
+	get_pt_flags((pte_t *) (ptl0), (size_t) (i), 0)
 #define GET_PTL2_FLAGS_ARCH(ptl1, i) \
-	get_pt_flags((pte_t *) (ptl1), (size_t) (i))
+	get_pt_flags((pte_t *) (ptl1), (size_t) (i), 0)
 #define GET_PTL3_FLAGS_ARCH(ptl2, i) \
-	get_pt_flags((pte_t *) (ptl2), (size_t) (i))
+	get_pt_flags((pte_t *) (ptl2), (size_t) (i), 0)
 #define GET_FRAME_FLAGS_ARCH(ptl3, i) \
-	get_pt_flags((pte_t *) (ptl3), (size_t) (i))
+	get_pt_flags((pte_t *) (ptl3), (size_t) (i), 1)
 
 /* Set PTE flags accessors for each level. */
 #define SET_PTL1_FLAGS_ARCH(ptl0, i, x) \
-	set_pt_flags((pte_t *) (ptl0), (size_t) (i), (x))
+	set_pt_flags((pte_t *) (ptl0), (size_t) (i), (x), 0)
 #define SET_PTL2_FLAGS_ARCH(ptl1, i, x) \
-	set_pt_flags((pte_t *) (ptl1), (size_t) (i), (x))
+	set_pt_flags((pte_t *) (ptl1), (size_t) (i), (x), 0)
 #define SET_PTL3_FLAGS_ARCH(ptl2, i, x) \
-	set_pt_flags((pte_t *) (ptl2), (size_t) (i), (x))
+	set_pt_flags((pte_t *) (ptl2), (size_t) (i), (x), 0)
 #define SET_FRAME_FLAGS_ARCH(ptl3, i, x) \
-	set_pt_flags((pte_t *) (ptl3), (size_t) (i), (x))
-
-/* Set PTE present bit accessors for each level. */
-#define SET_PTL1_PRESENT_ARCH(ptl0, i) \
-	set_pt_present((pte_t *) (ptl0), (size_t) (i))
-#define SET_PTL2_PRESENT_ARCH(ptl1, i) \
-	set_pt_present((pte_t *) (ptl1), (size_t) (i))
-#define SET_PTL3_PRESENT_ARCH(ptl2, i) \
-	set_pt_present((pte_t *) (ptl2), (size_t) (i))
-#define SET_FRAME_PRESENT_ARCH(ptl3, i) \
-	set_pt_present((pte_t *) (ptl3), (size_t) (i))
+	set_pt_flags((pte_t *) (ptl3), (size_t) (i), (x), 1)
 
 /* Macros for querying the last-level PTE entries. */
 #define PTE_VALID_ARCH(p) \
-	((p)->soft_valid != 0)
+	((p)->present != 0)
 #define PTE_PRESENT_ARCH(p) \
 	((p)->present != 0)
 #define PTE_GET_FRAME_ARCH(p) \
@@ -168,6 +158,7 @@
 #include <mm/mm.h>
 #include <arch/interrupt.h>
 #include <typedefs.h>
+#include <arch/barrier.h>
 
 /* Page fault error codes. */
 
@@ -185,8 +176,8 @@
 /** When bit on this position is 1, a reserved bit was set in page directory. */
 #define PFERR_CODE_RSVD  (1 << 3)
 
-/** When bit on this position os 1, the page fault was caused during instruction
- * fecth.
+/** When bit on this position is 1, the page fault was caused during instruction
+ * fetch.
  */
 #define PFERR_CODE_ID  (1 << 4)
 
@@ -199,7 +190,7 @@ typedef struct {
 	unsigned int page_cache_disable : 1;
 	unsigned int accessed : 1;
 	unsigned int dirty : 1;
-	unsigned int unused: 1;
+	unsigned int page_size_or_pat: 1;
 	unsigned int global : 1;
 	unsigned int soft_valid : 1;  /**< Valid content even if present bit is cleared. */
 	unsigned int avl : 2;
@@ -208,17 +199,20 @@ typedef struct {
 	unsigned int no_execute : 1;
 } __attribute__ ((packed)) pte_t;
 
-NO_TRACE static inline unsigned int get_pt_flags(pte_t *pt, size_t i)
+NO_TRACE static inline unsigned int get_pt_flags(pte_t *pt, size_t i, bool last_level)
 {
 	pte_t *p = &pt[i];
 
-	return ((p->page_cache_disable ? PAGE_NOT_CACHEABLE : PAGE_CACHEABLE) |
-	    (!p->present) << PAGE_NOT_PRESENT_SHIFT |
-	    (!p->uaccessible)  << PAGE_KERNEL_SHIFT |
-	    1 << PAGE_READ_SHIFT |
-	    p->writeable << PAGE_WRITE_SHIFT |
-	    (!p->no_execute) << PAGE_EXEC_SHIFT |
-	    p->global << PAGE_GLOBAL_SHIFT);
+	return PAGE_FLAGS(
+		.present = p->present,
+		.next_level = !last_level && !pt->page_size_or_pat,
+		.read = 1,
+		.write = p->writeable,
+		.execute = !p->no_execute,
+		.user_only = 0,
+		.kernel_only = !p->uaccessible,
+		.cacheable = !p->page_cache_disable,
+	);
 }
 
 NO_TRACE static inline void set_pt_addr(pte_t *pt, size_t i, uintptr_t a)
@@ -229,28 +223,42 @@ NO_TRACE static inline void set_pt_addr(pte_t *pt, size_t i, uintptr_t a)
 	p->addr_32_51 = a >> 32;
 }
 
-NO_TRACE static inline void set_pt_flags(pte_t *pt, size_t i, int flags)
+NO_TRACE static inline void set_pt_flags(pte_t *pt, size_t i, int flags, bool last_level)
 {
+	assert(!last_level || !(flags & PAGE_NEXT_LEVEL_PT));
+
+	// FIXME: Not sure if the barriers are necessary.
+
 	pte_t *p = &pt[i];
 
-	p->page_cache_disable = !(flags & PAGE_CACHEABLE);
-	p->present = !(flags & PAGE_NOT_PRESENT);
+	if (flags & PAGE_NOT_PRESENT) {
+		p->present = 0;
+		write_barrier();
+		*p = (pte_t){0};
+		return;
+	}
+
+	bool leaf = !(flags & PAGE_NEXT_LEVEL_PT);
 	p->uaccessible = !(flags & PAGE_KERNEL);
-	p->writeable = (flags & _PAGE_WRITE) != 0;
-	p->no_execute = (flags & _PAGE_EXEC) == 0;
 	p->global = (flags & PAGE_GLOBAL) != 0;
 
-	/*
-	 * Ensure that there is at least one bit set even if the present bit is cleared.
-	 */
-	p->soft_valid = 1;
-}
+	if (leaf) {
+		p->page_cache_disable = (flags & PAGE_NOT_CACHEABLE) != 0;
+		p->writeable = PAGE_IS_WRITABLE(flags);
+		p->no_execute = !PAGE_IS_EXECUTABLE(flags);
+		if (!last_level) {
+			p->page_size_or_pat = 1;
+		}
+	} else {
+		p->page_cache_disable = 1;
+		p->writeable = 1;
+		p->no_execute = 0;
+		p->page_size_or_pat = 0;
+	}
 
-NO_TRACE static inline void set_pt_present(pte_t *pt, size_t i)
-{
-	pte_t *p = &pt[i];
-
+	write_barrier();
 	p->present = 1;
+
 }
 
 extern void page_arch_init(void);

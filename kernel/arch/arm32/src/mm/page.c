@@ -52,6 +52,8 @@
 void page_arch_init(void)
 {
 	int flags = PAGE_READ_WRITE_EXECUTE | PAGE_KERNEL | PAGE_CACHEABLE;
+	// TODO: | PAGE_GLOBAL, but check that it's implemented correctly
+
 	page_mapping_operations = &pt_mapping_operations;
 
 	page_table_lock(AS_KERNEL, true);

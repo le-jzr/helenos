@@ -137,9 +137,11 @@ do { \
 NO_TRACE static inline int get_pt_level0_flags(pte_t *pt, size_t i)
 {
 	pte_level0_t *p = &pt[i].l0;
-	int np = (p->descriptor_type == PTE_DESCRIPTOR_NOT_PRESENT);
 
-	return (np << PAGE_NOT_PRESENT_SHIFT) | PAGE_NEXT_LEVEL_PT;
+	return PAGE_FLAGS(
+		.present = (p->descriptor_type != PTE_DESCRIPTOR_NOT_PRESENT),
+		.next_level = 1,
+	);
 }
 
 /** Returns level 1 page table entry flags.
@@ -155,15 +157,15 @@ NO_TRACE static inline int get_pt_level1_flags(pte_t *pt, size_t i)
 	int dt = p->descriptor_type;
 	int ap = p->access_permission_0;
 
-	return ((dt == PTE_DESCRIPTOR_NOT_PRESENT) << PAGE_NOT_PRESENT_SHIFT) |
-	    ((ap == PTE_AP_USER_RO_KERNEL_RW) << PAGE_READ_SHIFT) |
-	    ((ap == PTE_AP_USER_RW_KERNEL_RW) << PAGE_READ_SHIFT) |
-	    ((ap == PTE_AP_USER_RW_KERNEL_RW) << PAGE_WRITE_SHIFT) |
-	    ((ap != PTE_AP_USER_NO_KERNEL_RW) << PAGE_USER_SHIFT) |
-	    ((ap == PTE_AP_USER_NO_KERNEL_RW) << PAGE_READ_SHIFT) |
-	    ((ap == PTE_AP_USER_NO_KERNEL_RW) << PAGE_WRITE_SHIFT) |
-	    (1 << PAGE_EXEC_SHIFT) |
-	    (p->bufferable ? PAGE_CACHEABLE : PAGE_NOT_CACHEABLE);
+	return PAGE_FLAGS(
+		.present = (dt != PTE_DESCRIPTOR_NOT_PRESENT),
+		.read = 1,
+		.write = (ap == PTE_AP_USER_RW_KERNEL_RW) ||
+		    (ap == PTE_AP_USER_NO_KERNEL_RW),
+		.execute = 1,
+		.cacheable = p->bufferable,
+		.kernel_only = (ap == PTE_AP_USER_NO_KERNEL_RW),
+	);
 }
 
 /** Sets flags of level 0 page table entry.
@@ -219,15 +221,14 @@ NO_TRACE static inline void set_pt_level1_flags(pte_t *pt, size_t i, int flags)
 	    PTE_AP_USER_NO_KERNEL_RW;
 
 	if (flags & PAGE_USER)  {
-		if (flags & _PAGE_READ) {
-			p->access_permission_0 = p->access_permission_1 =
-			    p->access_permission_2 = p->access_permission_3 =
-			    PTE_AP_USER_RO_KERNEL_RW;
-		}
 		if (flags & _PAGE_WRITE) {
 			p->access_permission_0 = p->access_permission_1 =
 			    p->access_permission_2 = p->access_permission_3 =
 			    PTE_AP_USER_RW_KERNEL_RW;
+		} else {
+			p->access_permission_0 = p->access_permission_1 =
+			    p->access_permission_2 = p->access_permission_3 =
+			    PTE_AP_USER_RO_KERNEL_RW;
 		}
 	}
 }

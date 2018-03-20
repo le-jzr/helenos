@@ -88,15 +88,7 @@ void pt_mapping_insert(as_t *as, uintptr_t page, uintptr_t frame,
 		    PA2KA(frame_alloc(PTL1_FRAMES, FRAME_LOWMEM, PTL1_SIZE - 1));
 		memsetb(newpt, PTL1_SIZE, 0);
 		SET_PTL1_ADDRESS(ptl0, PTL0_INDEX(page), KA2PA(newpt));
-		SET_PTL1_FLAGS(ptl0, PTL0_INDEX(page),
-		    PAGE_NOT_PRESENT | PAGE_NEXT_LEVEL_PT);
-		/*
-		 * Make sure that a concurrent hardware page table walk or
-		 * pt_mapping_find() will see the new PTL1 only after it is
-		 * fully initialized.
-		 */
-		write_barrier();
-		SET_PTL1_PRESENT(ptl0, PTL0_INDEX(page));
+		SET_PTL1_FLAGS(ptl0, PTL0_INDEX(page), PAGE_NEXT_LEVEL_PT);
 	}
 
 	pte_t *ptl1 = (pte_t *) PA2KA(GET_PTL1_ADDRESS(ptl0, PTL0_INDEX(page)));
@@ -106,13 +98,7 @@ void pt_mapping_insert(as_t *as, uintptr_t page, uintptr_t frame,
 		    PA2KA(frame_alloc(PTL2_FRAMES, FRAME_LOWMEM, PTL2_SIZE - 1));
 		memsetb(newpt, PTL2_SIZE, 0);
 		SET_PTL2_ADDRESS(ptl1, PTL1_INDEX(page), KA2PA(newpt));
-		SET_PTL2_FLAGS(ptl1, PTL1_INDEX(page),
-		    PAGE_NOT_PRESENT | PAGE_NEXT_LEVEL_PT);
-		/*
-		 * Make the new PTL2 visible only after it is fully initialized.
-		 */
-		write_barrier();
-		SET_PTL2_PRESENT(ptl1, PTL1_INDEX(page));
+		SET_PTL2_FLAGS(ptl1, PTL1_INDEX(page), PAGE_NEXT_LEVEL_PT);
 	}
 
 	pte_t *ptl2 = (pte_t *) PA2KA(GET_PTL2_ADDRESS(ptl1, PTL1_INDEX(page)));
@@ -122,24 +108,13 @@ void pt_mapping_insert(as_t *as, uintptr_t page, uintptr_t frame,
 		    PA2KA(frame_alloc(PTL3_FRAMES, FRAME_LOWMEM, PTL2_SIZE - 1));
 		memsetb(newpt, PTL2_SIZE, 0);
 		SET_PTL3_ADDRESS(ptl2, PTL2_INDEX(page), KA2PA(newpt));
-		SET_PTL3_FLAGS(ptl2, PTL2_INDEX(page),
-		    PAGE_NOT_PRESENT | PAGE_NEXT_LEVEL_PT);
-		/*
-		 * Make the new PTL3 visible only after it is fully initialized.
-		 */
-		write_barrier();
-		SET_PTL3_PRESENT(ptl2, PTL2_INDEX(page));
+		SET_PTL3_FLAGS(ptl2, PTL2_INDEX(page), PAGE_NEXT_LEVEL_PT);
 	}
 
 	pte_t *ptl3 = (pte_t *) PA2KA(GET_PTL3_ADDRESS(ptl2, PTL2_INDEX(page)));
 
 	SET_FRAME_ADDRESS(ptl3, PTL3_INDEX(page), frame);
-	SET_FRAME_FLAGS(ptl3, PTL3_INDEX(page), flags | PAGE_NOT_PRESENT);
-	/*
-	 * Make the new mapping visible only after it is fully initialized.
-	 */
-	write_barrier();
-	SET_FRAME_PRESENT(ptl3, PTL3_INDEX(page));
+	SET_FRAME_FLAGS(ptl3, PTL3_INDEX(page), flags);
 }
 
 /** Remove mapping of page from hierarchical page tables.
@@ -178,13 +153,20 @@ void pt_mapping_remove(as_t *as, uintptr_t page)
 
 	/*
 	 * Destroy the mapping.
-	 * Setting to PAGE_NOT_PRESENT is not sufficient.
-	 * But we need SET_FRAME for possible PT coherence maintenance.
+	 * We need SET_FRAME_FLAGS for possible PT coherence maintenance.
 	 * At least on ARM.
 	 */
-	//TODO: Fix this inconsistency
 	SET_FRAME_FLAGS(ptl3, PTL3_INDEX(page), PAGE_NOT_PRESENT);
-	memsetb(&ptl3[PTL3_INDEX(page)], sizeof(pte_t), 0);
+
+	/* ARM notably allows VIVT (Virtually Indexed Virtually Tagged)
+	 * instruction caches, so we need to invalidate the page
+	 * we unmapped.
+	 * This is different from SET_FRAME_FLAGS(), which only
+	 * ensures coherence of the page mapping entry, not of the
+	 * memory being mapped/unmapped.
+	 * Similar may be necessary on other plaftorms.
+	 */
+	pt_mapping_coherence(page, PAGE_SIZE);
 
 	/*
 	 * Second, free all empty tables along the way from PTL3 down to PTL0
@@ -192,88 +174,48 @@ void pt_mapping_remove(as_t *as, uintptr_t page)
 	 */
 
 	/* Check PTL3 */
-	bool empty = true;
-
-	unsigned int i;
-	for (i = 0; i < PTL3_ENTRIES; i++) {
-		if (PTE_VALID(&ptl3[i])) {
-			empty = false;
-			break;
-		}
-	}
-
-	if (empty) {
-		/*
-		 * PTL3 is empty.
-		 * Release the frame and remove PTL3 pointer from the parent
-		 * table.
-		 */
-#if (PTL2_ENTRIES != 0)
-		memsetb(&ptl2[PTL2_INDEX(page)], sizeof(pte_t), 0);
-#elif (PTL1_ENTRIES != 0)
-		memsetb(&ptl1[PTL1_INDEX(page)], sizeof(pte_t), 0);
-#else
-		if (km_is_non_identity(page))
-			return;
-
-		memsetb(&ptl0[PTL0_INDEX(page)], sizeof(pte_t), 0);
-#endif
-		frame_free(KA2PA((uintptr_t) ptl3), PTL3_FRAMES);
-	} else {
-		/*
-		 * PTL3 is not empty.
-		 * Therefore, there must be a path from PTL0 to PTL3 and
-		 * thus nothing to free in higher levels.
-		 *
-		 */
+	if (!PTL3_EMPTY(ptl3))
 		return;
-	}
 
-	/* Check PTL2, empty is still true */
-#if (PTL2_ENTRIES != 0)
-	for (i = 0; i < PTL2_ENTRIES; i++) {
-		if (PTE_VALID(&ptl2[i])) {
-			empty = false;
-			break;
-		}
-	}
-
-	if (empty) {
-		/*
-		 * PTL2 is empty.
-		 * Release the frame and remove PTL2 pointer from the parent
-		 * table.
-		 */
-#if (PTL1_ENTRIES != 0)
-		memsetb(&ptl1[PTL1_INDEX(page)], sizeof(pte_t), 0);
-#else
+	/* Release the frame and remove PTL3 pointer from the parent
+	 * table.
+	 */
+	if (PTL2_ENTRIES != 0) {
+		SET_PTL3_FLAGS(ptl2, PTL2_INDEX(page), PAGE_NOT_PRESENT);
+	} else if (PTL1_ENTRIES != 0) {
+		SET_PTL2_FLAGS(ptl1, PTL1_INDEX(page), PAGE_NOT_PRESENT);
+	} else {
 		if (km_is_non_identity(page))
 			return;
 
-		memsetb(&ptl0[PTL0_INDEX(page)], sizeof(pte_t), 0);
-#endif
+		SET_PTL1_FLAGS(ptl0, PTL0_INDEX(page), PAGE_NOT_PRESENT);
+	}
+	frame_free(KA2PA((uintptr_t) ptl3), PTL3_FRAMES);
+
+	if (PTL2_ENTRIES != 0) {
+		if (!PTL2_EMPTY(ptl2))
+			return;
+
+		/* Release the frame and remove PTL2 pointer from the parent
+		 * table.
+		 */
+		if (PTL1_ENTRIES != 0) {
+			SET_PTL2_FLAGS(ptl1, PTL1_INDEX(page), PAGE_NOT_PRESENT);
+		} else {
+			if (km_is_non_identity(page))
+				return;
+
+			SET_PTL1_FLAGS(ptl0, PTL0_INDEX(page), PAGE_NOT_PRESENT);
+		}
 		frame_free(KA2PA((uintptr_t) ptl2), PTL2_FRAMES);
-	} else {
-		/*
-		 * PTL2 is not empty.
-		 * Therefore, there must be a path from PTL0 to PTL2 and
-		 * thus nothing to free in higher levels.
-		 *
-		 */
-		return;
+
 	}
-#endif /* PTL2_ENTRIES != 0 */
 
 	/* check PTL1, empty is still true */
-#if (PTL1_ENTRIES != 0)
-	for (i = 0; i < PTL1_ENTRIES; i++) {
-		if (PTE_VALID(&ptl1[i])) {
-			empty = false;
-			break;
-		}
-	}
+	if (PTL1_ENTRIES != 0) {
+		if (!PTL1_EMPTY(ptl1))
+			return;
 
-	if (empty) {
 		/*
 		 * PTL1 is empty.
 		 * Release the frame and remove PTL1 pointer from the parent
@@ -282,10 +224,9 @@ void pt_mapping_remove(as_t *as, uintptr_t page)
 		if (km_is_non_identity(page))
 			return;
 
-		memsetb(&ptl0[PTL0_INDEX(page)], sizeof(pte_t), 0);
+		SET_PTL1_FLAGS(ptl0, PTL0_INDEX(page), PAGE_NOT_PRESENT);
 		frame_free(KA2PA((uintptr_t) ptl1), PTL1_FRAMES);
 	}
-#endif /* PTL1_ENTRIES != 0 */
 }
 
 static pte_t *pt_mapping_find_internal(as_t *as, uintptr_t page, bool nolock)
@@ -358,8 +299,10 @@ void pt_mapping_update(as_t *as, uintptr_t page, bool nolock, const pte_t *pte)
 	assert(PTE_VALID(t) == PTE_VALID(pte));
 	assert(PTE_PRESENT(t) == PTE_PRESENT(pte));
 	assert(PTE_GET_FRAME(t) == PTE_GET_FRAME(pte));
+	assert(PTE_READABLE(t) == PTE_READABLE(pte));
 	assert(PTE_WRITABLE(t) == PTE_WRITABLE(pte));
 	assert(PTE_EXECUTABLE(t) == PTE_EXECUTABLE(pte));
+	assert(PTE_CACHEABLE(t) == PTE_CACHEABLE(pte));
 
 	*t = *pte;
 }
@@ -378,7 +321,7 @@ static uintptr_t ptl0_step_get(void)
 	return 1UL << (va_bits - fnzb(PTL0_ENTRIES));
 }
 
-/** Make the mappings in the given range global accross all address spaces.
+/** Make the mappings in the given range global across all address spaces.
  *
  * All PTL0 entries in the given range will be mapped to a next level page
  * table. The next level page table will be allocated and cleared.

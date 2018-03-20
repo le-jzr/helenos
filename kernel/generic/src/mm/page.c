@@ -97,6 +97,9 @@ void page_init(void)
 NO_TRACE void page_mapping_insert(as_t *as, uintptr_t page, uintptr_t frame,
     unsigned int flags)
 {
+	assert(PAGE_FLAGS_VALID(flags));
+	assert(!(flags & (PAGE_NOT_PRESENT | PAGE_NEXT_LEVEL_PT)));
+
 	assert(page_table_locked(as));
 
 	assert(page_mapping_operations);

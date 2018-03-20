@@ -55,7 +55,7 @@ void page_arch_init(void)
 
 	uintptr_t cur;
 	unsigned int identity_flags = PAGE_READ_WRITE_EXECUTE |
-	    PAGE_CACHEABLE | PAGE_KERNEL | PAGE_GLOBAL;
+	    PAGE_KERNEL | PAGE_GLOBAL | PAGE_CACHEABLE;
 
 	page_mapping_operations = &pt_mapping_operations;
 

@@ -1216,23 +1216,25 @@ NO_TRACE bool as_area_check_access(as_area_t *area, pf_access_t access)
  */
 NO_TRACE static unsigned int area_flags_to_page_flags(unsigned int aflags)
 {
-	unsigned int flags = PAGE_USER;
-
-	if (aflags & AS_AREA_READ)
-		flags |= _PAGE_READ;
-
+	// XXX: Correct buggy userspace flags. Instead of this,
+	// the system calls should return error when invalid combinations
+	// are passed.
 	if (aflags & AS_AREA_WRITE)
-		flags |= _PAGE_WRITE;
+		aflags |= AS_AREA_READ;
 
-	if (aflags & AS_AREA_EXEC)
-		flags |= _PAGE_EXEC;
+	if (!(aflags & (AS_AREA_READ | AS_AREA_EXEC)))
+		aflags |= AS_AREA_READ;
 
-	if (aflags & AS_AREA_CACHEABLE)
-		flags |= PAGE_CACHEABLE;
-	else
-		flags |= PAGE_NOT_CACHEABLE;
-
-	return flags;
+	return PAGE_FLAGS(
+		.present = 1,
+		.read = (aflags & AS_AREA_READ),
+		.write = (aflags & AS_AREA_WRITE),
+		.execute = (aflags & AS_AREA_EXEC),
+		.cacheable = (aflags & AS_AREA_CACHEABLE),
+		.global = 0,
+		.user_only = 1,
+		.kernel_only = 0,
+	);
 }
 
 /** Change adress space area flags.

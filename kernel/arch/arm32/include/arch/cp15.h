@@ -224,12 +224,15 @@ CONTROL_REG_GEN_READ(VMPIDR, c0, 4, c0, 5);
 CONTROL_REG_GEN_WRITE(VMPIDR, c0, 4, c0, 5);
 
 /* System control registers */
-/* COntrol register bit values see ch. B4.1.130 of ARM Architecture Reference
+/* Control register bit values see ch. B4.1.130 of ARM Architecture Reference
  * Manual ARMv7-A and ARMv7-R edition, page 1687 */
 enum {
 	SCTLR_MMU_EN_FLAG            = 1 << 0,
-	SCTLR_ALIGN_CHECK_EN_FLAG    = 1 << 1,  /* Allow alignemnt check */
+	SCTLR_ALIGN_CHECK_EN_FLAG    = 1 << 1,  /* Allow alignment check */
 	SCTLR_CACHE_EN_FLAG          = 1 << 2,
+#ifdef PROCESSOR_ARCH_armv6
+	SCTLR_WRITE_BUFFER_EN_FLAG   = 1 << 3,  /* RAZ/WI 0 if no write buffer, RAO/WI if write buffer can't be turned off. RAO/SBOP in armv7*/
+#endif
 	SCTLR_CP15_BARRIER_EN_FLAG   = 1 << 5,
 	SCTLR_B_EN_FLAG              = 1 << 7,  /* ARMv6-, big endian switch */
 	SCTLR_SWAP_EN_FLAG           = 1 << 10,
@@ -336,7 +339,7 @@ CONTROL_REG_GEN_READ(TTBCR, c2, 0, c0, 2);
 CONTROL_REG_GEN_WRITE(TTBCR, c2, 0, c0, 2);
 #endif
 
-#if defined(PROCESSOR_ARCH_armv7)
+#if defined(PROCESSOR_ARCH_armv7_a)
 CONTROL_REG_GEN_READ(HTCR, c2, 4, c0, 2);
 CONTROL_REG_GEN_WRITE(HTCR, c2, 4, c0, 2);
 CONTROL_REG_GEN_READ(VTCR, c2, 4, c1, 2);
