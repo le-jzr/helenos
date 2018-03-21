@@ -33,10 +33,11 @@
  */
 
 /*
- * This is the generic 4-level page table interface.
+ * This is the generic n-level page table interface.
  * Architectures that use hierarchical page tables
- * are supposed to implement *_ARCH macros.
+ * are supposed to implement ...
  *
+ * FIXME: finish the sentence
  */
 
 #ifdef CONFIG_PAGE_PT
@@ -46,89 +47,13 @@
 
 #include <mm/as.h>
 #include <mm/page.h>
-#include <arch/mm/page.h>
 #include <typedefs.h>
-
-/*
- * Number of entries in each level.
- */
-#define PTL0_ENTRIES  PTL0_ENTRIES_ARCH
-#define PTL1_ENTRIES  PTL1_ENTRIES_ARCH
-#define PTL2_ENTRIES  PTL2_ENTRIES_ARCH
-#define PTL3_ENTRIES  PTL3_ENTRIES_ARCH
-
-/* Table sizes in each level (in frames) */
-#define PTL0_FRAMES  PTL0_FRAMES_ARCH
-#define PTL1_FRAMES  PTL1_FRAMES_ARCH
-#define PTL2_FRAMES  PTL2_FRAMES_ARCH
-#define PTL3_FRAMES  PTL3_FRAMES_ARCH
-
-/* Table sizes in each level (in bytes) */
-#define PTL0_SIZE  FRAMES2SIZE(PTL0_FRAMES)
-#define PTL1_SIZE  FRAMES2SIZE(PTL1_FRAMES)
-#define PTL2_SIZE  FRAMES2SIZE(PTL2_FRAMES)
-#define PTL3_SIZE  FRAMES2SIZE(PTL3_FRAMES)
-
-/*
- * These macros process vaddr and extract those portions
- * of it that function as indices to respective page tables.
- *
- */
-#define PTL0_INDEX(vaddr)  PTL0_INDEX_ARCH(vaddr)
-#define PTL1_INDEX(vaddr)  PTL1_INDEX_ARCH(vaddr)
-#define PTL2_INDEX(vaddr)  PTL2_INDEX_ARCH(vaddr)
-#define PTL3_INDEX(vaddr)  PTL3_INDEX_ARCH(vaddr)
-
-#define SET_PTL0_ADDRESS(ptl0)  SET_PTL0_ADDRESS_ARCH(ptl0)
-
-/*
- * These macros traverse the 4-level tree of page tables,
- * each descending by one level.
- *
- */
-#define GET_PTL1_ADDRESS(ptl0, i)   GET_PTL1_ADDRESS_ARCH(ptl0, i)
-#define GET_PTL2_ADDRESS(ptl1, i)   GET_PTL2_ADDRESS_ARCH(ptl1, i)
-#define GET_PTL3_ADDRESS(ptl2, i)   GET_PTL3_ADDRESS_ARCH(ptl2, i)
-#define GET_FRAME_ADDRESS(ptl3, i)  GET_FRAME_ADDRESS_ARCH(ptl3, i)
-
-/*
- * These macros are provided to change the shape of the 4-level tree of page
- * tables on respective level.
- *
- */
-#define SET_PTL1_ADDRESS(ptl0, i, a)   SET_PTL1_ADDRESS_ARCH(ptl0, i, a)
-#define SET_PTL2_ADDRESS(ptl1, i, a)   SET_PTL2_ADDRESS_ARCH(ptl1, i, a)
-#define SET_PTL3_ADDRESS(ptl2, i, a)   SET_PTL3_ADDRESS_ARCH(ptl2, i, a)
-#define SET_FRAME_ADDRESS(ptl3, i, a)  SET_FRAME_ADDRESS_ARCH(ptl3, i, a)
-
-/*
- * These macros are provided to query various flags within the page tables.
- *
- */
-#define GET_PTL1_FLAGS(ptl0, i)   GET_PTL1_FLAGS_ARCH(ptl0, i)
-#define GET_PTL2_FLAGS(ptl1, i)   GET_PTL2_FLAGS_ARCH(ptl1, i)
-#define GET_PTL3_FLAGS(ptl2, i)   GET_PTL3_FLAGS_ARCH(ptl2, i)
-#define GET_FRAME_FLAGS(ptl3, i)  GET_FRAME_FLAGS_ARCH(ptl3, i)
-
-/*
- * These macros are provided to set/clear various flags within the page tables.
- *
- */
-#define SET_PTL1_FLAGS(ptl0, i, x)   SET_PTL1_FLAGS_ARCH(ptl0, i, x)
-#define SET_PTL2_FLAGS(ptl1, i, x)   SET_PTL2_FLAGS_ARCH(ptl1, i, x)
-#define SET_PTL3_FLAGS(ptl2, i, x)   SET_PTL3_FLAGS_ARCH(ptl2, i, x)
-#define SET_FRAME_FLAGS(ptl3, i, x)  SET_FRAME_FLAGS_ARCH(ptl3, i, x)
-
-/* Check whether an entire page table is empty, and hence eligible for removal. */
-#define PTL1_EMPTY(ptl1) PTL1_EMPTY_ARCH(ptl1)
-#define PTL2_EMPTY(ptl2) PTL2_EMPTY_ARCH(ptl2)
-#define PTL3_EMPTY(ptl3) PTL3_EMPTY_ARCH(ptl3)
 
 extern as_operations_t as_pt_operations;
 extern page_mapping_operations_t pt_mapping_operations;
 
-extern void page_mapping_insert_pt(as_t *, uintptr_t, uintptr_t, unsigned int);
-extern pte_t *page_mapping_find_pt(as_t *, uintptr_t, bool);
+//extern void page_mapping_insert_pt(as_t *, uintptr_t, uintptr_t, unsigned int);
+//extern pte_t *page_mapping_find_pt(as_t *, uintptr_t, bool);
 
 #endif
 

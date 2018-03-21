@@ -42,6 +42,8 @@
 #define PAGE_WIDTH  FRAME_WIDTH
 #define PAGE_SIZE   FRAME_SIZE
 
+#define PT_ENTRIES 1024
+
 #define PTE_P		(1 << 0)
 #define PTE_RW		(1 << 1)
 
@@ -49,106 +51,20 @@
 #define PDE_RW		(1 << 1)
 #define PDE_4M		(1 << 7)
 
-#ifndef __ASSEMBLER__
-
-#define KA2PA(x)  (((uintptr_t) (x)) - UINT32_C(0x80000000))
-#define PA2KA(x)  (((uintptr_t) (x)) + UINT32_C(0x80000000))
-
-#else /* __ASSEMBLER__ */
+#ifdef __ASSEMBLER__
 
 #define KA2PA(x)  ((x) - 0x80000000)
 #define PA2KA(x)  ((x) + 0x80000000)
 
-#endif /* __ASSEMBLER__ */
+#else /* __ASSEMBLER__ */
 
-/*
- * Implementation of generic 4-level page table interface.
- * IA-32 has 2-level page tables, so PTL1 and PTL2 are left out.
- */
-
-/* Number of entries in each level. */
-#define PTL0_ENTRIES_ARCH  1024
-#define PTL1_ENTRIES_ARCH  0
-#define PTL2_ENTRIES_ARCH  0
-#define PTL3_ENTRIES_ARCH  1024
-
-/* Page table sizes for each level. */
-#define PTL0_FRAMES_ARCH  1
-#define PTL1_FRAMES_ARCH  1
-#define PTL2_FRAMES_ARCH  1
-#define PTL3_FRAMES_ARCH  1
-
-/* Macros calculating indices for each level. */
-#define PTL0_INDEX_ARCH(vaddr)  (((vaddr) >> 22) & 0x3ffU)
-#define PTL1_INDEX_ARCH(vaddr)  0
-#define PTL2_INDEX_ARCH(vaddr)  0
-#define PTL3_INDEX_ARCH(vaddr)  (((vaddr) >> 12) & 0x3ffU)
-
-/* Get PTE address accessors for each level. */
-#define GET_PTL1_ADDRESS_ARCH(ptl0, i) \
-	((pte_t *) ((((pte_t *) (ptl0))[(i)].frame_address) << 12))
-#define GET_PTL2_ADDRESS_ARCH(ptl1, i) \
-	(ptl1)
-#define GET_PTL3_ADDRESS_ARCH(ptl2, i) \
-	(ptl2)
-#define GET_FRAME_ADDRESS_ARCH(ptl3, i) \
-	((uintptr_t) ((((pte_t *) (ptl3))[(i)].frame_address) << 12))
-
-/* Set PTE address accessors for each level. */
-#define SET_PTL0_ADDRESS_ARCH(ptl0) \
-	(write_cr3((uintptr_t) (ptl0)))
-#define SET_PTL1_ADDRESS_ARCH(ptl0, i, a) \
-	(((pte_t *) (ptl0))[(i)].frame_address = (a) >> 12)
-#define SET_PTL2_ADDRESS_ARCH(ptl1, i, a)
-#define SET_PTL3_ADDRESS_ARCH(ptl2, i, a)
-#define SET_FRAME_ADDRESS_ARCH(ptl3, i, a) \
-	(((pte_t *) (ptl3))[(i)].frame_address = (a) >> 12)
-
-/* Get PTE flags accessors for each level. */
-#define GET_PTL1_FLAGS_ARCH(ptl0, i) \
-	get_pt_flags((pte_t *) (ptl0), (size_t) (i))
-#define GET_PTL2_FLAGS_ARCH(ptl1, i) \
-	PAGE_NEXT_LEVEL_PT
-#define GET_PTL3_FLAGS_ARCH(ptl2, i) \
-	PAGE_NEXT_LEVEL_PT
-#define GET_FRAME_FLAGS_ARCH(ptl3, i) \
-	get_pt_flags((pte_t *) (ptl3), (size_t) (i))
-
-/* Set PTE flags accessors for each level. */
-#define SET_PTL1_FLAGS_ARCH(ptl0, i, x) \
-	set_pt_flags((pte_t *) (ptl0), (size_t) (i), (x))
-#define SET_PTL2_FLAGS_ARCH(ptl1, i, x)
-#define SET_PTL3_FLAGS_ARCH(ptl2, i, x)
-#define SET_FRAME_FLAGS_ARCH(ptl3, i, x) \
-	set_pt_flags((pte_t *) (ptl3), (size_t) (i), (x))
-
-/* Set PTE present bit accessors for each level. */
-#define SET_PTL1_PRESENT_ARCH(ptl0, i) \
-	set_pt_present((pte_t *) (ptl0), (size_t) (i))
-#define SET_PTL2_PRESENT_ARCH(ptl1, i)
-#define SET_PTL3_PRESENT_ARCH(ptl2, i)
-#define SET_FRAME_PRESENT_ARCH(ptl3, i) \
-	set_pt_present((pte_t *) (ptl3), (size_t) (i))
-
-/* Macros for querying the last level entries. */
-#define PTE_VALID_ARCH(p) \
-	((p)->soft_valid != 0)
-#define PTE_PRESENT_ARCH(p) \
-	((p)->present != 0)
-#define PTE_GET_FRAME_ARCH(p) \
-	((p)->frame_address << FRAME_WIDTH)
-#define PTE_READABLE_ARCH(p) \
-	1
-#define PTE_WRITABLE_ARCH(p) \
-	((p)->writeable != 0)
-#define PTE_EXECUTABLE_ARCH(p) \
-	1
-
-#ifndef __ASSEMBLER__
+#define KA2PA(x)  (((uintptr_t) (x)) - UINT32_C(0x80000000))
+#define PA2KA(x)  (((uintptr_t) (x)) + UINT32_C(0x80000000))
 
 #include <mm/mm.h>
 #include <arch/interrupt.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /* Page fault error codes. */
 
@@ -167,58 +83,112 @@
 #define PFERR_CODE_RSVD		(1 << 3)
 
 /** Page Table Entry. */
-typedef struct {
-	unsigned present : 1;
-	unsigned writeable : 1;
-	unsigned uaccessible : 1;
-	unsigned page_write_through : 1;
-	unsigned page_cache_disable : 1;
-	unsigned accessed : 1;
-	unsigned dirty : 1;
-	unsigned pat : 1;
-	unsigned global : 1;
-	unsigned soft_valid : 1;	/**< Valid content even if the present bit is not set. */
-	unsigned avl : 2;
-	unsigned frame_address : 20;
-} __attribute__ ((packed)) pte_t;
+union pte {
+	uint32_t raw;
+	struct {
+		unsigned present : 1;
+		unsigned writeable : 1;
+		unsigned uaccessible : 1;
+		unsigned page_write_through : 1;
+		unsigned page_cache_disable : 1;
+		unsigned accessed : 1;
+		unsigned dirty : 1;
+		unsigned pat : 1;
+		unsigned global : 1;
+		unsigned available : 3;
+		unsigned frame_address : 20;
+	} __attribute__ ((packed));
+};
 
-NO_TRACE static inline unsigned int get_pt_flags(pte_t *pt, size_t i, bool last_level)
+typedef struct {
+	int entries;
+	int frames;
+	int index_shift;
+	int index_width;
+} ptl_desc_t;
+
+typedef uintptr_t vaddr_t;
+typedef uintptr_t paddr_t;
+typedef unsigned page_flags_t;
+
+typedef union pte pte_t;
+typedef volatile uint32_t pt_t[PT_ENTRIES];
+
+/*
+ * Implementation of generic multi-level page table interface.
+ * IA-32 has 2-level page tables.
+ */
+
+static const ptl_desc_t pt_levels[2] = {
+	{
+		.entries = PT_ENTRIES,
+		.frames = 1,
+		.index_shift = 22,
+		.index_width = 10,
+	},
+	{
+		.entries = PT_ENTRIES,
+		.frames = 1,
+		.index_shift = 12,
+		.index_width = 10,
+	}
+};
+
+NO_TRACE static inline int pt_index(int l, vaddr_t vaddr)
 {
-	pte_t *p = &pt[i];
+	int shift = pt_levels[l].index_shift;
+	int width = pt_levels[l].index_width;
+	return (vaddr >> shift) & ((1 << width) - 1);
+}
+
+NO_TRACE static inline page_flags_t pt_get_entry_by_index(int l, pt_t pt, int index, paddr_t *paddr)
+{
+	pte_t p;
+	p.raw = pt[index];
+
+	if (paddr != NULL)
+		*paddr = p.frame_address << 12;
 
 	// TODO: Support NX bit and large pages.
 
 	return PAGE_FLAGS(
 		.present = p.present,
-		.next_level = !last_level,
+		.next_level = (l == 0),
 		.read = 1,
-		.write = p->writeable,
+		.write = p.writeable,
 		.execute = 1,
-		.kernel_only = !p->uaccessible,
-		.global = p->global,
-		.cacheable = !p->page_cache_disable,
+		.kernel_only = !p.uaccessible,
+		.global = p.global,
+		.cacheable = !p.page_cache_disable,
 	);
 }
 
-NO_TRACE static inline void set_pt_flags(pte_t *pt, size_t i, int flags)
+NO_TRACE static inline page_flags_t pt_get_entry(int l, pt_t pt, vaddr_t vaddr, paddr_t *paddr)
 {
-	pte_t *p = &pt[i];
+	return pt_get_entry_by_index(l, pt, pt_index(l, vaddr), paddr);
+}
 
-	if (flags & PAGE_NOT_PRESENT) {
-		p->present = 0;
-		write_barrier();
-		*p = {0};
-		return;
-	}
+NO_TRACE static inline void pt_set_entry_by_index(int l, pt_t pt, int index, paddr_t paddr, page_flags_t flags)
+{
+	pte_t p = { .raw = 0 };
 
-	p->page_cache_disable = !(flags & PAGE_CACHEABLE);
-	p->uaccessible = !(flags & PAGE_KERNEL);
-	p->writeable = (flags & _PAGE_WRITE) != 0;
-	p->global = (flags & PAGE_GLOBAL) != 0;
+	p.frame_address = paddr >> 12;
+	p.present = !(flags & PAGE_NOT_PRESENT);
+	p.page_cache_disable = !(flags & PAGE_CACHEABLE);
+	p.uaccessible = (flags & PAGE_USER) != 0;
+	p.writeable = (flags & _PAGE_WRITE) != 0;
+	p.global = (flags & PAGE_GLOBAL) != 0;
 
-	write_barrier();
+	pt[index] = p.raw;
 
-	p->present = 1;
+	// Compiler fence.
+	// Probably unnecessary, with the page table marked volatile.
+	asm volatile ("" ::: "memory");
+}
+
+NO_TRACE static inline void pt_set_entry(int l, pt_t pt, vaddr_t vaddr, paddr_t paddr, page_flags_t flags)
+{
+	pt_set_entry_by_index(l, pt, pt_index(l, vaddr), paddr, flags);
 }
 
 extern void page_arch_init(void);

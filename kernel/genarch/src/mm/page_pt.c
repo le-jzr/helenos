@@ -117,6 +117,37 @@ void pt_mapping_insert(as_t *as, uintptr_t page, uintptr_t frame,
 	SET_FRAME_FLAGS(ptl3, PTL3_INDEX(page), flags);
 }
 
+// Force the compiler to fully inline the recursion.
+// The function is written in a way that makes it possible.
+__attribute__((always_inline))
+static inline _pt_mapping_remove_all(int level, paddr_t pt)
+{
+	// Never reached unless the page table is corrupted.
+	if (level >= pt_num_levels())
+		panic("Unexpected recursion in " __FUNC__ "().");
+
+	int l = pt_num_levels() - level_todo;
+
+	for (int i = 0; i < pt_levels[l].entries; i++) {
+		paddr_t paddr;
+		page_flags_t flags = pt_get_entry_by_index(l, PA2KA(pt), i, &paddr);
+
+		// Just recursively free the allocated frames.
+		// We don't need to bother with pt_coherence() here.
+		if (flags & PAGE_NEXT_LEVEL_PT)
+			_pt_mapping_remove_all(level + 1, paddr);
+	}
+
+	frame_free(pt, pt_levels[l].frames);
+}
+
+__attribute__((always_inline))
+static inline _pt_mapping_remove_range(int level, paddr_t pt, vaddr_t vaddr, size_t size)
+{
+	
+
+}
+
 /** Remove mapping of page from hierarchical page tables.
  *
  * Remove any mapping of page within address space as.
@@ -229,59 +260,60 @@ void pt_mapping_remove(as_t *as, uintptr_t page)
 	}
 }
 
-static pte_t *pt_mapping_find_internal(as_t *as, uintptr_t page, bool nolock)
+void *pt_mapping_find_raw(as_t *as, vaddr_t vaddr, bool nolock)
 {
 	assert(nolock || page_table_locked(as));
 
-	pte_t *ptl0 = (pte_t *) PA2KA((uintptr_t) as->genarch.page_table);
-	if (GET_PTL1_FLAGS(ptl0, PTL0_INDEX(page)) & PAGE_NOT_PRESENT)
+	int last_level = pt_num_levels() - 1;
+
+	paddr_t paddr = as->genarch.page_table;
+	page_flags_t flags = PAGE_NEXT_LEVEL_PT;
+
+	for (int l = 0; l < last_level; l++) {
+		// TODO: Support large pages.
+		if (flags != PAGE_NEXT_LEVEL_PT)
+			return NULL;
+
+		read_barrier();
+		flags = pt_get_entry(l, PA2KA(paddr), &paddr);
+	}
+
+	if (flags == PAGE_NOT_PRESENT)
 		return NULL;
 
 	read_barrier();
 
-	pte_t *ptl1 = (pte_t *) PA2KA(GET_PTL1_ADDRESS(ptl0, PTL0_INDEX(page)));
-	if (GET_PTL2_FLAGS(ptl1, PTL1_INDEX(page)) & PAGE_NOT_PRESENT)
-		return NULL;
+	const size_t entry_size =
+	    FRAMES2SIZE(pt_levels[last_level].frames) /
+	    pt_levels[last_level].entries;
 
-#if (PTL1_ENTRIES != 0)
-	/*
-	 * Always read ptl2 only after we are sure it is present.
-	 */
-	read_barrier();
-#endif
-
-	pte_t *ptl2 = (pte_t *) PA2KA(GET_PTL2_ADDRESS(ptl1, PTL1_INDEX(page)));
-	if (GET_PTL3_FLAGS(ptl2, PTL2_INDEX(page)) & PAGE_NOT_PRESENT)
-		return NULL;
-
-#if (PTL2_ENTRIES != 0)
-	/*
-	 * Always read ptl3 only after we are sure it is present.
-	 */
-	read_barrier();
-#endif
-
-	pte_t *ptl3 = (pte_t *) PA2KA(GET_PTL3_ADDRESS(ptl2, PTL2_INDEX(page)));
-
-	return &ptl3[PTL3_INDEX(page)];
+	return PA2KA(paddr) +
+	    (entry_size * pt_index(last_level, vaddr));
 }
 
-/** Find mapping for virtual page in hierarchical page tables.
- *
- * @param as       Address space to which page belongs.
- * @param page     Virtual page.
- * @param nolock   True if the page tables need not be locked.
- * @param[out] pte Structure that will receive a copy of the found PTE.
- *
- * @return True if the mapping was found, false otherwise.
- */
-bool pt_mapping_find(as_t *as, uintptr_t page, bool nolock, pte_t *pte)
+page_flags_t pt_mapping_find(as_t *as, vaddr_t vaddr, bool nolock, paddr_t *paddr)
 {
-	pte_t *t = pt_mapping_find_internal(as, page, nolock);
-	if (t)
-		*pte = *t;
-	return t != NULL;
+	assert(nolock || page_table_locked(as));
+
+	paddr_t p = as->genarch.page_table;
+	page_flags_t flags = PAGE_NEXT_LEVEL_PT;
+
+	for (int l = 0; l < pt_num_levels; l++) {
+		// TODO: Support large pages.
+		if (flags != PAGE_NEXT_LEVEL_PT)
+			return PAGE_NOT_PRESENT;
+
+		read_barrier();
+		vaddr_t vaddr = PA2KA(p);
+		flags = pt_get_entry(l, vaddr, &p);
+	}
+
+	if (paddr != NULL)
+		*paddr = p;
+
+	return flags;
 }
+
 
 /** Update mapping for virtual page in hierarchical page tables.
  *
@@ -311,14 +343,14 @@ void pt_mapping_update(as_t *as, uintptr_t page, bool nolock, const pte_t *pte)
  *
  * @return Size of the region mapped by a single PTL0 entry.
  */
-static uintptr_t ptl0_step_get(void)
+static inline size_t ptl0_step_get(void)
 {
-	size_t va_bits;
+	return 1UL << pt_levels[0].index_shift;
+}
 
-	va_bits = fnzb(PTL0_ENTRIES) + fnzb(PTL1_ENTRIES) + fnzb(PTL2_ENTRIES) +
-	    fnzb(PTL3_ENTRIES) + PAGE_WIDTH;
-
-	return 1UL << (va_bits - fnzb(PTL0_ENTRIES));
+static inline int pt_num_levels()
+{
+	return sizeof(pt_levels) / sizeof(pt_levels[0]);
 }
 
 /** Make the mappings in the given range global across all address spaces.
@@ -336,26 +368,20 @@ static uintptr_t ptl0_step_get(void)
  *             altered by this function.
  *
  */
-void pt_mapping_make_global(uintptr_t base, size_t size)
+void pt_mapping_make_global(vaddr_t base, size_t size)
 {
 	assert(size > 0);
+	assert(pt_num_levels() > 1);
 
-	uintptr_t ptl0 = PA2KA((uintptr_t) AS_KERNEL->genarch.page_table);
-	uintptr_t ptl0_step = ptl0_step_get();
-	size_t frames;
+	vaddr_t ptl0 = PA2KA(AS_KERNEL->genarch.page_table);
+	size_t ptl0_step = ptl0_step_get();
+	size_t frames = pt_levels[1].frames;
 
-#if (PTL1_ENTRIES != 0)
-	frames = PTL1_FRAMES;
-#elif (PTL2_ENTRIES != 0)
-	frames = PTL2_FRAMES;
-#else
-	frames = PTL3_FRAMES;
-#endif
-
-	for (uintptr_t addr = ALIGN_DOWN(base, ptl0_step);
-	    addr - 1 < base + size - 1;
+	for (vaddr_t addr = ALIGN_DOWN(base, ptl0_step);
+	    addr - 1 < (base - 1) + size;
 	    addr += ptl0_step) {
-		if (GET_PTL1_ADDRESS(ptl0, PTL0_INDEX(addr)) != 0) {
+
+		if (!(pt_get_entry(ptl0, NULL) & PAGE_NOT_PRESENT)) {
 			assert(overlaps(addr, ptl0_step,
 			    config.identity_base, config.identity_size));
 
@@ -366,11 +392,13 @@ void pt_mapping_make_global(uintptr_t base, size_t size)
 			continue;
 		}
 
-		uintptr_t l1 = PA2KA(frame_alloc(frames, FRAME_LOWMEM, 0));
+		vaddr_t l1 = PA2KA(frame_alloc(frames, FRAME_LOWMEM, 0));
 		memsetb((void *) l1, FRAMES2SIZE(frames), 0);
-		SET_PTL1_ADDRESS(ptl0, PTL0_INDEX(addr), KA2PA(l1));
-		SET_PTL1_FLAGS(ptl0, PTL0_INDEX(addr),
-		    PAGE_NEXT_LEVEL_PT);
+		// Make sure the memset is visible to the page table walker.
+		pt_coherence((void *) l1, FRAMES2SIZE(frames));
+
+		pt_set_entry(0, ptl0, addr, l1,
+		    PAGE_NEXT_LEVEL_PT | PAGE_GLOBAL), 
 	}
 }
 
