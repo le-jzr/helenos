@@ -120,32 +120,108 @@ void pt_mapping_insert(as_t *as, uintptr_t page, uintptr_t frame,
 // Force the compiler to fully inline the recursion.
 // The function is written in a way that makes it possible.
 __attribute__((always_inline))
-static inline _pt_mapping_remove_all(int level, paddr_t pt)
+static inline void _pt_mapping_remove_all(int l, paddr_t pt)
 {
 	// Never reached unless the page table is corrupted.
-	if (level >= pt_num_levels())
+	if (l >= pt_num_levels())
 		panic("Unexpected recursion in " __FUNC__ "().");
 
-	int l = pt_num_levels() - level_todo;
+	vaddr_t vpt = PA2KA(pt);
 
 	for (int i = 0; i < pt_levels[l].entries; i++) {
 		paddr_t paddr;
-		page_flags_t flags = pt_get_entry_by_index(l, PA2KA(pt), i, &paddr);
+		page_flags_t flags = pt_get_entry_by_index(l, vpt, i, &paddr);
 
 		// Just recursively free the allocated frames.
 		// We don't need to bother with pt_coherence() here.
 		if (flags & PAGE_NEXT_LEVEL_PT)
-			_pt_mapping_remove_all(level + 1, paddr);
+			_pt_mapping_remove_all(l + 1, paddr);
 	}
 
 	frame_free(pt, pt_levels[l].frames);
 }
 
 __attribute__((always_inline))
-static inline _pt_mapping_remove_range(int level, paddr_t pt, vaddr_t vaddr, size_t size)
+static inline void _pt_mapping_remove_one(int l, paddr_t pt, vaddr_t vaddr, vaddr_t vaddr_last)
 {
-	
+	assert(vaddr_last - vaddr + 1 <= pt_entry_region_size(l));
+	assert(pt_index(l, vaddr) == pt_index(l, vaddr_last));
 
+	paddr_t npt;
+	page_flags_t flags = pt_get_entry(l, pt, vaddr, &npt)
+
+	switch (PAGE_DISCRIMINANT(flags)) {
+	case PAGE_NOT_PRESENT:
+		// Nothing to do.
+		break;
+
+	case PAGE_EXECUTE_ONLY:
+	case PAGE_READ_ONLY:
+	case PAGE_READ_EXECUTE:
+	case PAGE_READ_WRITE:
+	case PAGE_READ_WRITE_EXECUTE:
+		// Not much to do.
+		pt_set_entry(l, pt, vaddr, PAGE_NOT_PRESENT);
+		break;
+
+	case PAGE_NEXT_LEVEL_PT:
+		// Much to do.
+		size_t unmap_size = vaddr_last - vaddr + 1;
+		if (unmap_size == pt_entry_region_size(l)) {
+			// Destroy the whole page table subtree.
+			pt_set_entry(l, pt, vaddr, PAGE_NOT_PRESENT);
+			_pt_mapping_remove_all(l + 1, npt);
+			break;
+		}
+
+		// Descend to the child table.
+		_pt_mapping_remove_range(l + 1, npt, vaddr, vaddr_last);
+
+		// Check if it is empty now.
+		if (_pt_is_empty(l + 1, npt)) {
+			pt_set_entry(l, pt, vaddr, PAGE_NOT_PRESENT);
+			frame_free(npt, pt_levels[l + 1].frames);
+		}
+		break;
+	}
+}
+
+__attribute__((always_inline))
+static inline void _pt_mapping_remove_range(int l, paddr_t pt, vaddr_t vaddr, vaddr_t vaddr_last)
+{
+	// Never reached unless the page table is corrupted.
+	if (l >= pt_num_levels())
+		panic("Unexpected recursion in " __FUNC__ "().");
+
+	assert(vaddr <= vaddr_last);
+
+	// Calculate the start and end of the region governed by `pt`.
+
+	int region_shift = pl_levels[l].index_shift + pl_levels[l].index_width;
+
+	vaddr_t pt_region_first = 0;
+	if (region_shift < sizeof(vaddr_t) * 8) {
+		pt_region_first = (vaddr >> region_shift) << region_shift;
+	}
+
+	assert(vaddr_last <=
+	    pt_region_first +
+	    (pt_entry_region_size(l) * pt_levels[l].entries - 1));
+
+	// Remove the entries.
+
+	int first_index = pt_index(l, vaddr);
+	int last_index = pt_index(l, vaddr_last);
+
+	size_t entry_size = pt_entry_region_size(l);
+
+	for (int i = first_index; i <= last_index; i++) {
+		vaddr_t lower = pt_region_first + i * entry_size;
+		vaddr_t upper = lower + entry_size - 1;
+
+		_pt_mapping_remove_one(l, pt,
+		    max(lower, vaddr), min(upper, vaddr_last));
+	}
 }
 
 /** Remove mapping of page from hierarchical page tables.
