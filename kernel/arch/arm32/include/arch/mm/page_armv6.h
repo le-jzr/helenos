@@ -61,24 +61,33 @@
 typedef struct {
 	/* 0b01 for coarse tables, see below for details */
 	unsigned descriptor_type : 2;
-	unsigned pxn : 1;
-	unsigned ns : 1;
-	unsigned should_be_zero_0 : 1;
-	unsigned domain : 4;
-	unsigned should_be_zero_1 : 1;
+	union {
+		struct {
+			// Page table.
+			unsigned pxn : 1;
+			unsigned ns : 1;
+			unsigned should_be_zero_0 : 1;
+			unsigned domain : 4;
+			unsigned should_be_zero_1 : 1;
 
-	/* Pointer to the coarse 2nd level page table (holding entries for small
-	 * (4KB) or large (64KB) pages. ARM also supports fine 2nd level page
-	 * tables that may hold even tiny pages (1KB) but they are bigger (4KB
-	 * per table in comparison with 1KB per the coarse table)
-	 */
-	unsigned coarse_table_addr : 22;
+			/* Pointer to the coarse 2nd level page table (holding entries for small
+			 * (4KB) or large (64KB) pages. ARM also supports fine 2nd level page
+			 * tables that may hold even tiny pages (1KB) but they are bigger (4KB
+			 * per table in comparison with 1KB per the coarse table)
+			 */
+			unsigned coarse_table_addr : 22;
+		} ATTRIBUTE_PACKED page_table;
+
+		struct {
+			// TODO
+		}
+	};
 } ATTRIBUTE_PACKED pte_level0_t;
 
 /** Level 1 page table entry (small (4KB) pages used). */
 typedef struct {
 
-	/* 0b10 for small pages, 0b11 for PXN small pages */
+	/* 0b10 for small pages, 0b11 for NX small pages */
 	unsigned descriptor_type : 2;
 	/* This field naming is a historical legacy from earlier ARM
 	 * versions. In ARMv6, bufferable, cacheable and tex are combined
@@ -126,15 +135,15 @@ typedef union {
 /** pte_level0_t coarse page table flag (used in descriptor_type). */
 #define PTE_DESCRIPTOR_COARSE_TABLE	1
 
+/** pte_level0_t section/supersection descriptor */
+#define PTE_DESCRIPTOR_SECTION		2
+#define PTE_DESCRIPTOR_SECTION_PXN      3
+
 /** pte_level1_t small page table flag (used in descriptor type). */
 #define PTE_DESCRIPTOR_SMALL_PAGE	2
 
-/** pte_level1_t small page table flag with PXN (used in descriptor type).
- *  This is an OPTIONAL feature that must not be used on CPUs
- *  that don't support it. Any use must be guarded by runtime feature check.
- */
-#define PTE_DESCRIPTOR_SMALL_PAGE_PXN	3
-
+/** pte_level1_t small page table flag with XN (used in descriptor type). */
+#define PTE_DESCRIPTOR_SMALL_PAGE_XN	3
 
 /**
  * For an ARMv7 implementation that does not include the Large Physical Address Extension,

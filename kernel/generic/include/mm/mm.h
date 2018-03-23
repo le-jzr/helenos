@@ -38,37 +38,63 @@
 #include <assert.h>
 #include <stdbool.h>
 
-/* Discriminator, exactly one of the following seven must be set for
+enum {
+	PAGE_PT_BIT = 1 << 0,
+	PAGE_READ_BIT = 1 << 1,
+	PAGE_WRITE_BIT = 1 << 2,
+	PAGE_EXEC_BIT = 1 << 3,
+
+	PAGE_DISCRIMINANT_BITS =
+	    PAGE_PT_BIT | PAGE_READ_BIT | PAGE_WRITE_BIT | PAGE_EXEC_BIT,
+
+	PAGE_GLOBAL_BIT = 1 << 6,
+	PAGE_CACHEABLE_BIT = 1 << 7,
+	PAGE_NOT_CACHEABLE_BIT = 1 << 8,
+	PAGE_USER_BIT = 1 << 9,
+	PAGE_KERNEL_BIT = 1 << 10,
+
+	PAGE_MAX_WIDTH_SHIFT = 11,
+};
+
+/* Discriminant, exactly one of the following seven must be set for
  * the flags to be valid. Furthermore, the first two are only legal
  * for setting individual page table entries. Setting an entry
  * to PAGE_NOT_PRESENT renders the entry eligible for removal.
  * In an earlier iteration of this interface, page could be not
  * present but valid, preventing removal. This has been changed, and
  * if future iterations allow kernel to hide data (e.g. swap identifiers)
- * in page tables, it should be achieved by adding a separate discriminator.
+ * in page tables, it should be achieved by adding a separate discriminant.
  */
-#define PAGE_NOT_PRESENT          (1 << 0)
-#define PAGE_NEXT_LEVEL_PT        (1 << 1)
+typedef enum page_discriminant {
+	PAGE_NOT_PRESENT        = 0,
+	PAGE_NEXT_LEVEL_PT      = PAGE_PT_BIT,
+	PAGE_EXECUTE_ONLY       = PAGE_EXEC_BIT,
+	PAGE_READ_ONLY          = PAGE_READ_BIT,
+	PAGE_READ_EXECUTE       = PAGE_READ_BIT | PAGE_EXEC_BIT,
+	PAGE_READ_WRITE         = PAGE_READ_BIT | PAGE_WRITE_BIT,
+	PAGE_READ_WRITE_EXECUTE = PAGE_READ_BIT | PAGE_WRITE_BIT | PAGE_EXEC_BIT,
+} page_discriminant_t;
 
-#define PAGE_READ_ONLY            (_PAGE_READ)
-#define PAGE_READ_EXECUTE         (_PAGE_READ | _PAGE_EXEC)
-#define PAGE_READ_WRITE           (_PAGE_READ | _PAGE_WRITE)
-#define PAGE_READ_WRITE_EXECUTE   (_PAGE_READ | _PAGE_WRITE | _PAGE_EXEC)
-#define PAGE_EXECUTE_ONLY         (_PAGE_EXEC)
+static inline page_discriminant_t PAGE_DISCRIMINANT(page_flags_t flags)
+{
+	return (page_discriminant_t) (flags & PAGE_DISCRIMINANT_BITS);
+}
 
-/* Individual permissions.
- * Only used when the flags are tested or translated from other
- * format. In constant flags, use one of the combinations above.
- */
-#define _PAGE_READ                (1 << 2)
-#define _PAGE_WRITE               (1 << 3)
-#define _PAGE_EXEC                (1 << 4)
+static inline int PAGE_GET_MAX_WIDTH(page_flags_t flags)
+{
+	return flags >> PAGE_MAX_WIDTH_SHIFT;
+}
+
+static inline page_flags_t PAGE_LARGE(int max_width)
+{
+	return max_width << PAGE_MAX_WIDTH_SHIFT;
+}
 
 /* Global page. Can be combined with anything except PAGE_NOT_PRESENT.
  * PAGE_GLOBAL on non-leaf entry means all the leaf entries under it are global,
  * even if they don't have the PAGE_GLOBAL flag themselves.
  */
-#define PAGE_GLOBAL               (1 << 6)
+#define PAGE_GLOBAL  PAGE_GLOBAL_BIT
 
 /* Cacheability.
  * Platform-independent code should always use PAGE_CACHEABLE for normal memory,
@@ -78,8 +104,8 @@
  * Exactly one must be present for leaf pages.
  * None may be present for non-leaf entries.
  */
-#define PAGE_CACHEABLE            (1 << 7)
-#define PAGE_NOT_CACHEABLE        (1 << 8)
+#define PAGE_CACHEABLE      PAGE_CACHEABLE_BIT
+#define PAGE_NOT_CACHEABLE  PAGE_NOT_CACHEABLE_BIT
 
 /* Protection.
  * PAGE_USER for memory accessible to userspace programs, PAGE_KERNEL for
@@ -89,16 +115,16 @@
  * are PAGE_USER, likewise with PAGE_KERNEL. Exactly one of these two must be
  * used for leaf entries, but they may be omitted for non-leaf entries.
  */
-#define PAGE_USER                 (1 << 9)
-#define PAGE_KERNEL               (1 << 10)
+#define PAGE_USER                 PAGE_USER_BIT
+#define PAGE_KERNEL               PAGE_KERNEL_BIT
 
 /* Permission check macros. These assume that `flags` are a valid combination
  * of above constants.
  */
-#define PAGE_IS_PRESENT(flags)     (!((flags) & PAGE_NOT_PRESENT))
-#define PAGE_IS_READABLE(flags)    (((flags) & _PAGE_READ) != 0)
-#define PAGE_IS_WRITABLE(flags)    (((flags) & _PAGE_WRITE) != 0)
-#define PAGE_IS_EXECUTABLE(flags)  (((flags) & _PAGE_EXEC) != 0)
+#define PAGE_IS_PRESENT(flags)     (PAGE_DISCRIMINANT(flags) != PAGE_NOT_PRESENT)
+#define PAGE_IS_READABLE(flags)    (((flags) & PAGE_READ_BIT) != 0)
+#define PAGE_IS_WRITABLE(flags)    (((flags) & PAGE_WRITE_BIT) != 0)
+#define PAGE_IS_EXECUTABLE(flags)  (((flags) & PAGE_EXEC_BIT) != 0)
 
 /** A convenience macro for constructing a valid set of flags from
  *  a platform-specific representation.
