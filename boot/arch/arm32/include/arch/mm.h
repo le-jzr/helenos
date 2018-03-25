@@ -55,8 +55,8 @@
  */
 typedef struct {
 	unsigned int descriptor_type : 2;
-	unsigned int bufferable : 1;
-	unsigned int cacheable : 1;
+	unsigned int b : 1;
+	unsigned int c : 1;
 	unsigned int xn : 1;
 	unsigned int domain : 4;
 	unsigned int should_be_zero_1 : 1;

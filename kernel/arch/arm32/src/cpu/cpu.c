@@ -125,15 +125,15 @@ static void arch_cpu_identify(cpu_arch_t *cpu)
 	}
 }
 
-#undef ENABLE_CACHE
-
 /** Enables unaligned access and caching for armv6+ */
 void cpu_arch_init(void)
 {
 	uint32_t control_reg = SCTLR_read();
 
-	dcache_invalidate();
-	read_barrier();
+	if (!(control_reg & SCTLR_CACHE_EN_FLAG)) {
+		dcache_invalidate();
+		read_barrier();
+	}
 
 	/* Turn off tex remap, RAZ/WI prior to armv7 */
 	control_reg &= ~SCTLR_TEX_REMAP_EN_FLAG;
@@ -161,29 +161,19 @@ void cpu_arch_init(void)
 	 * L2 Cache for armv7 is enabled by default (i.e. controlled by
 	 * this flag).
 	 */
-	#if ENABLE_CACHE
 	control_reg |= SCTLR_CACHE_EN_FLAG;
-	#endif
 #endif
-#if defined(PROCESSOR_ARCH_armv7_a) && ENABLE_CACHE
+#if defined(PROCESSOR_ARCH_armv7_a)
 	 /* ICache coherency is elaborated on in barrier.h.
 	  * VIPT and PIPT caches need maintenance only on code modify,
 	  * so it should be safe for general use.
 	  * Enable branch predictors too as they follow the same rules
 	  * as ICache and they can be flushed together
 	  */
-	if ((CTR_read() & CTR_L1I_POLICY_MASK) != CTR_L1I_POLICY_AIVIVT) {
-		control_reg |=
-		    SCTLR_INST_CACHE_EN_FLAG | SCTLR_BRANCH_PREDICT_EN_FLAG;
-	} else {
-		control_reg &=
-		    ~(SCTLR_INST_CACHE_EN_FLAG | SCTLR_BRANCH_PREDICT_EN_FLAG);
-	}
+	//if ((CTR_read() & CTR_L1I_POLICY_MASK) != CTR_L1I_POLICY_AIVIVT) {
+	control_reg |=
+	    SCTLR_INST_CACHE_EN_FLAG | SCTLR_BRANCH_PREDICT_EN_FLAG;
 #endif
-	#ifndef ENABLE_CACHE
-	control_reg &=
-		    ~(SCTLR_INST_CACHE_EN_FLAG | SCTLR_BRANCH_PREDICT_EN_FLAG);
-	#endif
 
 	SCTLR_write(control_reg);
 

@@ -53,16 +53,17 @@
 #elif defined(MACHINE_omnia)
 
 #define RAM_START  0
-/* Omnia can have either 1 or 2GB of memory.
- * Either way, nothing else is mapped in the lower half.
+/* Omnia can have either 1 or 2GB of memory, but it doesn't matter much
+ * to the bootloader.
  */
 #define RAM_END    0x40000000U
-// TODO #define RAM_END    0x80000000U
+
 /* The default load offset in uboot. For convenience.
  * Could be 0, but we have at least 1 GB to work with, and kernel reclaims
  * the memory, so there's no point.
  */
 #define BOOT_BASE  0x00800000
+
 /* Define to 1 if RAM memory should be aliased at 0x80000000 by the boot
  * page table. This makes the corresponding portion of physical address space
  * inaccessible by the loader.

@@ -103,6 +103,7 @@ SOURCES = \
 	arch/$(BARCH)/src/main.c \
 	arch/$(BARCH)/src/mm.c \
 	arch/$(BARCH)/src/putchar.c \
+	arch/$(BARCH)/src/init.c \
 	$(COMPS).s \
 	$(COMPS)_desc.c \
 	genarch/src/division.c \

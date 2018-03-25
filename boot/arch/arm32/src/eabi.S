@@ -28,6 +28,8 @@
 
 #include <abi/asmtool.h>
 
+// TODO: Scrap this file.
+
 .text
 
 FUNCTION_BEGIN(__aeabi_idiv)

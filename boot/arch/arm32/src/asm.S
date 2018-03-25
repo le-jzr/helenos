@@ -29,6 +29,8 @@
 #include <abi/asmtool.h>
 #include <arch/arch.h>
 
+// TODO: we don't really need anything except start. Rest can be in C.
+
 .section BOOTSTRAP
 
 SYMBOL(start)
@@ -45,59 +47,7 @@ SYMBOL(boot_stack)
 
 .text
 
-FUNCTION_BEGIN(halt)
-	b halt
-FUNCTION_END(halt)
-
 FUNCTION_BEGIN(jump_to_kernel)
-	#
-	# Make sure that the I-cache, D-cache and memory are mutually coherent
-	# before passing control to the copied code.
-	#
-
-	#
-	# r0 is kernel entry point
-	# r1 is pointer to the bootinfo structure
-
-#define CP15_C1_IC		12
-#define CP15_C1_BP		11
-#define CP15_C1_DC		2
-
-	mrc	p15, 0, r4, c1, c0, 0
-
-	# Disable D-cache before the kernel is started.
-	bic	r4, r4, #(1 << CP15_C1_DC)
-
-	# Disable I-cache and Branch predictors.
-	bic	r4, r4, #(1 << CP15_C1_IC)
-	bic	r4, r4, #(1 << CP15_C1_BP)
-
-	mcr	p15, 0, r4, c1, c0, 0
-
-	# Wait for the operations to complete
-#ifdef PROCESSOR_ARCH_armv7_a
-	dsb
-#else
-	# cp15 dsb, r4 is ignored (should be zero)
-	mov r4, #0
-	mcr p15, 0, r4, c7, c10, 4
-#endif
-
-	# Clean ICache and BPredictors, r4 ignored (SBZ)
-	mov r4, #0
-	mcr p15, 0, r4, c7, c5, 0
-	nop
-
-	# Wait for the operations to complete
-#ifdef PROCESSOR_ARCH_armv7_a
-	dsb
-	isb
-	nop
-#elif defined(PROCESSOR_ARCH_armv6)
-	# cp15 isb
-	mcr p15, 0, r4, c7, c5, 4
-	nop
-#endif
 	mov pc, r0
 FUNCTION_END(jump_to_kernel)
 
