@@ -47,7 +47,6 @@
 #define CS_ENTER_BARRIER()  asm volatile ("" ::: "memory")
 #define CS_LEAVE_BARRIER()  asm volatile ("" ::: "memory")
 
-#if defined PROCESSOR_ARCH_armv7_a
 /* ARMv7 uses instructions for memory barriers see ARM Architecture reference
  * manual for details:
  * DMB: ch. A8.8.43 page A8-376
@@ -55,11 +54,6 @@
  * See ch. A3.8.3 page A3-148 for details about memory barrier implementation
  * and functionality on armv7 architecture.
  */
-#define memory_barrier()  asm volatile ("dsb" ::: "memory")
-#define read_barrier()    asm volatile ("dsb" ::: "memory")
-#define write_barrier()   asm volatile ("dsb" ::: "memory")
-#define inst_barrier()    asm volatile ("dsb \n isb" ::: "memory")
-#elif defined PROCESSOR_ARCH_armv6 | defined KERNEL
 /*
  * ARMv6 introduced user access of the following commands:
  * - Prefetch flush
@@ -72,29 +66,48 @@
  * Although at least mcr p15, 0, r0, c7, c10, 4 is mentioned in earlier archs,
  * CP15 implementation is mandatory only for armv6+.
  */
-#if defined(PROCESSOR_ARCH_armv6) || defined(PROCESSOR_ARCH_armv7_a)
-#define memory_barrier()  CP15DMB_write(0)
-#else
-#define memory_barrier()  CP15DSB_write(0)
-#endif
-#define read_barrier()    CP15DSB_write(0)
-#define write_barrier()   read_barrier()
-#if defined(PROCESSOR_ARCH_armv6) || defined(PROCESSOR_ARCH_armv7_a)
-#define inst_barrier()    CP15ISB_write(0)
-#else
-#define inst_barrier()
-#endif
-#else
 /* Older manuals mention syscalls as a way to implement cache coherency and
  * barriers. See for example ARM Architecture Reference Manual Version D
  * chapter 2.7.4 Prefetching and self-modifying code (p. A2-28)
  */
-// TODO implement on per PROCESSOR basis or via syscalls
-#define memory_barrier()  asm volatile ("" ::: "memory")
-#define read_barrier()    asm volatile ("" ::: "memory")
-#define write_barrier()   asm volatile ("" ::: "memory")
-#define inst_barrier()    asm volatile ("" ::: "memory")
+
+static inline void dmb(void)
+{
+#if defined(PROCESSOR_ARCH_armv7_a)
+	asm volatile ("dmb" ::: "memory");
+#elif defined(PROCESSOR_ARCH_armv6) || defined(KERNEL)
+	CP15DMB_write(0);
+#else
+	// FIXME
 #endif
+}
+
+static inline void dsb(void)
+{
+#if defined(PROCESSOR_ARCH_armv7_a)
+	asm volatile ("dsb" ::: "memory");
+#elif defined(PROCESSOR_ARCH_armv6) || defined(KERNEL)
+	CP15DSB_write(0);
+#else
+	// FIXME
+#endif
+}
+
+static inline void isb(void)
+{
+#if defined(PROCESSOR_ARCH_armv7_a)
+	asm volatile ("isb" ::: "memory");
+#elif defined(PROCESSOR_ARCH_armv6) || defined(KERNEL)
+	CP15ISB_write(0);
+#else
+	// FIXME
+#endif
+}
+
+#define memory_barrier()  dsb()
+#define read_barrier()    dsb()
+#define write_barrier()   dsb()
+#define inst_barrier()    { dsb(); isb(); }
 
 #ifdef KERNEL
 
@@ -113,29 +126,31 @@
  * maintenance to other places than just smc.
  */
 
-#if defined PROCESSOR_ARCH_armv7_a | defined PROCESSOR_ARCH_armv6 | defined KERNEL
-//TODO might be PL1 only on armv5-
-#define smc_coherence(a) \
-do { \
-	dcache_clean_mva_pou(ALIGN_DOWN((uintptr_t) a, CP15_C7_MVA_ALIGN)); \
-	write_barrier();               /* Wait for completion */\
-	icache_invalidate();\
-	inst_barrier();                /* Wait for Inst refetch */\
-} while (0)
+static inline void _smc_coherence(uintptr_t a)
+{
+	dcache_clean_mva_pou(ALIGN_DOWN(a, CP15_C7_MVA_ALIGN));
+	/* Wait for completion */
+	dsb();
+	icache_invalidate();
+	/* Wait for Inst refetch */
+	dsb();
+	isb();
+}
+
+#define smc_coherence(a) _smc_coherence((uintptr_t)(a))
+
 /* @note: Cache type register is not available in uspace. We would need
  * to export the cache line value, or use syscall for uspace smc_coherence */
-#define smc_coherence_block(a, l) \
-do { \
-	for (uintptr_t addr = (uintptr_t) a; addr < (uintptr_t) a + l; \
-	    addr += CP15_C7_MVA_ALIGN) \
-		smc_coherence(addr); \
-} while (0)
-#else
-#define smc_coherence(a)
-#define smc_coherence_block(a, l)
-#endif
+static inline void _smc_coherence_block(uintptr_t a, size_t l)
+{
+	for (uintptr_t addr = a; addr < a + l; addr += CP15_C7_MVA_ALIGN) {
+		smc_coherence(addr);
+	}
+}
 
-#endif	/* KERNEL */
+#define smc_coherence_block(a, l) _smc_coherence_block((uintptr_t)(a), (l))
+
+#endif /* KERNEL */
 
 #endif
 

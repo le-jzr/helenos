@@ -228,7 +228,7 @@ CONTROL_REG_GEN_WRITE(VMPIDR, c0, 4, c0, 5);
  * Manual ARMv7-A and ARMv7-R edition, page 1687 */
 enum {
 	SCTLR_MMU_EN_FLAG            = 1 << 0,
-	SCTLR_ALIGN_CHECK_EN_FLAG    = 1 << 1,  /* Allow alignemnt check */
+	SCTLR_ALIGN_CHECK_EN_FLAG    = 1 << 1,  /* Allow alignment check */
 	SCTLR_CACHE_EN_FLAG          = 1 << 2,
 	SCTLR_CP15_BARRIER_EN_FLAG   = 1 << 5,
 	SCTLR_B_EN_FLAG              = 1 << 7,  /* ARMv6-, big endian switch */
@@ -390,8 +390,8 @@ CONTROL_REG_GEN_WRITE(HPFAR, c6, 4, c0, 4);
  * Cache maintenance, address translation and other
  */
 
-// FIXME: Is this correct for Cortex-A9?
-
+// Minimum cache line size across all caches reachable with
+// CP15 cache maintenance operations.
 #if defined(PROCESSOR_cortex_a8)
 #define CP15_C7_MVA_ALIGN	64
 #elif defined(PROCESSOR_cortex_a9)

@@ -125,23 +125,17 @@ static void arch_cpu_identify(cpu_arch_t *cpu)
 	}
 }
 
-/** Enables unaligned access and caching for armv6+ */
+/** Enables unaligned access for armv6+ */
 void cpu_arch_init(void)
 {
 	uint32_t control_reg = SCTLR_read();
 
-	if (!(control_reg & SCTLR_CACHE_EN_FLAG)) {
-		dcache_invalidate();
-		read_barrier();
-	}
-
-	/* Turn off tex remap, RAZ/WI prior to armv7 */
-	control_reg &= ~SCTLR_TEX_REMAP_EN_FLAG;
-	/* Turn off accessed flag, RAZ/WI prior to armv7 */
-	control_reg &= ~(SCTLR_ACCESS_FLAG_EN_FLAG | SCTLR_HW_ACCESS_FLAG_EN_FLAG);
+	/* Caches have already been enabled in the bootloader.
+	 * Don't do anything about them here.
+	 */
 
 	/* Unaligned access is supported on armv6+ */
-#if defined(PROCESSOR_ARCH_armv7_a) | defined(PROCESSOR_ARCH_armv6)
+#if defined(PROCESSOR_ARCH_armv7_a) || defined(PROCESSOR_ARCH_armv6)
 	/* Enable unaligned access, RAZ/WI prior to armv6
 	 * switchable on armv6, RAO/WI writes on armv7,
 	 * see ARM Architecture Reference Manual ARMv7-A and ARMv7-R edition
@@ -150,29 +144,6 @@ void cpu_arch_init(void)
 	/* Disable alignment checks, this turns unaligned access to undefined,
 	 * unless U bit is set. */
 	control_reg &= ~SCTLR_ALIGN_CHECK_EN_FLAG;
-	/* Enable caching, On arm prior to armv7 there is only one level
-	 * of caches. Data cache is coherent.
-	 * "This means that the behavior of accesses from the same observer to
-	 * different VAs, that are translated to the same PA
-	 * with the same memory attributes, is fully coherent."
-	 *    ARM Architecture Reference Manual ARMv7-A and ARMv7-R Edition
-	 *    B3.11.1 (p. 1383)
-	 * We are safe to turn this on. For arm v6 see ch L.6.2 (p. 2469)
-	 * L2 Cache for armv7 is enabled by default (i.e. controlled by
-	 * this flag).
-	 */
-	control_reg |= SCTLR_CACHE_EN_FLAG;
-#endif
-#if defined(PROCESSOR_ARCH_armv7_a)
-	 /* ICache coherency is elaborated on in barrier.h.
-	  * VIPT and PIPT caches need maintenance only on code modify,
-	  * so it should be safe for general use.
-	  * Enable branch predictors too as they follow the same rules
-	  * as ICache and they can be flushed together
-	  */
-	//if ((CTR_read() & CTR_L1I_POLICY_MASK) != CTR_L1I_POLICY_AIVIVT) {
-	control_reg |=
-	    SCTLR_INST_CACHE_EN_FLAG | SCTLR_BRANCH_PREDICT_EN_FLAG;
 #endif
 
 	SCTLR_write(control_reg);

@@ -61,7 +61,7 @@ void bootstrap(void)
 {
 	mmu_start();
 	enable_caches();
-	enable_l2c();
+	//enable_l2c();
 
 	version_print();
 
@@ -123,7 +123,7 @@ void bootstrap(void)
 
 	printf(".\n");
 
-	//disable_caches();
+	disable_caches();
 
 	printf("Booting the kernel...\n");
 	jump_to_kernel((void *) PA2KA(BOOT_OFFSET), &bootinfo);

@@ -40,6 +40,9 @@
 #include <mm/as.h>
 #include <mm/tlb.h>
 #include <arch.h>
+#include <arch/cp15.h>
+
+#define ICACHE_IS_VIVT ((CTR_read() & CTR_L1I_POLICY_MASK) != CTR_L1I_POLICY_AIVIVT)
 
 /** Architecture dependent address space init.
  *
@@ -52,7 +55,26 @@ void as_arch_init(void)
 
 void as_install_arch(as_t *as)
 {
-	tlb_invalidate_all();
+	// Invalidate all TLBs.
+	TLBIALL_write(0);
+
+	if (ICACHE_IS_VIVT) {
+		// Virtually tagged instruction cache needs to be
+		// invalidated on mapping changes.
+		ICIALLU_write(0);
+	} else {
+		// With physically tagged caches, invalidating
+		// branch predictors is sufficient.
+		// Maybe even unnecessary, but let's be safe.
+		BPIALL_write(0);
+	}
+
+	// Make sure the invalidations are completed and
+	// visible before we continue.
+	dsb();
+	isb();
+
+	// TODO: ASID support
 }
 
 /** @}

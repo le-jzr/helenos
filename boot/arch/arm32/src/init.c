@@ -280,6 +280,12 @@ void enable_mmu(void)
 #ifdef PROCESSOR_ARCH_armv6
 	sctlr |= SCTLR_EXTENDED_PT_EN_FLAG;
 #endif
+#ifdef PROCESSOR_ARCH_armv7_a
+	/* Turn off tex remap, RAZ/WI prior to armv7 */
+	sctlr &= ~SCTLR_TEX_REMAP_EN_FLAG;
+	/* Turn off accessed flag, RAZ/WI prior to armv7 */
+	sctlr &= ~(SCTLR_ACCESS_FLAG_EN_FLAG | SCTLR_HW_ACCESS_FLAG_EN_FLAG);
+#endif
 	SCTLR_write(sctlr | SCTLR_MMU_EN_FLAG);
 }
 

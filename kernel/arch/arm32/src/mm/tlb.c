@@ -78,7 +78,7 @@ void tlb_invalidate_asid(asid_t asid)
  */
 static inline void invalidate_page(uintptr_t page)
 {
-#if defined(PROCESSOR_ARCH_armv6) || defined(PROCESSOR_ARCH_armv7_a)
+#if defined(PROCESSOR_ARCH_armv6)
 	if (TLBTR_read() & TLBTR_SEP_FLAG) {
 		ITLBIMVA_write(page);
 		DTLBIMVA_write(page);
@@ -88,7 +88,7 @@ static inline void invalidate_page(uintptr_t page)
 #elif defined(PROCESSOR_arm920t)
 	ITLBIMVA_write(page);
 	DTLBIMVA_write(page);
-#elif defined(PROCESSOR_arm926ej_s)
+#elif defined(PROCESSOR_arm926ej_s) || defined(PROCESSOR_ARCH_armv7_a)
 	TLBIMVA_write(page);
 #else
 #error Unknown TLB type
@@ -123,6 +123,7 @@ void tlb_invalidate_pages(asid_t asid __attribute__((unused)), uintptr_t page, s
 
 void tlb_arch_init(void)
 {
+	tlb_invalidate_all();
 }
 
 void tlb_print(void)
