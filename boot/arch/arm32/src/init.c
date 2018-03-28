@@ -161,6 +161,22 @@ void enable_l2c(void)
 		return;
 	}
 
+	printf("Invalidating L2.\n");
+
+	// Invalidate all ways.
+	pl310_write_reg7_inv_way(base, 0xffff);
+
+	// Wait until invalidation is complete.
+	while (pl310_read_reg7_inv_way(base) != 0) {
+		printf("Still invalidating.\n");
+	}
+
+	control |= 1;
+	pl310_write_reg1_control(base, control);
+	printf("L2 cache enabled.\n");
+
+#if 0
+
 	// Invalidate all ways.
 	pl310_write_reg7_inv_way(base, 0xffff);
 
@@ -168,14 +184,23 @@ void enable_l2c(void)
 	while (pl310_read_reg7_inv_way(base) != 0)
 		;
 
-	control |= 1;
+	pl310_write_reg1_control(base, 0);
+	printf("L2 cache disabled.\n");
 
-	pl310_write_reg1_control(base, control);
-	printf("L2 cache enabled.\n");
+	// Invalidate all ways.
+	pl310_write_reg7_inv_way(base, 0xffff);
+
+	// Wait until invalidation is complete.
+	while (pl310_read_reg7_inv_way(base) != 0)
+		;
+#endif
+
 }
 
 void tlb_invalidate_all(void)
 {
+	ITLBIALL_write(0);
+	DTLBIALL_write(0);
 	TLBIALL_write(0);
 	dsb();
 	isb();

@@ -59,9 +59,65 @@ static bootinfo_t bootinfo;
 
 void bootstrap(void)
 {
+	// On the off-chance that caching and MMU is already enabled,
+	// disable caches first before messing with page tables.
+	disable_caches();
 	mmu_start();
 	enable_caches();
-	//enable_l2c();
+	enable_l2c();
+
+	// Permanently undefined instruction encoding.
+	//uint32_t fill = 0xffffffff;
+	uint32_t fill = 0x12345678;
+	printf("Filling memory with 0x%08x\n", fill);
+
+	for (uint32_t *p = RAM_START; (uintptr_t)p < BOOT_BASE; p++) {
+	//	if (((uintptr_t)p & ((1 << 24) - 1)) == 0)
+	//		printf("Overwriting 0x%08x\n", (uintptr_t)p);
+		*p = fill;
+	}
+	
+	uintptr_t end = (uintptr_t)&bdata_end;
+	while ((end % 4) != 0) {
+		end++;
+	}
+
+	// Somehow, without this if, the next printf would print an
+	// odd number and the following write would cause data abort.
+	if (end % 4 != 0) {
+		printf("End not a multiple of four.");
+	}
+	printf("Reached 0x%08x, skipping to 0x%08x\n", BOOT_BASE, end);
+	
+	for (uint32_t *p = (uint32_t *)end; (uintptr_t)p < RAM_END; p++) {
+	//	if (((uintptr_t)p & ((1 << 24) - 1)) == 0)
+	//		printf("Overwriting 0x%08x\n", (uintptr_t)p);
+		*p = fill;
+	}
+
+	printf("Finished filling.\n");
+
+	disable_caches();
+	enable_caches();
+
+	for (uint32_t *p = RAM_START; (uintptr_t)p < BOOT_BASE; p++) {
+		if (((uintptr_t)p & ((1 << 24) - 1)) == 0)
+			printf("Checking 0x%08x\n", (uintptr_t)p);
+		if (*p != fill) {
+			printf("Wrong data in RAM, expected 0x%08x, found 0x%08x.\n", fill, *p);
+		}
+	}
+	
+	printf("Reached 0x%08x, skipping to 0x%08x\n", BOOT_BASE, end);
+	
+	for (uint32_t *p = (uint32_t *)end; (uintptr_t)p < RAM_END; p++) {
+		if (((uintptr_t)p & ((1 << 24) - 1)) == 0)
+			printf("Checking 0x%08x\n", (uintptr_t)p);
+		if (*p != fill) {
+			printf("Wrong data in RAM, expected 0x%08x, found 0x%08x.\n", fill, *p);
+		}
+	}
+	printf("Finished checking RAM data.\n");
 
 	version_print();
 
@@ -123,7 +179,7 @@ void bootstrap(void)
 
 	printf(".\n");
 
-	disable_caches();
+	//disable_caches();
 
 	printf("Booting the kernel...\n");
 	jump_to_kernel((void *) PA2KA(BOOT_OFFSET), &bootinfo);
