@@ -77,16 +77,8 @@ void bootstrap(void)
 		*p = fill;
 	}
 	
-	uintptr_t end = (uintptr_t)&bdata_end;
-	while ((end % 4) != 0) {
-		end++;
-	}
-
-	// Somehow, without this if, the next printf would print an
-	// odd number and the following write would cause data abort.
-	if (end % 4 != 0) {
-		printf("End not a multiple of four.");
-	}
+	/* Align up to a multiple of four. */
+	uintptr_t end = (((uintptr_t)&bdata_end - 1) & ~3) + 4;
 	printf("Reached 0x%08x, skipping to 0x%08x\n", BOOT_BASE, end);
 	
 	for (uint32_t *p = (uint32_t *)end; (uintptr_t)p < RAM_END; p++) {
@@ -100,6 +92,7 @@ void bootstrap(void)
 	disable_caches();
 	enable_caches();
 
+/*
 	for (uint32_t *p = RAM_START; (uintptr_t)p < BOOT_BASE; p++) {
 		if (((uintptr_t)p & ((1 << 24) - 1)) == 0)
 			printf("Checking 0x%08x\n", (uintptr_t)p);
@@ -107,7 +100,6 @@ void bootstrap(void)
 			printf("Wrong data in RAM, expected 0x%08x, found 0x%08x.\n", fill, *p);
 		}
 	}
-	
 	printf("Reached 0x%08x, skipping to 0x%08x\n", BOOT_BASE, end);
 	
 	for (uint32_t *p = (uint32_t *)end; (uintptr_t)p < RAM_END; p++) {
@@ -118,6 +110,7 @@ void bootstrap(void)
 		}
 	}
 	printf("Finished checking RAM data.\n");
+*/
 
 	version_print();
 
