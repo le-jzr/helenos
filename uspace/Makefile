@@ -265,7 +265,11 @@ CLEANS := $(addsuffix .clean,$(DIRS) $(LIBS) $(BASE_LIBS))
 
 .PHONY: all $(BASE_BUILDS) $(BUILDS) $(BUILDS_TESTS) $(CLEANS) clean export
 
-all: $(BUILDS) $(BUILDS_TESTS)
+all:
+	meson . ./build --cross-file meson.cross
+	ninja -C ./build
+
+#all: $(BUILDS) $(BUILDS_TESTS)
 
 $(BUILDS_TESTS): $(BASE_BUILDS) $(BUILDS)
 	$(MAKE) -r -C $(basename $@) all-test PRECHECK=$(PRECHECK)
@@ -289,4 +293,4 @@ $(DEPS): %/deps.mk: %/Makefile
 
 $(BUILDS): $(BASE_BUILDS)
 
--include $(DEPS)
+#-include $(DEPS)
