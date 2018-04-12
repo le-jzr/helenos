@@ -297,9 +297,74 @@ LIBARGS := $(addprefix -L$(USPACE_PREFIX)/lib/, $(LIBS)) $(addprefix -l, $(LIBS)
 
 .PHONY: all all-test clean fasterclean depend
 
-all: tag $(OUTPUTS)
+all:
+ifneq ($(LIBRARY),)
+	echo "_libname = '$(LIBRARY:lib%=%)'" > meson.build
+	echo "_deps = [ libc$(foreach lib,$(LIBS),, lib$(lib)) ]" >> meson.build
+	echo "_extra_cflags = [$(foreach flag,$(EXTRA_CFLAGS), '$(flag)',) ]" >> meson.build
+	echo "_exports = include_directories('.', 'include')" >> meson.build
+	echo "_includes = _exports" >> meson.build
+	echo "_src = files(" >> meson.build
+	$(foreach file,$(SOURCES), echo "	'$(file)'," >> meson.build; )
+	echo ")" >> meson.build
 
-all-test: $(TEST_OUTPUTS)
+	echo >> meson.build
+
+	echo "$(LIBRARY) = declare_dependency(" >> meson.build
+	echo "	link_with: library(_libname, _src," >> meson.build
+	echo "		include_directories: _includes," >> meson.build
+	echo "		dependencies: _deps," >> meson.build
+	echo "		c_args: _extra_cflags," >> meson.build
+	echo "	)," >> meson.build
+	echo "	include_directories: _exports," >> meson.build
+	echo "	dependencies: _deps," >> meson.build
+	echo ")" >> meson.build
+
+
+ifneq ($(TEST_SOURCES),)
+	echo >> meson.build
+	echo "_test_src = files(" >> meson.build
+	$(foreach file,$(TEST_SOURCES), echo "	'$(file)'," >> meson.build; )
+	echo ")" >> meson.build
+	echo >> meson.build
+	echo "test_$(LIBRARY) = executable('test_$(LIBRARY)', _test_src," >> meson.build
+	echo "	include_directories: _includes," >> meson.build
+	echo "	dependencies: [ $(LIBRARY), libpcut ]," >> meson.build
+	echo ")" >> meson.build
+endif
+else
+	echo "_name = '$(BINARY)'" > meson.build
+	echo "_deps = [ libc$(foreach lib,$(LIBS),, lib$(lib)) ]" >> meson.build
+	echo "_extra_cflags = [$(foreach flag,$(EXTRA_CFLAGS), '$(flag)',) ]" >> meson.build
+	echo "_includes = include_directories('.')" >> meson.build
+	echo "_src = files(" >> meson.build
+	$(foreach file,$(SOURCES), echo "	'$(file)'," >> meson.build; )
+	echo ")" >> meson.build
+
+	echo >> meson.build
+
+	echo "$(BINARY) = executable(_name, _src," >> meson.build
+	echo "	include_directories: _includes," >> meson.build
+	echo "	dependencies: _deps," >> meson.build
+	echo "	c_args: _extra_cflags," >> meson.build
+	echo ")" >> meson.build
+
+
+ifneq ($(TEST_SOURCES),)
+	echo >> meson.build
+	echo "_test_src = files(" >> meson.build
+	$(foreach file,$(TEST_SOURCES), echo "	'$(file)'," >> meson.build; )
+	echo ")" >> meson.build
+	echo >> meson.build
+
+	echo "test_$(BINARY) = executable('test_$(BINARY)', _test_src," >> meson.build
+	echo "	include_directories: _includes," >> meson.build
+	echo "	dependencies: [ _deps, libpcut ]," >> meson.build
+	echo ")" >> meson.build
+endif
+endif
+
+all-test:
 
 clean: fasterclean
 	find . -name '*.o' -follow -exec rm \{\} \;

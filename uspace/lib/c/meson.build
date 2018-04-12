@@ -1,4 +1,11 @@
-src = [
+subdir('arch/' + h_arch)
+
+_libname = 'c'
+_deps = [ libarch ]
+_extra_cflags = [ '-fno-builtin' ]
+_exports = libc_includes
+_includes = _exports
+_src = files(
 	'generic/libc.c',
 	'generic/ddi.c',
 	'generic/as.c',
@@ -114,20 +121,30 @@ src = [
 	'generic/uuid.c',
 	'generic/vbd.c',
 	'generic/vol.c',
-]
-
-libc_includes = include_directories([
-	'include',
-	'arch/' + h_arch + '/include',
-	'../../../abi/include',
-])
-
-#lib = shared_library('somelib', 'internalclass.cc', 'file.cc', ...)
-#eo = lib.extract_objects('internalclass.cc')
-
-libc = library('libc', src,
-    include_directories : libc_includes,
-    c_args : [ '-fno-builtin' ]
 )
 
-c = declare_dependency(link_with : libc, include_directories : libc_includes)
+libc = declare_dependency(
+	link_with: library(_libname, _src,
+		include_directories: _includes,
+		dependencies: _deps,
+		c_args: _extra_cflags,
+	),
+	include_directories: _exports,
+	dependencies: _deps,
+)
+
+_test_src = files(
+	'test/adt/circ_buf.c',
+	'test/fibril/timer.c',
+	'test/main.c',
+	'test/io/table.c',
+	'test/odict.c',
+	'test/qsort.c',
+	'test/sprintf.c',
+	'test/str.c',
+)
+
+test_libc = executable('test_libc', _test_src,
+	include_directories: _includes,
+	dependencies: [ libc, libpcut ],
+)
