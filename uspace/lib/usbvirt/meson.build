@@ -2,7 +2,7 @@ _libname = 'usbvirt'
 _deps = [ libc, libdrv , libusb , libusbdev ]
 _extra_cflags = [ '-Iinclude/usbvirt', ]
 _exports = include_directories('.', 'include')
-_includes = _exports
+_includes = [ _exports, include_directories('include/usbvirt') ]
 _src = files(
 	'src/ctrltransfer.c',
 	'src/device.c',

@@ -1,5 +1,5 @@
 _name = 'bithenge'
-_deps = [ libc, libbithenge , libblock ]
+_deps = [ libc, libbithenge, libblock ]
 _extra_cflags = [ '-D__HELENOS__', ]
 _includes = include_directories('.')
 _src = files(

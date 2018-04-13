@@ -1,7 +1,6 @@
 _name = 'devman'
 _deps = [ libc ]
 _extra_cflags = [ ]
-_includes = include_directories('.')
 _src = files(
 	'client_conn.c',
 	'dev.c',
@@ -16,7 +15,8 @@ _src = files(
 )
 
 devman = executable(_name, _src,
-	include_directories: _includes,
+	implicit_include_directories: false,
 	dependencies: _deps,
 	c_args: _extra_cflags,
+	link_args: [ '-static' ],
 )

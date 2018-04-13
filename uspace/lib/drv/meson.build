@@ -1,8 +1,8 @@
 _libname = 'drv'
 _deps = [ libc, libpcm ]
-_extra_cflags = [ '-Igeneric/private', ]
-_exports = include_directories('.', 'include')
-_includes = _exports
+_extra_cflags = [ ]
+_exports = include_directories('include')
+_includes = [ _exports, include_directories('generic/private') ]
 _src = files(
 	'generic/driver.c',
 	'generic/dev_iface.c',

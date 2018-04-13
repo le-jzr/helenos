@@ -1,8 +1,8 @@
 _libname = 'pcm'
 _deps = [ libc ]
-_extra_cflags = [ '-Iinclude/pcm', ]
+_extra_cflags = [ ]
 _exports = include_directories('.', 'include')
-_includes = _exports
+_includes = [ _exports, include_directories('include/pcm') ]
 _src = files(
 	'src/format.c',
 )

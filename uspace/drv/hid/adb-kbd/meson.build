@@ -8,7 +8,7 @@ _src = files(
 	'ctl.c',
 )
 
-adb-kbd = executable(_name, _src,
+adb_kbd = executable(_name, _src,
 	include_directories: _includes,
 	dependencies: _deps,
 	c_args: _extra_cflags,

@@ -1,7 +1,7 @@
 _libname = 'nettl'
 _deps = [ libc ]
 _extra_cflags = [ ]
-_exports = include_directories('.', 'include')
+_exports = include_directories('include')
 _includes = _exports
 _src = files(
 	'src/amap.c',

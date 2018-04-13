@@ -1,7 +1,7 @@
 _name = 'sbi'
 _deps = [ libc, libclui ]
 _extra_cflags = [ '-D__HELENOS__', ]
-_includes = include_directories('.')
+_includes = [ ]
 _src = files(
 	'src/builtin/bi_boxed.c',
 	'src/builtin/bi_error.c',

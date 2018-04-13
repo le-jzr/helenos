@@ -1,7 +1,7 @@
 _libname = 'bithenge'
 _deps = [ libc, libblock ]
 _extra_cflags = [ '-D__HELENOS__', ]
-_exports = include_directories('.', 'include')
+_exports = include_directories('include')
 _includes = _exports
 _src = files(
 	'src/helenos/block.c',

@@ -1,6 +1,6 @@
 _name = 'usbhid'
 _deps = [ libc, libusbhid , libusbdev , libusb , libdrv ]
-_extra_cflags = [ '-I.', ]
+_extra_cflags = [ ]
 _includes = include_directories('.')
 _src = files(
 	'main.c',

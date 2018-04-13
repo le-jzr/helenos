@@ -1,8 +1,8 @@
 _libname = 'usbhost'
 _deps = [ libc, libusb , libdrv ]
-_extra_cflags = [ '-Iinclude/usb/host', ]
-_exports = include_directories('.', 'include')
-_includes = _exports
+_extra_cflags = [ ]
+_exports = include_directories('include')
+_includes = [ _exports, include_directories('include/usb/host') ]
 _src = files(
 	'src/ddf_helpers.c',
 	'src/endpoint.c',

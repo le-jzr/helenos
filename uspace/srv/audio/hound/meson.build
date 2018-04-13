@@ -1,7 +1,6 @@
 _name = 'hound'
 _deps = [ libc, libdrv , libhound , libpcm ]
 _extra_cflags = [ '-DNAME="hound"', ]
-_includes = include_directories('.')
 _src = files(
 	'audio_data.c',
 	'audio_device.c',
@@ -15,7 +14,6 @@ _src = files(
 )
 
 hound = executable(_name, _src,
-	include_directories: _includes,
 	dependencies: _deps,
 	c_args: _extra_cflags,
 )

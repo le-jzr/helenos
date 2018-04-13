@@ -7,7 +7,7 @@ _src = files(
 	'msim-con.c',
 )
 
-msim-con = executable(_name, _src,
+msim_con = executable(_name, _src,
 	include_directories: _includes,
 	dependencies: _deps,
 	c_args: _extra_cflags,

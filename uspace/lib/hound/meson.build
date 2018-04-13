@@ -2,7 +2,7 @@ _libname = 'hound'
 _deps = [ libc, libpcm ]
 _extra_cflags = [ '-Iinclude/hound', ]
 _exports = include_directories('.', 'include')
-_includes = _exports
+_includes = [ _exports, include_directories('include/hound') ]
 _src = files(
 	'src/protocol.c',
 	'src/client.c',

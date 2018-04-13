@@ -1,6 +1,6 @@
 _libname = 'http'
 _deps = [ libc ]
-_extra_cflags = [ '-Iinclude', ]
+_extra_cflags = [ ]
 _exports = include_directories('.', 'include')
 _includes = _exports
 _src = files(

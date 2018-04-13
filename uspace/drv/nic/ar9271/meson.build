@@ -1,6 +1,6 @@
 _name = 'ar9271'
 _deps = [ libc, libusbdev , libusb , libdrv , libnic , libieee80211 , libcrypto ]
-_extra_cflags = [ '-I.', ]
+_extra_cflags = [ ]
 _includes = include_directories('.')
 _src = files(
 	'ath_usb.c',

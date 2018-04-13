@@ -1,5 +1,5 @@
 _name = 'vterm'
-_deps = [ libc, libgui , libgraph , libdraw , libsoftrend , libcompress , libmath ]
+_deps = [ libgui ]
 _extra_cflags = [ ]
 _includes = include_directories('.')
 _src = files(

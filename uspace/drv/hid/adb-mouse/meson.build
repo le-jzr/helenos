@@ -7,7 +7,7 @@ _src = files(
 	'adb-mouse.c',
 )
 
-adb-mouse = executable(_name, _src,
+adb_mouse = executable(_name, _src,
 	include_directories: _includes,
 	dependencies: _deps,
 	c_args: _extra_cflags,

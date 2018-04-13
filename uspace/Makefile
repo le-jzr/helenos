@@ -257,19 +257,13 @@ LIBS = \
 	lib/ieee80211 \
 	lib/virtio
 
-BASE_BUILDS := $(addsuffix .build,$(BASE_LIBS))
-BUILDS := $(addsuffix .build,$(DIRS) $(LIBS))
-BUILDS_TESTS := $(addsuffix .build-test,$(DIRS) $(LIBS) $(BASE_LIBS))
-DEPS = $(addsuffix /deps.mk,$(DIRS) $(LIBS))
-CLEANS := $(addsuffix .clean,$(DIRS) $(LIBS) $(BASE_LIBS))
+.PHONY: all clean export
 
-.PHONY: all $(BASE_BUILDS) $(BUILDS) $(BUILDS_TESTS) $(CLEANS) clean export
-
-all: $(BUILDS) $(BUILDS_TESTS)
-
-meson:
-	meson . ./build --cross-file meson.cross
+all: build/build.ninja
 	ninja -C ./build
+
+build/build.ninja:
+	meson . ./build --cross-file meson.cross
 
 $(BUILDS_TESTS): $(BASE_BUILDS) $(BUILDS)
 	$(MAKE) -r -C $(basename $@) all-test PRECHECK=$(PRECHECK)
@@ -277,13 +271,8 @@ $(BUILDS_TESTS): $(BASE_BUILDS) $(BUILDS)
 export: lib/posix.build lib/math.build lib/clui.build
 	$(MAKE) -r -C lib/posix export EXPORT_DIR=$(EXPORT_DIR)
 
-clean: $(CLEANS)
-	find lib app drv srv -name '*.o' -follow -exec rm \{\} \;
-	find lib app drv srv -name '*.lo' -follow -exec rm \{\} \;
-	find lib app drv srv -name '*.d' -follow -exec rm \{\} \;
-
-$(CLEANS):
-	-$(MAKE) -r -C $(basename $@) fasterclean
+clean:
+	ninja -C ./build -t clean
 
 $(BASE_BUILDS) $(BUILDS):
 	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK)

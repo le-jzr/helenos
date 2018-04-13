@@ -1,7 +1,7 @@
 _name = 'sysinfo'
 _deps = [ libc ]
-_extra_cflags = [ '-Iinclude', ]
-_includes = include_directories('.')
+_extra_cflags = []
+_includes = []
 _src = files(
 	'sysinfo.c',
 )

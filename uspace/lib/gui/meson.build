@@ -1,7 +1,7 @@
 _libname = 'gui'
 _deps = [ libc, libdraw , libsoftrend , libgraph ]
 _extra_cflags = [ ]
-_exports = include_directories('.', 'include')
+_exports = include_directories('.')
 _includes = _exports
 _src = files(
 	'common.c',

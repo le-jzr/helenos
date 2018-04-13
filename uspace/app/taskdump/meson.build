@@ -1,7 +1,7 @@
 _name = 'taskdump'
 _deps = [ libc ]
-_extra_cflags = [ '-Iinclude', ]
-_includes = include_directories('.')
+_extra_cflags = []
+_includes = include_directories('include')
 _src = files(
 	'elf_core.c',
 	'fibrildump.c',

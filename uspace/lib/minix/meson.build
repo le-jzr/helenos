@@ -1,7 +1,7 @@
 _libname = 'minix'
 _deps = [ libc ]
 _extra_cflags = [ ]
-_exports = include_directories('.', 'include')
+_exports = include_directories('.')
 _includes = _exports
 _src = files(
 	'minix.c',

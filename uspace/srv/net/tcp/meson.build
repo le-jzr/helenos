@@ -2,7 +2,7 @@ _name = 'tcp'
 _deps = [ libc, libnettl ]
 _extra_cflags = [ ]
 _includes = include_directories('.')
-_src = files(
+_common_src = files(
 	'conn.c',
 	'inet.c',
 	'iqueue.c',
@@ -14,28 +14,19 @@ _src = files(
 	'test.c',
 	'tqueue.c',
 	'ucall.c',
+)
+_src = files(
 	'service.c',
 	'tcp.c',
 )
 
-tcp = executable(_name, _src,
+tcp = executable(_name, _common_src, _src,
 	include_directories: _includes,
 	dependencies: _deps,
 	c_args: _extra_cflags,
 )
 
 _test_src = files(
-	'conn.c',
-	'inet.c',
-	'iqueue.c',
-	'ncsim.c',
-	'pdu.c',
-	'rqueue.c',
-	'segment.c',
-	'seq_no.c',
-	'test.c',
-	'tqueue.c',
-	'ucall.c',
 	'test/conn.c',
 	'test/iqueue.c',
 	'test/main.c',
@@ -47,7 +38,7 @@ _test_src = files(
 	'test/ucall.c',
 )
 
-test_tcp = executable('test_tcp', _test_src,
+test_tcp = executable('test_tcp', _common_src, _test_src,
 	include_directories: _includes,
 	dependencies: [ _deps, libpcut ],
 )

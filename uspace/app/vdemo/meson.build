@@ -1,5 +1,5 @@
 _name = 'vdemo'
-_deps = [ libc, libgui , libdraw , libsoftrend , libcompress , libmath ]
+_deps = [ libgui ]
 _extra_cflags = [ ]
 _includes = include_directories('.')
 _src = files(

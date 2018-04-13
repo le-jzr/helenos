@@ -1,7 +1,7 @@
 _libname = 'draw'
 _deps = [ libc, libsoftrend , libcompress ]
 _extra_cflags = [ ]
-_exports = include_directories('.', 'include')
+_exports = include_directories('.')
 _includes = _exports
 _src = files(
 	'codec/tga.c',

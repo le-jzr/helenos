@@ -7,7 +7,7 @@ _src = files(
 	'sun4v-con.c',
 )
 
-sun4v-con = executable(_name, _src,
+sun4v_con = executable(_name, _src,
 	include_directories: _includes,
 	dependencies: _deps,
 	c_args: _extra_cflags,

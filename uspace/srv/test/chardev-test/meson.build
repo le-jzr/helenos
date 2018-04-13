@@ -6,7 +6,7 @@ _src = files(
 	'main.c',
 )
 
-chardev-test = executable(_name, _src,
+chardev_test = executable(_name, _src,
 	include_directories: _includes,
 	dependencies: _deps,
 	c_args: _extra_cflags,
