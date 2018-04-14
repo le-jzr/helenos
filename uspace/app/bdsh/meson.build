@@ -1,4 +1,4 @@
-_name = 'bdsh'
+_name = 'app/bdsh'
 _deps = [ libc, libclui, libfmtutil ]
 _extra_cflags = []
 _includes = include_directories('.', 'cmds', 'cmds/builtins', 'cmds/modules')

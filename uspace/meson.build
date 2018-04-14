@@ -1,7 +1,7 @@
 project(
     'HelenOS userland',
     [ 'c' ],
-    default_options : ['buildtype=plain', 'c_std=gnu11', 'warning_level=3', 'werror=true', 'b_staticpic=false', 'default_library=static' ],
+    default_options : ['buildtype=plain', 'c_std=gnu99', 'warning_level=3', 'werror=true', 'b_staticpic=false', 'default_library=static' ],
     version : '0.7.1-git',
 )
 
@@ -67,9 +67,10 @@ libs = [
 	'usbhost',
 	'nic',
 	'ieee80211',
+	'dltest',
 ]
 
-# TODO: dltest dltests tester
+# TODO: dltest dltests
 apps = [
 	'barber',
 	'bdsh',
@@ -80,6 +81,8 @@ apps = [
 	'date',
 	'devctl',
 	'df',
+	'dltest',
+	'dltests',
 	'dnscfg',
 	'dnsres',
 	'download',
@@ -115,6 +118,7 @@ apps = [
 	'sysinfo',
 	'sysinst',
 	'taskdump',
+	'tester',
 	'testread',
 	'testwrit',
 	'tetris',

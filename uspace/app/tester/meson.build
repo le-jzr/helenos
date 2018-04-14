@@ -1,7 +1,6 @@
 _name = 'tester'
-_deps = [ libc, libblock , libsoftfloat , libdrv , libmath ]
-_extra_cflags = [ '-I../../lib/softfloat',  '-Wno-error', ]
-_includes = include_directories('.')
+_deps = [ libc, libblock , libdrv , libmath ]
+_extra_cflags = [ '-w' ]
 _src = files(
 	'tester.c',
 	'util.c',
@@ -23,7 +22,7 @@ _src = files(
 	'fault/fault3.c',
 	'float/float1.c',
 	'float/float2.c',
-	'float/softfloat1.c',
+#	'float/softfloat1.c',
 	'vfs/vfs1.c',
 	'ipc/ping_pong.c',
 	'ipc/starve.c',
@@ -39,7 +38,6 @@ _src = files(
 )
 
 tester = executable(_name, _src,
-	include_directories: _includes,
 	dependencies: _deps,
 	c_args: _extra_cflags,
 )

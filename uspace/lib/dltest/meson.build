@@ -7,6 +7,8 @@ _src = files(
 	'dltest.c',
 )
 
+libdltest_includes = _includes
+
 libdltest = declare_dependency(
 	link_with: library(_libname, _src,
 		include_directories: _includes,

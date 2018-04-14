@@ -265,21 +265,8 @@ all: build/build.ninja
 build/build.ninja:
 	meson . ./build --cross-file meson.cross
 
-$(BUILDS_TESTS): $(BASE_BUILDS) $(BUILDS)
-	$(MAKE) -r -C $(basename $@) all-test PRECHECK=$(PRECHECK)
-
 export: lib/posix.build lib/math.build lib/clui.build
 	$(MAKE) -r -C lib/posix export EXPORT_DIR=$(EXPORT_DIR)
 
 clean:
 	ninja -C ./build -t clean
-
-$(BASE_BUILDS) $(BUILDS):
-	$(MAKE) -r -C $(basename $@) all PRECHECK=$(PRECHECK)
-
-$(DEPS): %/deps.mk: %/Makefile
-	$(MAKE) -r -C $(@D) deps.mk SELF_TARGET="$(@D).build"
-
-$(BUILDS): $(BASE_BUILDS)
-
-#-include $(DEPS)
