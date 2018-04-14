@@ -1,6 +1,7 @@
 subdir('arch/' + h_arch)
 
 _libname = 'c'
+_version = '0.0'
 _deps = [ libarch ]
 _extra_cflags = [ '-fno-builtin' ]
 _exports = libc_includes
@@ -128,6 +129,7 @@ libc = declare_dependency(
 		include_directories: _includes,
 		dependencies: _deps,
 		c_args: _extra_cflags,
+		version: _version,
 	),
 	include_directories: _exports,
 	dependencies: _deps,

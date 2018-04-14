@@ -1,7 +1,7 @@
-_name = 'app/bdsh'
+_name = 'bdsh'
 _deps = [ libc, libclui, libfmtutil ]
 _extra_cflags = []
-_includes = include_directories('.', 'cmds', 'cmds/builtins', 'cmds/modules')
+_includes = include_directories('cmds', 'cmds/builtins', 'cmds/modules')
 _src = files(
 	'cmds/modules/help/help.c',
 	'cmds/modules/mkdir/mkdir.c',

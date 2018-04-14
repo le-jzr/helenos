@@ -15,8 +15,8 @@ ld = 'amd64-helenos-ld'
 has_function_printf = true
 needs_exe_wrapper = true
 
-c_args = ['-D__LE__', '-fno-omit-frame-pointer' ]
-#c_link_args = ['-e', '__entry']
+c_args = [ '-D__LE__', '-fno-omit-frame-pointer' ]
+c_link_args = [ '-nostdlib', '-static', '-lgcc', '-Wl,-e,__entry' ]
 h_arch = 'amd64'
 
 [host_machine]
