@@ -1,9 +1,5 @@
-_libname = 'arch'
-_deps = []
-_extra_cflags = [ '-fno-builtin' ]
-_exports = libc_includes
-_includes = _exports
-_src = files(
+c_args = [ '-fno-builtin' ]
+src = files(
 	'src/entryjmp.S',
 	'src/thread_entry.S',
 	'src/syscall.S',
@@ -13,7 +9,7 @@ _src = files(
 	'src/stacktrace_asm.S',
 )
 
-_startup_src = files('src/entry.S')
+startup_src = files('src/entry.S')
 
 # TODO
 _autocheck_headers = files(
@@ -21,12 +17,9 @@ _autocheck_headers = files(
 )
 
 libarch = declare_dependency(
-	link_with: library(_libname, _src,
-		include_directories: _includes,
-		dependencies: _deps,
-		c_args: _extra_cflags,
+	link_with: library('arch', src,
+		include_directories: libc_includes,
+		c_args: c_args,
 	),
-	include_directories: _exports,
-	dependencies: _deps,
-	sources : _startup_src,
+	sources: startup_src,
 )

@@ -1,9 +1,6 @@
-_libname = 'drv'
-_deps = [ libc, libpcm ]
-_extra_cflags = [ ]
-_exports = include_directories('include')
-_includes = [ _exports, include_directories('generic/private') ]
-_src = files(
+deps = [ libpcm ]
+private_includes += include_directories('generic/private')
+src = files(
 	'generic/driver.c',
 	'generic/dev_iface.c',
 	'generic/interrupt.c',
@@ -24,14 +21,4 @@ _src = files(
 	'generic/remote_led_dev.c',
 	'generic/remote_battery_dev.c',
 	'generic/remote_ahci.c',
-)
-
-libdrv = declare_dependency(
-	link_with: library(_libname, _src,
-		include_directories: _includes,
-		dependencies: _deps,
-		c_args: _extra_cflags,
-	),
-	include_directories: _exports,
-	dependencies: _deps,
 )

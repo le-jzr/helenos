@@ -1,12 +1,9 @@
 subdir('arch/' + h_arch)
 
-_libname = 'c'
-_version = '0.0'
-_deps = [ libarch ]
-_extra_cflags = [ '-fno-builtin' ]
-_exports = libc_includes
-_includes = _exports
-_src = files(
+deps = [ libarch ]
+c_args = [ '-fno-builtin' ]
+includes = libc_includes
+src = files(
 	'generic/libc.c',
 	'generic/ddi.c',
 	'generic/as.c',
@@ -124,18 +121,7 @@ _src = files(
 	'generic/vol.c',
 )
 
-libc = declare_dependency(
-	link_with: library(_libname, _src,
-		include_directories: _includes,
-		dependencies: _deps,
-		c_args: _extra_cflags,
-		version: _version,
-	),
-	include_directories: _exports,
-	dependencies: _deps,
-)
-
-_test_src = files(
+test_src = files(
 	'test/adt/circ_buf.c',
 	'test/fibril/timer.c',
 	'test/main.c',
@@ -144,9 +130,4 @@ _test_src = files(
 	'test/qsort.c',
 	'test/sprintf.c',
 	'test/str.c',
-)
-
-test_libc = executable('test_libc', _test_src,
-	include_directories: _includes,
-	dependencies: [ libc, libpcut ],
 )

@@ -26,17 +26,4 @@ _src = files(
 	'generic/tanh.c',
 	'generic/trig.c',
 	'generic/trunc.c',
-	'arch/amd64/src/sin.S',
-	'arch/amd64/src/cos.S',
-	'arch/amd64/src/trunc.S',
-)
-
-libmath = declare_dependency(
-	link_with: library(_libname, _src,
-		include_directories: _includes,
-		dependencies: _deps,
-		c_args: _extra_cflags,
-	),
-	include_directories: _exports,
-	dependencies: _deps,
 )

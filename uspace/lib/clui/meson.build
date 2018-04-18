@@ -1,19 +1,5 @@
-_libname = 'clui'
-_deps = [ libc ]
-_extra_cflags = [ ]
-_exports = include_directories('.')
-_includes = _exports
-_src = files(
+includes += include_directories('.')
+src = files(
 	'nchoice.c',
 	'tinput.c',
-)
-
-libclui = declare_dependency(
-	link_with: library(_libname, _src,
-		include_directories: _includes,
-		dependencies: _deps,
-		c_args: _extra_cflags,
-	),
-	include_directories: _exports,
-	dependencies: _deps,
 )

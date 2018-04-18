@@ -20,56 +20,7 @@ h_copyright = 'Copyright (c) 2001-2018 HelenOS project'
 h_name = 'Enlightened Zeal'
 
 subdir('meson/warnings')
-
-# Redefined in libarch, if necessary.
-# Used in a few places where we generate custom assembly.
-as_prolog = ''
-
-# There's a bit of a cyclic dependency between libc and libpcut due to the
-# way code is organized.
-libc_includes = include_directories(
-	'lib/c/include',
-	'lib/c/arch/' + h_arch + '/include',
-	'../abi/include',
-)
-subdir('lib/pcut')
-subdir('lib/c')
-
-# XXX: It's important that dependencies are listed before libs that depend on them.
-libs = [
-	'block',
-	'clui',
-	'bithenge',
-	'compress',
-	'math',
-	'softrend',
-	'graph',
-	'draw',
-	'fmtutil',
-	'gui',
-	'scsi',
-	'http',
-	'uri',
-	'fdisk',
-	'pcm',
-	'drv',
-	'usb',
-	'usbdev',
-	'usbhid',
-	'usbvirt',
-	'minix',
-	'trackmod',
-	'hound',
-	'label',
-	'fs',
-	'crypto',
-	'ext4',
-	'nettl',
-	'usbhost',
-	'nic',
-	'ieee80211',
-	'dltest',
-]
+subdir('lib')
 
 # TODO: dltest dltests
 apps = [
@@ -242,10 +193,6 @@ drvs = [
 	'test/test3',
 	'time/cmos-rtc',
 ]
-
-foreach d : libs
-	subdir('lib/' + d)
-endforeach
 
 foreach d : apps
 	subdir('app/' + d)

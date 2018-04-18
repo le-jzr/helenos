@@ -1,9 +1,5 @@
-_libname = 'posix'
-_deps = [ libc ]
-_extra_cflags = [ '-Iinclude/',  '-fno-builtin', ]
-_exports = include_directories('.', 'include')
-_includes = _exports
-_src = files(
+c_args += '-fno-builtin'
+src = files(
 	'src/ctype.c',
 	'src/dlfcn.c',
 	'src/fcntl.c',
@@ -28,22 +24,7 @@ _src = files(
 	'src/unistd.c',
 )
 
-libposix = declare_dependency(
-	link_with: library(_libname, _src,
-		include_directories: _includes,
-		dependencies: _deps,
-		c_args: _extra_cflags,
-	),
-	include_directories: _exports,
-	dependencies: _deps,
-)
-
-_test_src = files(
+test_src = files(
 	'test/main.c',
 	'test/scanf.c',
-)
-
-test_libposix = executable('test_libposix', _test_src,
-	include_directories: _includes,
-	dependencies: [ libposix, libpcut ],
 )
