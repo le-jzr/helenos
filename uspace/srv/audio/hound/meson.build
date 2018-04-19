@@ -1,7 +1,6 @@
-_name = 'hound'
-_deps = [ libc, libdrv , libhound , libpcm ]
-_extra_cflags = [ '-DNAME="hound"', ]
-_src = files(
+deps = [ libdrv, libhound, libpcm ]
+c_args += '-DNAME="hound"'
+src = files(
 	'audio_data.c',
 	'audio_device.c',
 	'audio_sink.c',
@@ -11,9 +10,4 @@ _src = files(
 	'hound_ctx.c',
 	'iface.c',
 	'main.c',
-)
-
-hound = executable(_name, _src,
-	dependencies: _deps,
-	c_args: _extra_cflags,
 )

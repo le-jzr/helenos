@@ -1,16 +1,7 @@
-_name = 'volsrv'
-_deps = [ libc, liblabel , libblock ]
-_extra_cflags = [ ]
-_includes = include_directories('.')
-_src = files(
+deps = [ liblabel, libblock ]
+src = files(
 	'empty.c',
 	'mkfs.c',
 	'part.c',
 	'volsrv.c',
-)
-
-volsrv = executable(_name, _src,
-	include_directories: _includes,
-	dependencies: _deps,
-	c_args: _extra_cflags,
 )

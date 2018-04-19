@@ -1,7 +1,4 @@
-_name = 'devman'
-_deps = [ libc ]
-_extra_cflags = [ ]
-_src = files(
+src = files(
 	'client_conn.c',
 	'dev.c',
 	'devtree.c',
@@ -12,11 +9,4 @@ _src = files(
 	'main.c',
 	'match.c',
 	'util.c',
-)
-
-devman = executable(_name, _src,
-	implicit_include_directories: false,
-	dependencies: _deps,
-	c_args: _extra_cflags,
-	link_args: [ '-static' ],
 )

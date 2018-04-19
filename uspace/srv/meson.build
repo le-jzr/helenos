@@ -69,3 +69,42 @@ essential = [
 foreach d : srvs
 	subdir(d)
 endforeach
+
+foreach srv : srvs
+	src = []
+	test_src = []
+	includes = []
+	deps = []
+	c_args = []
+	link_args = []
+
+	subdir(srv)
+
+	if init.contains(srv)
+		link_args += [ '-static' ]
+	endif
+
+	deps += libc
+
+	if src.length() > 0
+		executable(srv.underscorify() + '.bin', src,
+			include_directories: includes,
+			dependencies: deps,
+			c_args: c_args,
+			link_args: link_args,
+			implicit_include_directories: false,
+			install: true,
+			install_dir: join_paths('srv', srv),
+		)
+	endif
+
+	if test_src.length() > 0
+		executable('test_' + srv.underscorify(), test_src,
+			include_directories: includes,
+			dependencies: [ deps, libpcut ],
+			implicit_include_directories: false,
+			install: true,
+			install_dir: join_paths('srv', srv),
+		)
+	endif
+endforeach
