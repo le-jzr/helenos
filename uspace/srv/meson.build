@@ -23,6 +23,7 @@ srvs = [
 	'hid/rfb',
 	'hid/s3c24xx_ts',
 	'hw/char/s3c24xx_uart',
+	'init',
 	'klog',
 	'loader',
 	'locsrv',
@@ -42,6 +43,28 @@ srvs = [
 	'vfs',
 	'volsrv',
 ]
+
+init = [
+	'bd/rd',
+	'fs/' + config_rdfmt,
+	'init',
+	'loader',
+	'locsrv',
+	'logger',
+	'ns',
+	'vfs',
+]
+
+essential = [
+	'devman',
+	'fs/locfs',
+	'hid/input',
+	'hid/output',
+	'hid/compositor',
+	'hid/console',
+	'klog',
+]
+
 
 foreach d : srvs
 	subdir(d)

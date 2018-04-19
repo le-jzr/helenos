@@ -57,6 +57,12 @@ drvs = [
 	'time/cmos-rtc',
 ]
 
+essential = [
+	'root/root',
+	'root/virt',
+	'fb/kfb',
+]
+
 foreach d : drvs
 	subdir(d)
 endforeach

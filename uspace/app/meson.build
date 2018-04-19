@@ -20,7 +20,6 @@ apps = [
 	'getterm',
 	'gunzip',
 	'inet',
-	'init',
 	'kill',
 	'killall',
 	'kio',
@@ -64,6 +63,14 @@ apps = [
 	'wavplay',
 	'websrv',
 	'wifi_supplicant',
+]
+
+essential = [
+	'bdsh',
+	'getterm',
+	'kio',
+	'vlaunch',
+	'vterm',
 ]
 
 foreach app : apps
