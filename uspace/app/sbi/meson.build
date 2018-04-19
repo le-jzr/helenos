@@ -1,8 +1,6 @@
-_name = 'sbi'
-_deps = [ libc, libclui ]
-_extra_cflags = [ '-D__HELENOS__', ]
-_includes = [ ]
-_src = files(
+deps = [ libclui ]
+c_args += '-D__HELENOS__'
+src = files(
 	'src/builtin/bi_boxed.c',
 	'src/builtin/bi_error.c',
 	'src/builtin/bi_char.c',
@@ -36,10 +34,4 @@ _src = files(
 	'src/stype_expr.c',
 	'src/symbol.c',
 	'src/tdata.c',
-)
-
-sbi = executable(_name, _src,
-	include_directories: _includes,
-	dependencies: _deps,
-	c_args: _extra_cflags,
 )

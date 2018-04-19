@@ -1,8 +1,6 @@
-_name = 'bdsh'
-_deps = [ libc, libclui, libfmtutil ]
-_extra_cflags = []
-_includes = include_directories('cmds', 'cmds/builtins', 'cmds/modules')
-_src = files(
+deps = [ libclui, libfmtutil ]
+includes = include_directories('.', 'cmds', 'cmds/builtins', 'cmds/modules')
+src = files(
 	'cmds/modules/help/help.c',
 	'cmds/modules/mkdir/mkdir.c',
 	'cmds/modules/mkfile/mkfile.c',
@@ -34,18 +32,7 @@ _src = files(
 	'tok.c',
 )
 
-bdsh = executable(_name, _src,
-	include_directories: _includes,
-	dependencies: _deps,
-	c_args: _extra_cflags,
-)
-
-_test_src = files(
+test_src = files(
 	'tok.c',
 	'test/toktest.c',
-)
-
-test_bdsh = executable('test_bdsh', _test_src,
-	include_directories: _includes,
-	dependencies: [ _deps, libpcut ],
 )

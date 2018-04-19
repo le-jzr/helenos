@@ -1,7 +1,7 @@
-_name = 'tester'
-_deps = [ libc, libblock , libdrv , libmath ]
-_extra_cflags = [ '-w' ]
-_src = files(
+deps = [ libblock, libdrv, libmath ]
+# Tester does some pointless things on purpose. Disable warnings.
+c_args += '-w'
+src = files(
 	'tester.c',
 	'util.c',
 	'thread/thread1.c',
@@ -35,9 +35,4 @@ _src = files(
 	'mm/pager1.c',
 	'hw/serial/serial1.c',
 	'chardev/chardev1.c',
-)
-
-tester = executable(_name, _src,
-	dependencies: _deps,
-	c_args: _extra_cflags,
 )

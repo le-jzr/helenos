@@ -1,7 +1,4 @@
-_name = 'barber'
-_deps = [ libc, libgui, libdraw, libcompress, libsoftrend, libmath ]
-_extra_cflags = [ ]
-_includes = include_directories('.')
+deps = [ libgui, libdraw, libcompress, libsoftrend, libmath ]
 
 _images = files(
 	'gfx/frame01.tga.gz',
@@ -36,37 +33,28 @@ _images = files(
 	'gfx/frame30.tga.gz',
 )
 
-_images_zip = custom_target('app_barber_images.zip',
+_images_zip = custom_target('barber_images.zip',
 	input : _images,
 	output : [ 'images.zip' ],
 	command : [ mkarray, '@OUTDIR@', 'images', 'image', as_prolog, '.data', '@INPUT@' ],
 )
-_imgs_s = custom_target('app_barber_images.s',
+_imgs_s = custom_target('barber_images.s',
 	input : _images_zip,
 	output : [ 'images.s' ],
 	command : [ unzip, '-p', '@INPUT@', 'images.s' ],
 	capture : true,
 )
-_imgs_h = custom_target('app_barber_images.h',
+_imgs_h = custom_target('barber_images.h',
 	input : _images_zip,
 	output : [ 'images.h' ],
 	command : [ unzip, '-p', '@INPUT@', 'images.h' ],
 	capture : true,
 )
-_imgs_desc_c = custom_target('app_barber_images_desc.c',
+_imgs_desc_c = custom_target('barber_images_desc.c',
 	input : _images_zip,
 	output : [ 'images_desc.c' ],
 	command : [ unzip, '-p', '@INPUT@', 'images_desc.c' ],
 	capture : true,
 )
 
-_src = files(
-	'barber.c',
-)
-_src += [ _imgs_s, _imgs_h, _imgs_desc_c ]
-
-barber = executable(_name, _src,
-	include_directories: _includes,
-	dependencies: _deps,
-	c_args: _extra_cflags,
-)
+src = [ files('barber.c'), _imgs_s, _imgs_h, _imgs_desc_c ]

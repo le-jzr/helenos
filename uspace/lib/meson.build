@@ -51,7 +51,13 @@ libs = [
 	'dltest',
 ]
 
+# For each of the subdirectories in the above list, we create a dependency
+# object, which is then assigned to a variable name `lib{name}`.
+# E.g. to use library in subdirectory `nic` from another library or binary,
+# you would use variable `libnic` as a dependency.
+
 foreach l : libs
+	# XXX: These are the variables that might be defined in included files.
 	src = []
 	includes = []
 	deps = []
