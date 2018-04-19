@@ -1,10 +1,3 @@
-project(
-    'HelenOS kernel',
-    [ 'c' ],
-    default_options : ['buildtype=plain', 'c_std=gnu99', 'warning_level=3', 'werror=true', 'b_staticpic=false', 'default_library=static' ],
-    version : '0.7.1-git',
-)
-
 subdir(join_paths('arch', h_arch))
 
 ## The at-sign
@@ -26,15 +19,11 @@ subdir('generic')
 
 includes = include_directories('generic/include', 'genarch/include', 'arch/' + h_arch + '/include', '../abi/include')
 
-defs = [ '-DKERNEL' '-DRELEASE=' + h_release, '-DCOPYRIGHT=' + h_copyright, '-DNAME=' h_name, '-D__' + bits + '_BITS__', '-D__' + endianness + '__' ]
+defs = [ '-DKERNEL' '-DRELEASE=' + h_release, '-DCOPYRIGHT=' + h_copyright, '-DNAME=' + h_name ]
 
 
 c_args += [ '-Wa,--fatal-warnings' ]
-link_args += [ '-Wl,-n,-T,$(LINK),-M,--fatal-warnings,--warn-common' ]
-
-if config_strip_binaries
-	link_args += '--strip-all'
-endif
+link_args += [ '-Wl,-n,-T,' + ldscript + ',-M,--fatal-warnings,--warn-common' ]
 
 c_args += ['-O' + config_optimization, '-ffreestanding', '-nostdlib', '-nostdinc',
 	'-fexec-charset=UTF-8', '-finput-charset=UTF-8', '-fno-common',
