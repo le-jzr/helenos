@@ -88,6 +88,8 @@ foreach l : libs
 				dependencies: deps,
 				c_args: c_args,
 				version: version,
+				install: true,
+				install_dir: join_paths('uspace', 'lib', l),
 			),
 			# TODO: Always use `include` subdirectory for public headers,
 			#       and ditch the variable.

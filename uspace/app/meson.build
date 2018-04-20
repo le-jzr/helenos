@@ -92,6 +92,8 @@ foreach app : apps
 			c_args: c_args,
 			link_args: link_args,
 			implicit_include_directories: false,
+			install: true,
+			install_dir: join_paths('uspace', 'app', app),
 		)
 	endif
 
@@ -100,6 +102,8 @@ foreach app : apps
 			include_directories: includes,
 			dependencies: [ deps, libpcut ],
 			implicit_include_directories: false,
+			install: true,
+			install_dir: join_paths('uspace', 'app', app),
 		)
 	endif
 endforeach

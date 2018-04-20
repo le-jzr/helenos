@@ -56,12 +56,12 @@ CROSS_PATH = $(shell dirname "$(CC)")
 .PHONY: all precheck cscope cscope_parts autotool config_auto config_default config distclean clean check releasefile release common export-posix space
 
 all: common build/ninja.build
-	PATH="$(CROSS_PATH):$$PATH" ninja -C build
+	PATH="$(CROSS_PATH):$$PATH" ninja -C build install
 	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK)
 	$(MAKE) -r -C boot PRECHECK=$(PRECHECK)
 
 build/ninja.build: meson.build
-	PATH="$(CROSS_PATH):$$PATH" meson . build --cross-file meson/cross/$(UARCH)
+	PATH="$(CROSS_PATH):$$PATH" meson . build --cross-file meson/cross/$(UARCH) --prefix $$PWD
 
 common: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER)
 

@@ -65,11 +65,6 @@ essential = [
 	'klog',
 ]
 
-
-foreach d : srvs
-	subdir(d)
-endforeach
-
 foreach srv : srvs
 	src = []
 	test_src = []
@@ -86,25 +81,30 @@ foreach srv : srvs
 
 	deps += libc
 
+	dirname = srv
+
+	srv = srv.split('/')
+	srv = srv[srv.length()-1]
+
 	if src.length() > 0
-		executable(srv.underscorify() + '.bin', src,
+		executable(srv + '.bin', src,
 			include_directories: includes,
 			dependencies: deps,
 			c_args: c_args,
 			link_args: link_args,
 			implicit_include_directories: false,
 			install: true,
-			install_dir: join_paths('srv', srv),
+			install_dir: join_paths('uspace', 'srv', dirname),
 		)
 	endif
 
 	if test_src.length() > 0
-		executable('test_' + srv.underscorify(), test_src,
+		executable('test_' + srv, test_src,
 			include_directories: includes,
 			dependencies: [ deps, libpcut ],
 			implicit_include_directories: false,
 			install: true,
-			install_dir: join_paths('srv', srv),
+			install_dir: join_paths('uspace', 'srv', dirname),
 		)
 	endif
 endforeach

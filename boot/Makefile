@@ -48,7 +48,7 @@ build_dist: clean_dist
 	mkdir -p "$(DIST_PATH)/tmp/"
 	mkdir -p "$(DIST_PATH)/vol/"
 	for file in $(RD_SRVS) ; do \
-		cp "$$file" "$(DIST_PATH)/srv/" ; \
+		cp "$$file.bin" "$(DIST_PATH)/srv/`basename $$file`" ; \
 	done
 	for file in $(RD_LIBS) ; do \
 		cp "$$file" "$(DIST_PATH)/lib/" ; \
@@ -61,7 +61,7 @@ ifeq ($(CONFIG_DEVEL_FILES), y)
 	cat "$(USPACE_PATH)/lib/c/arch/$(UARCH)/_link.ld" | sed 's/^STARTUP(.*)$$//g' > "$(DIST_PATH)/inc/_link.ld"
 endif
 	for file in $(RD_APPS) ; do \
-		cp "$$file" "$(DIST_PATH)/app/" ; \
+		cp "$$file.bin" "$(DIST_PATH)/app/" ; \
 	done
 	for file in $(RD_DATA) ; do \
 		cp "$$file" "$(DIST_PATH)/" ; \
@@ -105,7 +105,7 @@ endif
 		drv_dir="`dirname "$$drv"`" ; \
 		drv_name="`basename "$$drv"`" ; \
 		mkdir -p "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$drv_dir/$$drv_name/$$drv_name" "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name/" ; \
+		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$drv_dir/$$drv_name/$$drv_name.bin" "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name/" ; \
 		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$drv_dir/$$drv_name/$$drv_name.ma" "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name/" ; \
 	done
 	for file in $(RD_DRV_CFG) ; do \

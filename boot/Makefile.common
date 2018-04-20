@@ -66,28 +66,28 @@ endif
 DISTROOT = distroot
 INITRD = initrd
 
-INIT_TASKS = \
-	$(USPACE_PATH)/srv/ns/ns \
-	$(USPACE_PATH)/srv/loader/loader \
-	$(USPACE_PATH)/app/init/init \
-	$(USPACE_PATH)/srv/locsrv/locsrv \
-	$(USPACE_PATH)/srv/bd/rd/rd \
-	$(USPACE_PATH)/srv/vfs/vfs \
-	$(USPACE_PATH)/srv/logger/logger
+INIT_TASKS = ns loader init locsrv rd vfs logger
 
 ifeq ($(RDFMT),tmpfs)
-	INIT_TASKS += $(USPACE_PATH)/srv/fs/tmpfs/tmpfs
+	INIT_TASKS += tmpfs
 endif
 
 ifeq ($(RDFMT),fat)
-	INIT_TASKS += $(USPACE_PATH)/srv/fs/fat/fat
+	INIT_TASKS += fat
 endif
 
 ifeq ($(RDFMT),ext4fs)
-	INIT_TASKS += $(USPACE_PATH)/srv/fs/ext4fs/ext4fs
+	INIT_TASKS += ext4fs
 endif
 
 RD_SRVS_ESSENTIAL = \
+	$(USPACE_PATH)/srv/ns/ns \
+	$(USPACE_PATH)/srv/loader/loader \
+	$(USPACE_PATH)/srv/init/init \
+	$(USPACE_PATH)/srv/locsrv/locsrv \
+	$(USPACE_PATH)/srv/bd/rd/rd \
+	$(USPACE_PATH)/srv/vfs/vfs \
+	$(USPACE_PATH)/srv/logger/logger \
 	$(USPACE_PATH)/srv/hid/input/input \
 	$(USPACE_PATH)/srv/hid/output/output \
 	$(USPACE_PATH)/srv/hid/console/console \
@@ -256,7 +256,7 @@ RD_DATA_NON_ESSENTIAL = \
 
 COMPONENTS = \
 	$(KERNEL_PATH)/kernel.bin \
-	$(INIT_TASKS) \
+	$(addprefix $(DIST_PATH)/srv/,$(INIT_TASKS)) \
 	$(INITRD).img
 
 COMPONENTS_DEFLATE := $(addsuffix .deflate,$(notdir $(COMPONENTS)))
