@@ -1,8 +1,5 @@
-_name = 'ehci'
-_deps = [ libc, libusbhost , libusbvirt , libusb , libdrv , libusbdev ]
-_extra_cflags = [ ]
-_includes = include_directories('.')
-_src = files(
+deps = [ libusbhost, libusbvirt, libusb, libusbdev ]
+src = files(
 	'ehci_batch.c',
 	'ehci_bus.c',
 	'ehci_rh.c',
@@ -12,10 +9,4 @@ _src = files(
 	'hw_struct/transfer_descriptor.c',
 	'main.c',
 	'res.c',
-)
-
-ehci = executable(_name, _src,
-	include_directories: _includes,
-	dependencies: _deps,
-	c_args: _extra_cflags,
 )

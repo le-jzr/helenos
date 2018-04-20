@@ -63,6 +63,42 @@ essential = [
 	'fb/kfb',
 ]
 
-foreach d : drvs
-	subdir(d)
+foreach drv : drvs
+	src = []
+	test_src = []
+	includes = []
+	deps = []
+	c_args = []
+	link_args = []
+
+	subdir(drv)
+
+	deps += [ libc, libdrv ]
+
+	dirname = drv
+
+	drv = drv.split('/')
+	drv = drv[drv.length()-1]
+
+	if src.length() > 0
+		executable(drv + '.bin', src,
+			include_directories: includes,
+			dependencies: deps,
+			c_args: c_args,
+			link_args: link_args,
+			implicit_include_directories: false,
+			install: true,
+			install_dir: join_paths('uspace', 'drv', dirname),
+		)
+	endif
+
+	if test_src.length() > 0
+		executable('test_' + drv, test_src,
+			include_directories: includes,
+			dependencies: [ deps, libpcut ],
+			implicit_include_directories: false,
+			install: true,
+			install_dir: join_paths('uspace', 'drv', dirname),
+		)
+	endif
 endforeach

@@ -1,8 +1,6 @@
-_name = 'usbhid'
-_deps = [ libc, libusbhid , libusbdev , libusb , libdrv ]
-_extra_cflags = [ ]
-_includes = include_directories('.')
-_src = files(
+deps = [ libusbhid, libusbdev, libusb ]
+includes += [ include_directories('.') ]
+src = files(
 	'main.c',
 	'usbhid.c',
 	'subdrivers.c',
@@ -14,10 +12,4 @@ _src = files(
 	'multimedia/multimedia.c',
 	'multimedia/keymap.c',
 	'blink1/blink1.c',
-)
-
-usbhid = executable(_name, _src,
-	include_directories: _includes,
-	dependencies: _deps,
-	c_args: _extra_cflags,
 )

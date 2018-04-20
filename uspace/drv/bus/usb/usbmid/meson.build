@@ -1,16 +1,7 @@
-_name = 'usbmid'
-_deps = [ libc, libusbdev , libusb , libdrv ]
-_extra_cflags = [ ]
-_includes = include_directories('.')
-_src = files(
+deps = [ libusbdev, libusb ]
+src = files(
 	'dump.c',
 	'explore.c',
 	'main.c',
 	'usbmid.c',
-)
-
-usbmid = executable(_name, _src,
-	include_directories: _includes,
-	dependencies: _deps,
-	c_args: _extra_cflags,
 )
