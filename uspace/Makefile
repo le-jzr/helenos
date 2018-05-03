@@ -268,9 +268,9 @@ export: lib/posix.build lib/math.build lib/clui.build
 	$(MAKE) -r -C lib/posix export EXPORT_DIR=$(EXPORT_DIR)
 
 clean: $(CLEANS)
-	find lib app drv srv -name '*.o' -follow -exec rm \{\} \;
-	find lib app drv srv -name '*.lo' -follow -exec rm \{\} \;
-	find lib app drv srv -name '*.d' -follow -exec rm \{\} \;
+	find ../lib lib app drv srv -name '*.o' -follow -exec rm \{\} \;
+	find ../lib lib app drv srv -name '*.lo' -follow -exec rm \{\} \;
+	find ../lib lib app drv srv -name '*.d' -follow -exec rm \{\} \;
 
 $(CLEANS):
 	-$(MAKE) -r -C $(basename $@) fasterclean

@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2001-2004 Jakub Jermar
  * Copyright (c) 2005 Martin Decky
  * Copyright (c) 2008 Jiri Svoboda
  * All rights reserved.
@@ -27,70 +28,39 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup libc
+/** @addtogroup generic
  * @{
  */
-/** @file
+
+#include <str.h>
+
+/** Move memory block without overlapping.
+ *
+ * Copy cnt bytes from src address to dst address. The source
+ * and destination memory areas cannot overlap.
+ *
+ * @param dst Destination address to copy to.
+ * @param src Source address to copy from.
+ * @param cnt Number of bytes to copy.
+ *
+ * @return Destination address.
+ *
  */
-
-#include <mem.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-
-/** Fill memory block with a constant value. */
-void *memset(void *dest, int b, size_t n)
+void *memcpy(void *dst, const void *src, size_t cnt)
 {
-	char *pb;
-	unsigned long *pw;
-	size_t word_size;
-	size_t n_words;
+	uint8_t *dp = (uint8_t *) dst;
+	const uint8_t *sp = (uint8_t *) src;
 
-	unsigned long pattern;
-	size_t i;
-	size_t fill;
+	while (cnt-- != 0)
+		*dp++ = *sp++;
 
-	/* Fill initial segment. */
-	word_size = sizeof(unsigned long);
-	fill = word_size - ((uintptr_t) dest & (word_size - 1));
-	if (fill > n)
-		fill = n;
-
-	pb = dest;
-
-	i = fill;
-	while (i-- != 0)
-		*pb++ = b;
-
-	/* Compute remaining size. */
-	n -= fill;
-	if (n == 0)
-		return dest;
-
-	n_words = n / word_size;
-	n = n % word_size;
-	pw = (unsigned long *) pb;
-
-	/* Create word-sized pattern for aligned segment. */
-	pattern = 0;
-	i = word_size;
-	while (i-- != 0)
-		pattern = (pattern << 8) | (uint8_t) b;
-
-	/* Fill aligned segment. */
-	i = n_words;
-	while (i-- != 0)
-		*pw++ = pattern;
-
-	pb = (char *) pw;
-
-	/* Fill final segment. */
-	i = n;
-	while (i-- != 0)
-		*pb++ = b;
-
-	return dest;
+	return dst;
 }
+
+#if 0
+
+// TODO: The "optimized" version is actually much slower in practice.
+//       Find out why.
 
 struct along {
 	unsigned long n;
@@ -189,67 +159,8 @@ void *memcpy(void *dst, const void *src, size_t n)
 	return dst;
 }
 
-/** Move memory block with possible overlapping. */
-void *memmove(void *dst, const void *src, size_t n)
-{
-	const uint8_t *sp;
-	uint8_t *dp;
-
-	/* Nothing to do? */
-	if (src == dst)
-		return dst;
-
-	/* Non-overlapping? */
-	if (dst >= src + n || src >= dst + n) {
-		return memcpy(dst, src, n);
-	}
-
-	/* Which direction? */
-	if (src > dst) {
-		/* Forwards. */
-		sp = src;
-		dp = dst;
-
-		while (n-- != 0)
-			*dp++ = *sp++;
-	} else {
-		/* Backwards. */
-		sp = src + (n - 1);
-		dp = dst + (n - 1);
-
-		while (n-- != 0)
-			*dp-- = *sp--;
-	}
-
-	return dst;
-}
-
-/** Compare two memory areas.
- *
- * @param s1  Pointer to the first area to compare.
- * @param s2  Pointer to the second area to compare.
- * @param len Size of the areas in bytes.
- *
- * @return Zero if areas have the same contents. If they differ,
- *	   the sign of the result is the same as the sign of the
- *	   difference of the first pair of different bytes.
- *
- */
-int memcmp(const void *s1, const void *s2, size_t len)
-{
-	uint8_t *u1 = (uint8_t *) s1;
-	uint8_t *u2 = (uint8_t *) s2;
-	size_t i;
-
-	for (i = 0; i < len; i++) {
-		if (*u1 != *u2)
-			return (int)(*u1) - (int)(*u2);
-		++u1;
-		++u2;
-	}
-
-	return 0;
-}
+#endif
 
 /** @}
  */
+

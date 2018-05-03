@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Jakub Jermar
+ * Copyright (c) 2018 CZ.NIC, z.s.p.o.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,28 +26,42 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * @file
- * @brief Macros for making values and addresses aligned.
+/** @addtogroup genericdebug
+ * @{
+ */
+/** @file
  */
 
-#ifndef BOOT_ALIGN_H_
-#define BOOT_ALIGN_H_
+// XXX: The definition of `assert()` is not guarded.
+// One must not use `#pragma once` in this header.
+// This is in accordance with the C standard.
 
-/** Align to the nearest lower address.
+#ifndef BOOT_ASSERT_H_
+#define BOOT_ASSERT_H_
+
+#define static_assert  _Static_assert
+
+extern void __assert_abort(const char *, const char *, unsigned int)
+    __attribute__((noreturn));
+
+#endif
+
+/** Debugging assert macro
  *
- * @param s Address or size to be aligned.
- * @param a Size of alignment, must be power of 2.
- */
-#define ALIGN_DOWN(s, a)  ((s) & ~((a) - 1))
-
-/** Align to the nearest higher address.
+ * If NDEBUG is not set, the assert() macro
+ * evaluates expr and if it is false prints
+ * error message and terminate program.
  *
- * @param s Address or size to be aligned.
- * @param a Size of alignment, must be power of 2.
+ * @param expr Expression which is expected to be true.
+ *
  */
-#define ALIGN_UP(s, a)  (((s) + ((a) - 1)) & ~((a) - 1))
 
+#undef assert
+
+#ifndef NDEBUG
+#define assert(expr) ((expr) ? (void) 0 : __assert_abort(#expr, __FILE__, __LINE__))
+#else
+#define assert(expr) ((void) 0)
 #endif
 
 /** @}

@@ -5,6 +5,7 @@ SECTIONS {
 	.boot 0x4400000: AT (0x4400000) {
 		*(BOOTSTRAP);
 		*(.text);
+		*(.text.*);
 		*(.sdata);
 		*(.sdata2);
 		*(.sbss);

@@ -48,7 +48,7 @@
  * @param s		Address or size to be aligned.
  * @param a		Size of alignment, must be power of 2.
  */
-#define ALIGN_UP(s, a)		((long)((s) + ((a) - 1)) & ~((long) (a) - 1))
+#define ALIGN_UP(s, a)		(((s) + ((a) - 1)) & ~((a) - 1))
 
 /** Round up to the nearest higher boundary.
  *
@@ -56,6 +56,13 @@
  * @param b		Boundary, arbitrary unsigned number.
  */
 #define ROUND_UP(n, b)		(((n) / (b) + ((n) % (b) != 0)) * (b))
+
+/** Check alignment.
+ *
+ * @param s		Address or size to be checked for alignment.
+ * @param a		Size of alignment, must be a power of 2.
+ */
+#define IS_ALIGNED(s, a)	(ALIGN_UP((s), (a)) == (s))
 
 #endif
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2001-2004 Jakub Jermar
+ * Copyright (c) 2005 Martin Decky
  * Copyright (c) 2008 Jiri Svoboda
  * All rights reserved.
  *
@@ -31,17 +32,7 @@
  * @{
  */
 
-/**
- * @file
- * @brief Memory string operations.
- *
- * This file provides architecture independent functions to manipulate blocks
- * of memory. These functions are optimized as much as generic functions of
- * this type can be.
- */
-
-#include <mem.h>
-#include <typedefs.h>
+#include <str.h>
 
 /** Fill block of memory.
  *
@@ -76,50 +67,85 @@ void memsetw(void *dst, size_t cnt, uint16_t val)
 		ptr[i] = val;
 }
 
-/** Move memory block with possible overlapping.
+/** Fill block of memory.
  *
- * Copy cnt bytes from src address to dst address. The source
- * and destination memory areas may overlap.
+ * Fill cnt bytes at dst address with the value val.
  *
- * @param dst Destination address to copy to.
- * @param src Source address to copy from.
- * @param cnt Number of bytes to copy.
+ * @param dst Destination address to fill.
+ * @param val Value to fill.
+ * @param cnt Number of bytes to fill.
  *
  * @return Destination address.
  *
  */
-void *memmove(void *dst, const void *src, size_t cnt)
+void *memset(void *dst, int val, size_t cnt)
 {
-	/* Nothing to do? */
-	if (src == dst)
-		return dst;
+	uint8_t *dp = (uint8_t *) dst;
 
-	/* Non-overlapping? */
-	if ((dst >= src + cnt) || (src >= dst + cnt))
-		return memcpy(dst, src, cnt);
-
-	uint8_t *dp;
-	const uint8_t *sp;
-
-	/* Which direction? */
-	if (src > dst) {
-		/* Forwards. */
-		dp = dst;
-		sp = src;
-
-		while (cnt-- != 0)
-			*dp++ = *sp++;
-	} else {
-		/* Backwards. */
-		dp = dst + (cnt - 1);
-		sp = src + (cnt - 1);
-
-		while (cnt-- != 0)
-			*dp-- = *sp--;
-	}
+	while (cnt-- != 0)
+		*dp++ = val;
 
 	return dst;
 }
 
+#if 0
+
+/** Fill memory block with a constant value. */
+void *memset(void *dest, int b, size_t n)
+{
+	char *pb;
+	unsigned long *pw;
+	size_t word_size;
+	size_t n_words;
+
+	unsigned long pattern;
+	size_t i;
+	size_t fill;
+
+	/* Fill initial segment. */
+	word_size = sizeof(unsigned long);
+	fill = word_size - ((uintptr_t) dest & (word_size - 1));
+	if (fill > n)
+		fill = n;
+
+	pb = dest;
+
+	i = fill;
+	while (i-- != 0)
+		*pb++ = b;
+
+	/* Compute remaining size. */
+	n -= fill;
+	if (n == 0)
+		return dest;
+
+	n_words = n / word_size;
+	n = n % word_size;
+	pw = (unsigned long *) pb;
+
+	/* Create word-sized pattern for aligned segment. */
+	pattern = 0;
+	i = word_size;
+	while (i-- != 0)
+		pattern = (pattern << 8) | (uint8_t) b;
+
+	/* Fill aligned segment. */
+	i = n_words;
+	while (i-- != 0)
+		*pw++ = pattern;
+
+	pb = (char *) pw;
+
+	/* Fill final segment. */
+	i = n;
+	while (i-- != 0)
+		*pb++ = b;
+
+	return dest;
+}
+
+#endif
+
 /** @}
  */
+

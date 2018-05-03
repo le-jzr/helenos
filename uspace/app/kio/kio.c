@@ -39,6 +39,7 @@
 #include <as.h>
 #include <ddi.h>
 #include <errno.h>
+#include <str.h>
 #include <str_error.h>
 #include <io/kio.h>
 #include <sysinfo.h>

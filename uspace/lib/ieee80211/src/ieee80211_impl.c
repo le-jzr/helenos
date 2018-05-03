@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <crypto.h>
 #include <stdlib.h>
+#include <str.h>
 #include <errno.h>
 #include <ieee80211_impl.h>
 

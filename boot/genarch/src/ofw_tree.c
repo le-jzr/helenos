@@ -32,7 +32,6 @@
 #include <stddef.h>
 #include <str.h>
 #include <balloc.h>
-#include <memstr.h>
 
 static char path[OFW_TREE_PATH_MAX_LEN + 1];
 static char name[OFW_TREE_PROPERTY_MAX_NAMELEN];

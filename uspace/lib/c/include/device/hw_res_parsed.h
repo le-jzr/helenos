@@ -37,7 +37,7 @@
 
 #include <device/hw_res.h>
 #include <device/pio_window.h>
-#include <str.h>
+#include <mem.h>
 
 /** Keep areas of the zero size in the list */
 #define HW_RES_KEEP_ZERO_AREA  0x1

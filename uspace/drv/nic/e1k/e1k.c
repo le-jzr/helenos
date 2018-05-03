@@ -35,6 +35,7 @@
 #include <async.h>
 #include <assert.h>
 #include <stdio.h>
+#include <str.h>
 #include <errno.h>
 #include <adt/list.h>
 #include <align.h>

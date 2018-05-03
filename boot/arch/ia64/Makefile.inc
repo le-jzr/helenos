@@ -47,18 +47,12 @@ SOURCES = \
 	arch/$(BARCH)/src/pal.c \
 	arch/$(BARCH)/src/pal_asm.S \
 	arch/$(BARCH)/src/putchar.c \
+	arch/$(BARCH)/src/stubs.c \
 	$(COMPS).s \
 	$(COMPS)_desc.c \
 	genarch/src/efi.c \
 	genarch/src/division.c \
-	generic/src/balloc.c \
-	generic/src/memstr.c \
-	generic/src/printf_core.c \
-	generic/src/vprintf.c \
-	generic/src/printf.c \
-	generic/src/str.c \
-	generic/src/version.c \
-	generic/src/inflate.c
+	$(GENERIC_SOURCES)
 
 ifeq ($(MACHINE),ski)
 SOURCES += \

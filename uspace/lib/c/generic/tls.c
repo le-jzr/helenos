@@ -40,7 +40,7 @@
 #include <align.h>
 #include <tls.h>
 #include <stdlib.h>
-#include <str.h>
+#include <mem.h>
 #include <macros.h>
 #include <elf/elf.h>
 
