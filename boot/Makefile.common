@@ -261,6 +261,8 @@ LINK = arch/$(BARCH)/_link.ld
 COMP = component
 COMPS = $(COMP)s
 
+-include ../lib/Makefile.inc
+-include generic/Makefile.inc
 -include arch/$(BARCH)/Makefile.inc
 
 ifeq ($(CONFIG_BAREBONE),y)

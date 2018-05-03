@@ -35,6 +35,7 @@
 #include <as.h>
 #include <ddi.h>
 #include <io/chargrid.h>
+#include <str.h>
 #include "../output.h"
 #include "ega.h"
 

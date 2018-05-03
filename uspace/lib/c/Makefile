@@ -75,9 +75,6 @@ GENERIC_SOURCES = \
 	generic/errno.c \
 	generic/gsort.c \
 	generic/loc.c \
-	generic/mem.c \
-	generic/str.c \
-	generic/str_error.c \
 	generic/strtol.c \
 	generic/l18n/langs.c \
 	generic/fibril.c \
@@ -170,6 +167,12 @@ ifeq ($(CONFIG_RTLD),y)
 		generic/rtld/module.c \
 		generic/rtld/symbol.c
 endif
+
+LIB_SOURCE_DIR = $(ROOT_PATH)/lib
+
+# Include sources from the common library.
+include $(LIB_SOURCE_DIR)/Makefile.inc
+GENERIC_SOURCES := $(GENERIC_SOURCES) $(LIB_SOURCES:%.c=$(LIB_SOURCE_DIR)/src/%.c)
 
 ARCH_SOURCES += $(ARCH_AUTOCHECK_HEADERS:%.h=%.check.c)
 

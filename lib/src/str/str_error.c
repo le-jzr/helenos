@@ -27,8 +27,17 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/** @addtogroup libc
+ * @{
+ */
+/** @file
+ */
+
+#include <c.h>
 #include <errno.h>
-#include <str.h>
+#include <str_error.h>
+
+#define NOERR_LEN  64
 
 /* The arrays below are automatically generated from the same file that
  * errno.h constants are generated from. Triple-include of the same list
@@ -57,11 +66,16 @@ static const char *err_desc[] = {
 #include <abi/errno.in>
 };
 
+// Can't use thread-local storage in kernel.
+#if __STDC_HOSTED__
+static __thread char noerr[NOERR_LEN];
+#endif
+
 /* Returns index corresponding to the given errno, or -1 if not found. */
 static int find_errno(errno_t e)
 {
 	/* Just a dumb linear search.
-	 * There too few entries to warrant anything smarter.
+	 * There are too few entries to warrant anything smarter.
 	 */
 
 	int len = sizeof(err_num) / sizeof(errno_t);
@@ -83,7 +97,12 @@ const char *str_error_name(errno_t e)
 		return err_name[i];
 	}
 
+#if __STDC_HOSTED__
+	snprintf(noerr, NOERR_LEN, "(%d)", (int)e);
+	return noerr;
+#else
 	return "(unknown)";
+#endif
 }
 
 const char *str_error(errno_t e)
@@ -94,6 +113,13 @@ const char *str_error(errno_t e)
 		return err_desc[i];
 	}
 
+#if __STDC_HOSTED__
+	snprintf(noerr, NOERR_LEN, "Unknown error code (%d)", (int)e);
+	return noerr;
+#else
 	return "Unknown error code";
+#endif
 }
 
+/** @}
+ */

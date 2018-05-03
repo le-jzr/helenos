@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <str.h>
 #include "ahci_hw.h"
 
 /** AHCI Device. */

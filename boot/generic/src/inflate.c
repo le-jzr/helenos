@@ -67,7 +67,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <errno.h>
-#include <memstr.h>
+#include <str.h>
 #include <inflate.h>
 
 /** Maximum bits in the Huffman code */

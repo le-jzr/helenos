@@ -5,6 +5,7 @@ SECTIONS {
 	.boot : {
 		*(BOOTSTRAP);
 		*(.text);
+		*(.text.*);
 
 		*(.data);       /* initialized data */
 		*(.rodata);

@@ -30,7 +30,10 @@
 
 include Makefile.common
 
-INCLUDES = -Igeneric/include -Iarch/$(KARCH)/include -Igenarch/include -I$(ROOT_PATH)/abi/include
+LIB_SOURCE_DIR = $(ROOT_PATH)/lib
+LIB_BUILD_DIR = libbuild
+
+INCLUDES = -Igeneric/include -Iarch/$(KARCH)/include -Igenarch/include -I$(ROOT_PATH)/lib/include -I$(ROOT_PATH)/abi/include
 OPTIMIZATION = 3
 
 DEFS = -DBOOT -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)" -D__$(BITS)_BITS__ -D__$(ENDIANESS)__
@@ -38,9 +41,14 @@ DEFS = -DBOOT -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)" -
 AFLAGS = --fatal-warnings
 LDFLAGS = -Wl,--fatal-warnings,--warn-common
 
+ifneq ($(BARCH),ia64)
+	LDFLAGS += -Wl,--gc-sections
+endif
+
 COMMON_CFLAGS = $(INCLUDES) -O$(OPTIMIZATION) -imacros $(CONFIG_HEADER) \
 	-ffreestanding -fno-builtin -nostdlib -nostdinc \
 	-fexec-charset=UTF-8 -finput-charset=UTF-8 -fno-common \
+	-ffunction-sections \
 	-fdebug-prefix-map=$(realpath $(ROOT_PATH))=.
 
 GCC_CFLAGS = -Wall -Wextra -Wno-unused-parameter -Wmissing-prototypes \
@@ -68,10 +76,15 @@ endif
 OBJECTS := $(addsuffix .o,$(basename $(SOURCES)))
 DEPENDS := $(addsuffix .d,$(basename $(SOURCES)))
 
+# Include sources from the common library.
+LIB_OBJECTS := $(addsuffix .o,$(basename $(LIB_SOURCES)))
+OBJECTS := $(OBJECTS) $(addprefix $(LIB_BUILD_DIR)/,$(LIB_OBJECTS))
+
 all: $(VERSION_DEF) $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(BOOT_OUTPUT)
 
 clean:
 	rm -f $(RAW) $(MAP)
+	rm -rf $(LIB_BUILD_DIR)
 
 -include $(DEPENDS)
 
@@ -91,6 +104,10 @@ $(LINK): | depend
 
 %.o: %.S | depend
 	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS) $(AS_CFLAGS)
+
+$(LIB_BUILD_DIR)/%.o: $(LIB_SOURCE_DIR)/src/%.c
+	mkdir -p $(@D)
+	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS)
 
 %.o: %.c | depend
 	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS)

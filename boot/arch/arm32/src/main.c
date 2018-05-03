@@ -38,7 +38,7 @@
 #include <arch/mm.h>
 #include <halt.h>
 #include <printf.h>
-#include <memstr.h>
+#include <str.h>
 #include <version.h>
 #include <macros.h>
 #include <align.h>

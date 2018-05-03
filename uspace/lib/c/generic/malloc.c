@@ -806,26 +806,6 @@ static void *malloc_internal(const size_t size, const size_t align)
 	return heap_grow_and_alloc(gross_size, falign);
 }
 
-/** Allocate memory by number of elements
- *
- * @param nmemb Number of members to allocate.
- * @param size  Size of one member in bytes.
- *
- * @return Allocated memory or NULL.
- *
- */
-void *calloc(const size_t nmemb, const size_t size)
-{
-	// FIXME: Check for overflow
-
-	void *block = malloc(nmemb * size);
-	if (block == NULL)
-		return NULL;
-
-	memset(block, 0, nmemb * size);
-	return block;
-}
-
 /** Allocate memory
  *
  * @param size Number of bytes to allocate.

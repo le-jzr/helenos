@@ -119,6 +119,7 @@ $(EXPORT_STARTUP_FILE): $(LIBC_STARTUP_FILE)
 
 $(INCLUDE_LIBC): $(shell find ../c/include -name '*.h')
 	cp -r -L --remove-destination -T ../c/include $@
+	cp -r -L $(ROOT_PATH)/lib/include/* $@
 	find ../c/include -type f -and -not -name '*.h' -delete
 
 export: $(EXPORT_DIR)/config.mk $(EXPORT_DIR)/config.rc
@@ -149,6 +150,7 @@ export-includes: $(INCLUDE_LIBC) $(shell find ./include ../c/arch/$(UARCH)/inclu
 	cp -r -L -T ./include/posix $(EXPORT_DIR)/include.new
 	cp -r -L -T ./include/libc $(EXPORT_DIR)/include.new/libc
 	cp -r -L ../c/arch/$(UARCH)/include/* $(EXPORT_DIR)/include.new/libc
+	cp -r -L $(ROOT_PATH)/lib/include/* $(EXPORT_DIR)/include.new
 	cp -r -L $(ROOT_PATH)/abi/include/* $(EXPORT_DIR)/include.new
 	mkdir -p $(EXPORT_DIR)/include.new/libclui
 	cp -L ../clui/tinput.h $(EXPORT_DIR)/include.new/libclui

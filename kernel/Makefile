@@ -40,6 +40,9 @@ COMMON_HEADER_ARCH = arch/$(KARCH)/include/arch/common.h
 CONFIG_MAKEFILE = $(ROOT_PATH)/Makefile.config
 CONFIG_HEADER = $(ROOT_PATH)/config.h
 
+LIB_SOURCE_DIR = $(ROOT_PATH)/lib
+LIB_BUILD_DIR = libbuild
+
 -include $(VERSION_DEF)
 -include $(COMMON_MAKEFILE)
 -include $(CONFIG_MAKEFILE)
@@ -78,13 +81,14 @@ all: $(VERSION_DEF) $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CON
 
 clean: autogen_clean
 	rm -f $(RAW) $(BIN) $(MAP) $(JOB) $(MAP_PREV) $(DISASM) $(DUMP) $(REAL_MAP).* arch/*/_link.ld arch/*/include/arch/common.h
+	rm -rf $(LIB_BUILD_DIR)
 	find generic/src/ arch/*/src/ genarch/src/ test/ -name '*.o' -follow -exec rm '{}' \;
 	find generic/src/ arch/*/src/ genarch/src/ test/ -name '*.d' -follow -exec rm '{}' \;
 
 ## Common compiler flags
 #
 
-INCLUDES = generic/include genarch/include arch/$(KARCH)/include ../abi/include
+INCLUDES = generic/include genarch/include arch/$(KARCH)/include ../lib/include ../abi/include
 INCLUDES_FLAGS = $(addprefix -I,$(INCLUDES))
 
 DEFS = -DKERNEL -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)" -D__$(BITS)_BITS__ -D__$(ENDIANESS)__
@@ -200,11 +204,8 @@ GENERIC_SOURCES = \
 	generic/src/mm/backend_user.c \
 	generic/src/mm/slab.c \
 	generic/src/lib/halt.c \
-	generic/src/lib/mem.c \
-	generic/src/lib/memfnc.c \
 	generic/src/lib/gsort.c \
 	generic/src/lib/str.c \
-	generic/src/lib/str_error.c \
 	generic/src/lib/elf.c \
 	generic/src/lib/ra.c \
 	generic/src/lib/rd.c \
@@ -344,6 +345,10 @@ GENERIC_OBJECTS := $(addsuffix .o,$(basename $(GENERIC_SOURCES)))
 ARCH_OBJECTS := $(addsuffix .o,$(basename $(ARCH_SOURCES)))
 GENARCH_OBJECTS := $(addsuffix .o,$(basename $(GENARCH_SOURCES)))
 
+# Include sources from the common library.
+include $(LIB_SOURCE_DIR)/Makefile.inc
+GENERIC_OBJECTS := $(GENERIC_OBJECTS) $(LIB_SOURCES:%.c=$(LIB_BUILD_DIR)/%.o)
+
 GENERIC_DEPENDS := $(addsuffix .d,$(basename $(GENERIC_SOURCES)))
 ARCH_DEPENDS := $(addsuffix .d,$(basename $(ARCH_SOURCES)))
 GENARCH_DEPENDS := $(addsuffix .d,$(basename $(GENARCH_SOURCES)))
@@ -391,6 +396,10 @@ $(LINK): $(LINK).in
 
 %.o: %.c
 	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS) $(EXTRA_FLAGS) $(FPU_NO_CFLAGS) $(if $(findstring $<,$(INSTRUMENTED_SOURCES)),$(INSTRUMENTATION))
+
+$(LIB_BUILD_DIR)/%.o: $(LIB_SOURCE_DIR)/src/%.c
+	mkdir -p $(@D)
+	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS) $(EXTRA_FLAGS) $(FPU_NO_CFLAGS)
 
 $(REAL_MAP).o: $(REAL_MAP).bin
 	echo "$(AS_PROLOG)""$(SYMTAB_SECTION)"" .incbin \"$<\"" | $(CC) $(CFLAGS) $(AS_CFLAGS) -x assembler -c -o $@ -

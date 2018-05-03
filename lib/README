@@ -1,0 +1,10 @@
+# Common libraries.
+
+The `lib` directory contains generic code that is system independent, and is
+used unmodified in `boot`, `kernel` and `uspace`. It can also be built and
+tested on a non-HelenOS host system.
+
+Wherever possible, code should be standard C99/C11 compliant, and should only
+import standard C headers, or other libraries in `lib`. Where the code utilizes
+external symbols, whether standard or non-standard, this should be clearly
+documented.

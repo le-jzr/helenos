@@ -42,5 +42,11 @@ errno_t *__errno(void)
 	return &fibril_errno;
 }
 
+void __set_errno(errno_t);
+void __set_errno(errno_t err)
+{
+	fibril_errno = err;
+}
+
 /** @}
  */

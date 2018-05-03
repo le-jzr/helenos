@@ -26,15 +26,16 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup libc
+/** @addtogroup generic
  * @{
  */
 /** @file
  */
 
-#ifndef LIBC_STRERROR_H_
-#define LIBC_STRERROR_H_
+#ifndef STRERROR_H_
+#define STRERROR_H_
 
+#include "str.h"
 #include <errno.h>
 
 const char *str_error(errno_t);

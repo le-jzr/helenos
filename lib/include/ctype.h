@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Jakub Jermar
+ * Copyright (c) 2006 Josef Cejka
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,38 +27,102 @@
  */
 
 /** @addtogroup generic
- * @ingroup others
  * @{
  */
-/**
- * @file
- * @brief Macros for making values and addresses aligned.
+/** @file
  */
 
-#ifndef KERN_ALIGN_H_
-#define KERN_ALIGN_H_
+#ifndef LIBC_CTYPE_H_
+#define LIBC_CTYPE_H_
 
-/** Align to the nearest lower address.
- *
- * @param s Address or size to be aligned.
- * @param a Size of alignment, must be a power of 2.
- */
-#define ALIGN_DOWN(s, a)  ((s) & ~((a) - 1))
+static inline int islower(int c)
+{
+	return ((c >= 'a') && (c <= 'z'));
+}
 
+static inline int isupper(int c)
+{
+	return ((c >= 'A') && (c <= 'Z'));
+}
 
-/** Align to the nearest higher address.
- *
- * @param s Address or size to be aligned.
- * @param a Size of alignment, must be a power of 2.
- */
-#define ALIGN_UP(s, a)  (((s) + ((a) - 1)) & ~((a) - 1))
+static inline int isalpha(int c)
+{
+	return (islower(c) || isupper(c));
+}
 
-/** Check alignment.
- *
- * @param s Address or size to be checked for alignment.
- * @param a Size of alignment, must be a power of 2.
- */
-#define IS_ALIGNED(s, a)	(ALIGN_UP((s), (a)) == (s))
+static inline int isdigit(int c)
+{
+	return ((c >= '0') && (c <= '9'));
+}
+
+static inline int isalnum(int c)
+{
+	return (isalpha(c) || isdigit(c));
+}
+
+static inline int isblank(int c)
+{
+	return c == ' ' || c == '\t';
+}
+
+static inline int iscntrl(int c)
+{
+	return (c >= 0 && c < 0x20) || c == 0x7E;
+}
+
+static inline int isprint(int c)
+{
+	return c >= 0 && c < 0x80 && !iscntrl(c);
+}
+
+static inline int isgraph(int c)
+{
+	return isprint(c) && c != ' ';
+}
+
+static inline int isspace(int c)
+{
+	switch (c) {
+	case ' ':
+	case '\n':
+	case '\t':
+	case '\f':
+	case '\r':
+	case '\v':
+		return 1;
+		break;
+	default:
+		return 0;
+	}
+}
+
+static inline int ispunct(int c)
+{
+	return !isspace(c) && !isalnum(c) && isprint(c);
+}
+
+static inline int isxdigit(int c)
+{
+	return isdigit(c) ||
+	    (c >= 'a' && c <= 'f') ||
+	    (c >= 'A' && c <= 'F');
+}
+
+static inline int tolower(int c)
+{
+	if (isupper(c))
+		return (c + ('a' - 'A'));
+	else
+		return c;
+}
+
+static inline int toupper(int c)
+{
+	if (islower(c))
+		return (c + ('A' - 'a'));
+	else
+		return c;
+}
 
 #endif
 
