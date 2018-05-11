@@ -62,6 +62,7 @@ SOURCES = \
 	src/fcntl.c \
 	src/fnmatch.c \
 	src/locale.c \
+	src/mntent/getmntent.c \
 	src/pthread/condvar.c \
 	src/pthread/keys.c \
 	src/pthread/mutex.c \
@@ -70,6 +71,10 @@ SOURCES = \
 	src/signal.c \
 	src/stdio.c \
 	src/stdio/scanf.c \
+	src/stdio/__fpending.c \
+	src/stdio/__fpurge.c \
+	src/stdio/__freading.c \
+	src/stdio/__fseterr.c \
 	src/stdlib.c \
 	src/stdlib/strtold.c \
 	src/string.c \

@@ -153,6 +153,8 @@ extern int pipe(int fildes[2]);
 /* Issue alarm signal. */
 extern unsigned int alarm(unsigned int);
 
+extern int link(const char *, const char *);
+
 #endif /* POSIX_UNISTD_H_ */
 
 /** @}

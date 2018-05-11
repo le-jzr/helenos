@@ -487,5 +487,12 @@ unsigned int alarm(unsigned int seconds)
 	return 0;
 }
 
+int link(const char *oldpath, const char *newpath)
+{
+	not_implemented();
+	errno = EPERM;
+	return -1;
+}
+
 /** @}
  */

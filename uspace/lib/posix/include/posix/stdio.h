@@ -38,6 +38,7 @@
 
 #include "libc/stdio.h"
 
+#include <stdbool.h>
 #include "stddef.h"
 #include "unistd.h"
 #include "libc/io/verify.h"
@@ -197,6 +198,10 @@ extern char *tmpnam(char *s);
 extern char *tempnam(const char *dir, const char *pfx);
 extern FILE *tmpfile(void);
 
+extern bool __freading(FILE *);
+extern size_t __fpending (FILE *);
+extern void __fpurge(FILE *);
+extern size_t __fseterr(FILE *);
 
 #endif /* POSIX_STDIO_H_ */
 
