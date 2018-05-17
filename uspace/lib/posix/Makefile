@@ -59,7 +59,6 @@ EXTRA_OUTPUT = $(SPECS) $(EXPORT_LINKER_SCRIPT) $(EXPORT_STARTUP_FILE)
 SOURCES = \
 	src/ctype.c \
 	src/dlfcn.c \
-	src/fcntl.c \
 	src/fnmatch.c \
 	src/locale.c \
 	src/pthread/condvar.c \

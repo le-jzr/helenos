@@ -49,9 +49,6 @@
 
 #include <libarch/config.h>
 
-// FIXME: replace with a hash table
-aoff64_t posix_pos[MAX_OPEN_FILES];
-
 /* Array of environment variable strings (NAME=VALUE). */
 char **environ = NULL;
 
@@ -98,20 +95,6 @@ int getlogin_r(char *name, size_t namesize)
 		errno = ERANGE;
 		return -1;
 	}
-}
-
-/**
- * Test whether open file descriptor is associated with a terminal.
- *
- * @param fd Open file descriptor to test.
- * @return Boolean result of the test.
- */
-int isatty(int fd)
-{
-	// TODO
-	/* Always returns false, because there is no easy way to find
-	 * out under HelenOS. */
-	return 0;
 }
 
 /**
@@ -183,116 +166,6 @@ gid_t getgid(void)
 }
 
 /**
- * Close a file.
- *
- * @param fildes File descriptor of the opened file.
- * @return 0 on success, -1 on error.
- */
-int close(int fildes)
-{
-	posix_pos[fildes] = 0;
-	if (failed(vfs_put(fildes)))
-		return -1;
-	else
-		return 0;
-}
-
-/**
- * Read from a file.
- *
- * @param fildes File descriptor of the opened file.
- * @param buf Buffer to which the read bytes shall be stored.
- * @param nbyte Upper limit on the number of read bytes.
- * @return Number of read bytes on success, -1 otherwise.
- */
-ssize_t read(int fildes, void *buf, size_t nbyte)
-{
-	size_t nread;
-	if (failed(vfs_read(fildes, &posix_pos[fildes], buf, nbyte, &nread)))
-		return -1;
-	return (ssize_t) nread;
-}
-
-/**
- * Write to a file.
- *
- * @param fildes File descriptor of the opened file.
- * @param buf Buffer to write.
- * @param nbyte Size of the buffer.
- * @return Number of written bytes on success, -1 otherwise.
- */
-ssize_t write(int fildes, const void *buf, size_t nbyte)
-{
-	size_t nwr;
-	if (failed(vfs_write(fildes, &posix_pos[fildes], buf, nbyte, &nwr)))
-		return -1;
-	return nwr;
-}
-
-/**
- * Reposition read/write file offset
- *
- * @param fildes File descriptor of the opened file.
- * @param offset New offset in the file.
- * @param whence The position from which the offset argument is specified.
- * @return Upon successful completion, returns the resulting offset
- *         as measured in bytes from the beginning of the file, -1 otherwise.
- */
-off_t lseek(int fildes, off_t offset, int whence)
-{
-	vfs_stat_t st;
-
-	switch (whence) {
-	case SEEK_SET:
-		posix_pos[fildes] = offset;
-		break;
-	case SEEK_CUR:
-		posix_pos[fildes] += offset;
-		break;
-	case SEEK_END:
-		if (failed(vfs_stat(fildes, &st)))
-			return -1;
-		posix_pos[fildes] = st.size + offset;
-		break;
-	}
-	if (posix_pos[fildes] > INT64_MAX) {
-		/* The native width is too large for the POSIX interface. */
-		errno = ERANGE;
-		return -1;
-	}
-	return posix_pos[fildes];
-}
-
-/**
- * Requests outstanding data to be written to the underlying storage device.
- *
- * @param fildes File descriptor of the opened file.
- * @return Zero on success, -1 otherwise.
- */
-int fsync(int fildes)
-{
-	if (failed(vfs_sync(fildes)))
-		return -1;
-	else
-		return 0;
-}
-
-/**
- * Truncate a file to a specified length.
- *
- * @param fildes File descriptor of the opened file.
- * @param length New length of the file.
- * @return Zero on success, -1 otherwise.
- */
-int ftruncate(int fildes, off_t length)
-{
-	if (failed(vfs_resize(fildes, (aoff64_t) length)))
-		return -1;
-	else
-		return 0;
-}
-
-/**
  * Remove a directory.
  *
  * @param path Directory pathname.
@@ -300,6 +173,7 @@ int ftruncate(int fildes, off_t length)
  */
 int rmdir(const char *path)
 {
+	// FIXME: Follow POSIX spec.
 	if (failed(vfs_unlink_path(path)))
 		return -1;
 	else
@@ -314,38 +188,11 @@ int rmdir(const char *path)
  */
 int unlink(const char *path)
 {
+	// FIXME: Follow POSIX spec.
 	if (failed(vfs_unlink_path(path)))
 		return -1;
 	else
 		return 0;
-}
-
-/**
- * Duplicate an open file descriptor.
- *
- * @param fildes File descriptor to be duplicated.
- * @return On success, new file descriptor for the same file, otherwise -1.
- */
-int dup(int fildes)
-{
-	return fcntl(fildes, F_DUPFD, 0);
-}
-
-/**
- * Duplicate an open file descriptor.
- *
- * @param fildes File descriptor to be duplicated.
- * @param fildes2 File descriptor to be paired with the same file description
- *     as is paired fildes.
- * @return fildes2 on success, -1 otherwise.
- */
-int dup2(int fildes, int fildes2)
-{
-	int file;
-	if (failed(vfs_clone(fildes, fildes2, false, &file))) {
-		return -1;
-	}
-	return file;
 }
 
 /**
@@ -463,18 +310,6 @@ int execv(const char *path, char *const argv[])
  * @return
  */
 int execvp(const char *file, char *const argv[])
-{
-	// TODO: low priority, just a compile-time dependency of binutils
-	not_implemented();
-	return -1;
-}
-
-/**
- *
- * @param fildes
- * @return
- */
-int pipe(int fildes[2])
 {
 	// TODO: low priority, just a compile-time dependency of binutils
 	not_implemented();
