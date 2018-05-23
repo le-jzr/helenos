@@ -2751,6 +2751,148 @@ errno_t async_share_out_finalize(cap_call_handle_t chandle, void **dst)
 	return ipc_answer_2(chandle, EOK, (sysarg_t) _end, (sysarg_t) dst);
 }
 
+errno_t async_write_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, void *src, size_t srcsize,
+    void *dst, size_t dstsize, size_t *out_dstsize, ipc_call_t *answer)
+{
+	async_exch_t *exch = async_exchange_begin(sess);
+
+	aid_t opening_request = async_send_fast(exch, imethod,
+	    arg1, arg2, arg3, arg4, answer);
+	if (opening_request == 0) {
+		async_exchange_end(exch);
+		return ENOMEM;
+	}
+
+	ipc_call_t write_answer;
+	aid_t write_request = async_send_2(exch, IPC_M_DATA_WRITE,
+	    (sysarg_t) src, (sysarg_t) srcsize, &write_answer);
+
+	if (write_request == 0) {
+		async_exchange_end(exch);
+		async_forget(opening_request);
+		return ENOMEM;
+	}
+
+	ipc_call_t read_answer;
+	aid_t read_request = async_send_2(exch, IPC_M_DATA_READ, (sysarg_t) dst,
+	    (sysarg_t) dstsize, &read_answer);
+
+	async_exchange_end(exch);
+
+	if (read_request == 0) {
+		async_forget(opening_request);
+		async_forget(write_request);
+		return ENOMEM;
+	}
+
+	errno_t write_rc;
+	errno_t read_rc;
+	errno_t opening_rc;
+
+	async_wait_for(write_request, &write_rc);
+	async_wait_for(read_request, &read_rc);
+	async_wait_for(opening_request, &opening_rc);
+
+	if (write_rc != EOK)
+		return write_rc;
+
+	if (read_rc != EOK)
+		return read_rc;
+
+	if (opening_rc != EOK)
+		return opening_rc;
+
+	if (out_dstsize)
+		*out_dstsize = IPC_GET_ARG2(read_answer);
+
+	return EOK;
+}
+
+errno_t async_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, void *dst, size_t dstsize,
+    size_t *out_size, ipc_call_t *answer)
+{
+	async_exch_t *exch = async_exchange_begin(sess);
+
+	aid_t opening_request = async_send_fast(exch, imethod,
+	    arg1, arg2, arg3, arg4, answer);
+
+	if (opening_request == 0) {
+		async_exchange_end(exch);
+		return ENOMEM;
+	}
+
+	ipc_call_t read_answer;
+	aid_t read_request = async_send_2(exch, IPC_M_DATA_READ, (sysarg_t) dst,
+	    (sysarg_t) dstsize, &read_answer);
+
+	async_exchange_end(exch);
+
+	if (read_request == 0) {
+		async_forget(opening_request);
+		return ENOMEM;
+	}
+
+	errno_t read_rc;
+	errno_t opening_rc;
+	async_wait_for(read_request, &read_rc);
+	async_wait_for(opening_request, &opening_rc);
+
+	if (read_rc != EOK)
+		return read_rc;
+
+	if (opening_rc != EOK)
+		return opening_rc;
+
+	if (out_size)
+		*out_size = IPC_GET_ARG2(read_answer);
+
+	return EOK;
+}
+
+errno_t async_write(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, const void *src,
+    size_t srcsize, size_t *out_written, ipc_call_t *answer)
+{
+	async_exch_t *exch = async_exchange_begin(sess);
+
+	aid_t opening_request = async_send_fast(exch, imethod,
+	    arg1, arg2, arg3, arg4, answer);
+
+	if (opening_request == 0) {
+		async_exchange_end(exch);
+		return ENOMEM;
+	}
+
+	ipc_call_t write_answer;
+	aid_t write_request = async_send_2(exch, IPC_M_DATA_WRITE,
+	    (sysarg_t) src, (sysarg_t) srcsize, &write_answer);
+
+	async_exchange_end(exch);
+
+	if (write_request == 0) {
+		async_forget(opening_request);
+		return ENOMEM;
+	}
+
+	errno_t write_rc;
+	errno_t opening_rc;
+	async_wait_for(write_request, &write_rc);
+	async_wait_for(opening_request, &opening_rc);
+
+	if (write_rc != EOK)
+		return write_rc;
+
+	if (opening_rc != EOK)
+		return opening_rc;
+
+	if (out_written)
+		*out_written = IPC_GET_ARG2(write_answer);
+
+	return EOK;
+}
+
 /** Start IPC_M_DATA_READ using the async framework.
  *
  * @param exch    Exchange for sending the message.
