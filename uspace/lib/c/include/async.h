@@ -501,24 +501,42 @@ errno_t async_write(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
     sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
     const void *src, size_t srcsize, size_t *out_written);
 
-errno_t async_write_n(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
-    int n, ...);
-
-static inline errno_t async_write_2(async_sess_t *sess, sysarg_t imethod,
+errno_t async_write_2(async_sess_t *sess, sysarg_t imethod,
     sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4,
     ipc_call_t *answer,
-    const void *src1, size_t srcsize1, size_t *out_written1,
-    const void *src2, size_t srcsize2, size_t *out_written2)
-{
-	return async_write_n(sess, imethod, arg1, arg2, arg3, arg4, answer, 2,
-		src1, srcsize1, out_written1, src2, srcsize2, out_written2);
-}
+    const void *buf1, size_t size1, size_t *out_size1,
+    const void *buf2, size_t size2, size_t *out_size2);
+
+errno_t async_write_3(async_sess_t *sess, sysarg_t imethod,
+    sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4,
+    ipc_call_t *answer,
+    const void *buf1, size_t size1, size_t *out_size1,
+    const void *buf2, size_t size2, size_t *out_size2,
+    const void *buf3, size_t size3, size_t *out_size3);
+
+errno_t async_read_2(async_sess_t *sess, sysarg_t imethod,
+    sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4,
+    ipc_call_t *answer,
+    void *buf1, size_t size1, size_t *out_size1,
+    void *buf2, size_t size2, size_t *out_size2);
+
+errno_t async_read_3(async_sess_t *sess, sysarg_t imethod,
+    sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4,
+    ipc_call_t *answer,
+    void *buf1, size_t size1, size_t *out_size1,
+    void *buf2, size_t size2, size_t *out_size2,
+    void *buf3, size_t size3, size_t *out_size3);
 
 errno_t async_write_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
     sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
     const void *src, size_t srcsize,
     void *dst, size_t dstsize, size_t *out_dstsize);
+
+errno_t async_write_read_2(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
+    const void *src, size_t srcsize,
+    void *buf1, size_t size1, size_t *out_size1,
+    void *buf2, size_t size2, size_t *out_size2);
 
 #endif
 

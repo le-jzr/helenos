@@ -131,14 +131,7 @@ static errno_t loc_callback_create(void)
 	return EOK;
 }
 
-/** Start an async exchange on the loc session (blocking).
- *
- * @param iface Location service interface to choose
- *
- * @return New exchange.
- *
- */
-async_exch_t *loc_exchange_begin_blocking(iface_t iface)
+static async_sess_t *loc_session_blocking(iface_t iface)
 {
 	switch (iface) {
 	case INTERFACE_LOC_SUPPLIER:
@@ -159,7 +152,7 @@ async_exch_t *loc_exchange_begin_blocking(iface_t iface)
 		clone_session(&loc_supplier_mutex, loc_supp_block_sess,
 		    &loc_supplier_sess);
 
-		return async_exchange_begin(loc_supp_block_sess);
+		return loc_supp_block_sess;
 	case INTERFACE_LOC_CONSUMER:
 		fibril_mutex_lock(&loc_cons_block_mutex);
 
@@ -178,20 +171,13 @@ async_exch_t *loc_exchange_begin_blocking(iface_t iface)
 		clone_session(&loc_consumer_mutex, loc_cons_block_sess,
 		    &loc_consumer_sess);
 
-		return async_exchange_begin(loc_cons_block_sess);
+		return loc_cons_block_sess;
 	default:
 		return NULL;
 	}
 }
 
-/** Start an async exchange on the loc session.
- *
- * @param iface Location service interface to choose
- *
- * @return New exchange.
- *
- */
-async_exch_t *loc_exchange_begin(iface_t iface)
+static async_sess_t *loc_session(iface_t iface)
 {
 	switch (iface) {
 	case INTERFACE_LOC_SUPPLIER:
@@ -207,7 +193,7 @@ async_exch_t *loc_exchange_begin(iface_t iface)
 		if (loc_supplier_sess == NULL)
 			return NULL;
 
-		return async_exchange_begin(loc_supplier_sess);
+		return loc_supplier_sess;
 	case INTERFACE_LOC_CONSUMER:
 		fibril_mutex_lock(&loc_consumer_mutex);
 
@@ -221,10 +207,40 @@ async_exch_t *loc_exchange_begin(iface_t iface)
 		if (loc_consumer_sess == NULL)
 			return NULL;
 
-		return async_exchange_begin(loc_consumer_sess);
+		return loc_consumer_sess;
 	default:
 		return NULL;
 	}
+}
+
+/** Start an async exchange on the loc session (blocking).
+ *
+ * @param iface Location service interface to choose
+ *
+ * @return New exchange.
+ *
+ */
+async_exch_t *loc_exchange_begin_blocking(iface_t iface)
+{
+	async_sess_t *sess = loc_session_blocking(iface);
+	if (sess == NULL)
+		return NULL;
+	return async_exchange_begin(sess);
+}
+
+/** Start an async exchange on the loc session.
+ *
+ * @param iface Location service interface to choose
+ *
+ * @return New exchange.
+ *
+ */
+async_exch_t *loc_exchange_begin(iface_t iface)
+{
+	async_sess_t *sess = loc_session(iface);
+	if (sess == NULL)
+		return NULL;
+	return async_exchange_begin(sess);
 }
 
 /** Finish an async exchange on the loc session.
@@ -374,35 +390,18 @@ errno_t loc_service_get_id(const char *fqdn, service_id_t *handle,
  */
 static errno_t loc_get_name_internal(sysarg_t method, sysarg_t id, char **name)
 {
-	async_exch_t *exch;
-	char name_buf[LOC_NAME_MAXLEN + 1];
-	ipc_call_t dreply;
 	size_t act_size;
-	errno_t dretval;
-
-	*name = NULL;
-	exch = loc_exchange_begin_blocking(INTERFACE_LOC_CONSUMER);
-
 	ipc_call_t answer;
-	aid_t req = async_send_1(exch, method, id, &answer);
-	aid_t dreq = async_data_read(exch, name_buf, LOC_NAME_MAXLEN,
-	    &dreply);
-	async_wait_for(dreq, &dretval);
+	char name_buf[LOC_NAME_MAXLEN + 1];
+	*name = NULL;
 
-	loc_exchange_end(exch);
+	async_sess_t *sess = loc_session_blocking(INTERFACE_LOC_CONSUMER);
+	errno_t rc = async_read(sess, method, id, 0, 0, 0, &answer,
+	    name_buf, LOC_NAME_MAXLEN, &act_size);
 
-	if (dretval != EOK) {
-		async_forget(req);
-		return dretval;
-	}
+	if (rc != EOK)
+		return rc;
 
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK)
-		return retval;
-
-	act_size = IPC_GET_ARG2(dreply);
 	assert(act_size <= LOC_NAME_MAXLEN);
 	name_buf[act_size] = '\0';
 

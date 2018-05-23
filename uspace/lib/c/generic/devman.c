@@ -68,14 +68,7 @@ static void clone_session(fibril_mutex_t *mtx, async_sess_t *src,
 	fibril_mutex_unlock(mtx);
 }
 
-/** Start an async exchange on the devman session (blocking).
- *
- * @param iface Device manager interface to choose
- *
- * @return New exchange.
- *
- */
-async_exch_t *devman_exchange_begin_blocking(iface_t iface)
+static async_sess_t *devman_session_blocking(iface_t iface)
 {
 	switch (iface) {
 	case INTERFACE_DDF_DRIVER:
@@ -96,7 +89,7 @@ async_exch_t *devman_exchange_begin_blocking(iface_t iface)
 		clone_session(&devman_driver_mutex, devman_driver_block_sess,
 		    &devman_driver_sess);
 
-		return async_exchange_begin(devman_driver_block_sess);
+		return devman_driver_block_sess;
 	case INTERFACE_DDF_CLIENT:
 		fibril_mutex_lock(&devman_client_block_mutex);
 
@@ -115,10 +108,25 @@ async_exch_t *devman_exchange_begin_blocking(iface_t iface)
 		clone_session(&devman_client_mutex, devman_client_block_sess,
 		    &devman_client_sess);
 
-		return async_exchange_begin(devman_client_block_sess);
+		return devman_client_block_sess;
 	default:
 		return NULL;
 	}
+}
+
+/** Start an async exchange on the devman session (blocking).
+ *
+ * @param iface Device manager interface to choose
+ *
+ * @return New exchange.
+ *
+ */
+async_exch_t *devman_exchange_begin_blocking(iface_t iface)
+{
+	async_sess_t *sess = devman_session_blocking(iface);
+	if (sess == NULL)
+		return NULL;
+	return async_exchange_begin(sess);
 }
 
 /** Start an async exchange on the devman session.
@@ -401,38 +409,21 @@ errno_t devman_fun_get_handle(const char *pathname, devman_handle_t *handle,
 static errno_t devman_get_str_internal(sysarg_t method, sysarg_t arg1,
     sysarg_t arg2, sysarg_t *r1, char *buf, size_t buf_size)
 {
-	async_exch_t *exch;
-	ipc_call_t dreply;
+	async_sess_t *sess = devman_session_blocking(INTERFACE_DDF_CLIENT);
+
 	size_t act_size;
-	errno_t dretval;
-
-	exch = devman_exchange_begin_blocking(INTERFACE_DDF_CLIENT);
-
 	ipc_call_t answer;
-	aid_t req = async_send_2(exch, method, arg1, arg2, &answer);
-	aid_t dreq = async_data_read(exch, buf, buf_size - 1, &dreply);
-	async_wait_for(dreq, &dretval);
+	errno_t rc = async_read(sess, method, arg1, arg2, 0, 0, &answer,
+	    buf, buf_size - 1, &act_size);
 
-	devman_exchange_end(exch);
-
-	if (dretval != EOK) {
-		async_forget(req);
-		return dretval;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK) {
-		return retval;
-	}
+	if (rc != EOK)
+		return rc;
 
 	if (r1 != NULL)
 		*r1 = IPC_GET_ARG1(answer);
-	act_size = IPC_GET_ARG2(dreply);
+
 	assert(act_size <= buf_size - 1);
 	buf[act_size] = '\0';
-
 	return EOK;
 }
 

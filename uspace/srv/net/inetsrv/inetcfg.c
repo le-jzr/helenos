@@ -522,7 +522,6 @@ static void inetcfg_link_get_srv(cap_call_handle_t chandle, ipc_call_t *call)
 	linfo.name = NULL;
 
 	if (!async_data_read_receive(&name_chandle, &name_max_size)) {
-		async_answer_0(name_chandle, EREFUSED);
 		async_answer_0(chandle, EREFUSED);
 		return;
 	}

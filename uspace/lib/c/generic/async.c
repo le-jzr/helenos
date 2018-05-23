@@ -2752,78 +2752,27 @@ errno_t async_share_out_finalize(cap_call_handle_t chandle, void **dst)
 	return ipc_answer_2(chandle, EOK, (sysarg_t) _end, (sysarg_t) dst);
 }
 
-errno_t async_write_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
-    const void *src, size_t srcsize, void *dst, size_t dstsize,
-    size_t *out_dstsize)
+struct _rwargs {
+	sysarg_t method;
+	void *buf;
+	size_t size;
+	size_t *out_size;
+	ipc_call_t answer;
+	aid_t request;
+};
+
+static inline errno_t async_rw_internal(async_sess_t *sess, sysarg_t imethod,
+    sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4,
+    ipc_call_t *answer, int n, struct _rwargs calls[])
 {
-	if (!sess)
+	if (sess == NULL)
 		return EINVAL;
 
-	if (src == NULL && srcsize != 0)
-		return EINVAL;
-
-	if (dst == NULL && dstsize != 0)
-		return EINVAL;
-
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	aid_t opening_request = async_send_fast(exch, imethod,
-	    arg1, arg2, arg3, arg4, answer);
-	if (opening_request == 0) {
-		async_exchange_end(exch);
-		return ENOMEM;
+	for (int i = 0; i < n; i++) {
+		if (calls[i].buf == NULL && calls[i].size != 0)
+			return EINVAL;
 	}
 
-	ipc_call_t write_answer;
-	aid_t write_request = async_send_2(exch, IPC_M_DATA_WRITE,
-	    (sysarg_t) src, (sysarg_t) srcsize, &write_answer);
-
-	if (write_request == 0) {
-		async_exchange_end(exch);
-		async_forget(opening_request);
-		return ENOMEM;
-	}
-
-	ipc_call_t read_answer;
-	aid_t read_request = async_send_2(exch, IPC_M_DATA_READ, (sysarg_t) dst,
-	    (sysarg_t) dstsize, &read_answer);
-
-	async_exchange_end(exch);
-
-	if (read_request == 0) {
-		async_forget(opening_request);
-		async_forget(write_request);
-		return ENOMEM;
-	}
-
-	errno_t write_rc;
-	errno_t read_rc;
-	errno_t opening_rc;
-
-	async_wait_for(write_request, &write_rc);
-	async_wait_for(read_request, &read_rc);
-	async_wait_for(opening_request, &opening_rc);
-
-	if (write_rc != EOK)
-		return write_rc;
-
-	if (read_rc != EOK)
-		return read_rc;
-
-	if (opening_rc != EOK)
-		return opening_rc;
-
-	if (out_dstsize)
-		*out_dstsize = IPC_GET_ARG2(read_answer);
-
-	return EOK;
-}
-
-errno_t async_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
-    void *dst, size_t dstsize, size_t *out_size)
-{
 	async_exch_t *exch = async_exchange_begin(sess);
 
 	aid_t opening_request = async_send_fast(exch, imethod,
@@ -2834,127 +2783,171 @@ errno_t async_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
 		return ENOMEM;
 	}
 
-	ipc_call_t read_answer;
-	aid_t read_request = async_send_2(exch, IPC_M_DATA_READ, (sysarg_t) dst,
-	    (sysarg_t) dstsize, &read_answer);
-
-	async_exchange_end(exch);
-
-	if (read_request == 0) {
-		async_forget(opening_request);
-		return ENOMEM;
-	}
-
-	errno_t read_rc;
-	errno_t opening_rc;
-	async_wait_for(read_request, &read_rc);
-	async_wait_for(opening_request, &opening_rc);
-
-	if (read_rc != EOK)
-		return read_rc;
-
-	if (opening_rc != EOK)
-		return opening_rc;
-
-	if (out_size)
-		*out_size = IPC_GET_ARG2(read_answer);
-
-	return EOK;
-}
-
-errno_t async_write_n(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer, int n, ...)
-{
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	aid_t opening_request = async_send_fast(exch, imethod,
-	    arg1, arg2, arg3, arg4, answer);
-
-	if (opening_request == 0) {
-		async_exchange_end(exch);
-		return ENOMEM;
-	}
-
-	va_list ap;
-	va_start(ap, n);
 	errno_t rc = EOK;
+	errno_t rc2;
 
-	while (n--) {
-		const void *src = va_arg(ap, const void *);
-		size_t srcsize = va_arg(ap, size_t);
-		size_t *out_written = va_arg(ap, size_t *);
+	/* Initiate all calls first. */
+	for (int i = 0; i < n; i++) {
+		calls[i].request = async_send_2(exch, calls[i].method,
+		    (sysarg_t) calls[i].buf, (sysarg_t) calls[i].size,
+		    &calls[i].answer);
 
-		ipc_call_t write_answer;
-		aid_t write_request = async_send_2(exch, IPC_M_DATA_WRITE,
-		    (sysarg_t) src, (sysarg_t) srcsize, &write_answer);
-
-		if (write_request == 0) {
+		if (calls[i].request == 0) {
 			rc = ENOMEM;
 			break;
 		}
-
-		async_wait_for(write_request, &rc);
-
-		if (rc != EOK)
-			break;
-
-		if (out_written)
-			*out_written = IPC_GET_ARG2(write_answer);
 	}
-
-	va_end(ap);
 
 	async_exchange_end(exch);
 
 	if (rc != EOK) {
+		for (int i = 0; i < n; i++) {
+			if (calls[i].request != 0)
+				async_forget(calls[i].request);
+		}
 		async_forget(opening_request);
 		return rc;
 	}
 
+	/* Finalize all calls. */
+
 	async_wait_for(opening_request, &rc);
+
+	for (int i = 0; i < n; i++) {
+		async_wait_for(calls[i].request, &rc2);
+		if (rc2 != EOK && rc == EOK)
+			rc = rc2;
+
+		if (rc2 == EOK && calls[i].out_size)
+			*(calls[i].out_size) = IPC_GET_ARG2(calls[i].answer);
+	}
+
 	return rc;
+}
+
+errno_t async_write_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
+    const void *buf1, size_t size1, void *buf2, size_t size2,
+    size_t *out_size2)
+{
+	struct _rwargs args[] = {
+		{ .method = IPC_M_DATA_WRITE, .buf = (void *) buf1, .size = size1 },
+		{ .method = IPC_M_DATA_READ, .buf = buf2, .size = size2, .out_size = out_size2 },
+	};
+
+	return async_rw_internal(sess, imethod, arg1, arg2, arg3, arg4, answer,
+	    sizeof(args) / sizeof(*args), args);
+}
+
+errno_t async_write_read_2(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
+    const void *src, size_t srcsize,
+    void *buf1, size_t size1, size_t *out_size1,
+    void *buf2, size_t size2, size_t *out_size2)
+{
+	struct _rwargs args[] = {
+		{ .method = IPC_M_DATA_WRITE, .buf = (void *) src, .size = srcsize },
+		{ .method = IPC_M_DATA_READ, .buf = buf1, .size = size1, .out_size = out_size1 },
+		{ .method = IPC_M_DATA_READ, .buf = buf2, .size = size2, .out_size = out_size2 },
+	};
+
+	return async_rw_internal(sess, imethod, arg1, arg2, arg3, arg4, answer,
+	    sizeof(args) / sizeof(*args), args);
+}
+
+errno_t async_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
+    void *buf, size_t size, size_t *out_size)
+{
+	struct _rwargs args[] = {
+		{ .method = IPC_M_DATA_READ, .buf = buf, .size = size,
+		    .out_size = out_size },
+	};
+
+	return async_rw_internal(sess, imethod, arg1, arg2, arg3, arg4, answer,
+	    sizeof(args) / sizeof(*args), args);
+}
+
+errno_t async_read_2(async_sess_t *sess, sysarg_t imethod,
+    sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4,
+    ipc_call_t *answer,
+    void *buf1, size_t size1, size_t *out_size1,
+    void *buf2, size_t size2, size_t *out_size2)
+{
+	struct _rwargs args[] = {
+		{ .method = IPC_M_DATA_READ, .buf = buf1, .size = size1,
+		    .out_size = out_size1 },
+		{ .method = IPC_M_DATA_READ, .buf = buf2, .size = size2,
+		    .out_size = out_size2 },
+	};
+
+	return async_rw_internal(sess, imethod, arg1, arg2, arg3, arg4, answer,
+	    sizeof(args) / sizeof(*args), args);
+}
+
+errno_t async_read_3(async_sess_t *sess, sysarg_t imethod,
+    sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4,
+    ipc_call_t *answer,
+    void *buf1, size_t size1, size_t *out_size1,
+    void *buf2, size_t size2, size_t *out_size2,
+    void *buf3, size_t size3, size_t *out_size3)
+{
+	struct _rwargs args[] = {
+		{ .method = IPC_M_DATA_READ, .buf = buf1, .size = size1,
+		    .out_size = out_size1 },
+		{ .method = IPC_M_DATA_READ, .buf = buf2, .size = size2,
+		    .out_size = out_size2 },
+		{ .method = IPC_M_DATA_READ, .buf = buf3, .size = size3,
+		    .out_size = out_size3 },
+	};
+
+	return async_rw_internal(sess, imethod, arg1, arg2, arg3, arg4, answer,
+	    sizeof(args) / sizeof(*args), args);
 }
 
 errno_t async_write(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
     sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
-    const void *src, size_t srcsize, size_t *out_written)
+    const void *buf, size_t size, size_t *out_size)
 {
-	async_exch_t *exch = async_exchange_begin(sess);
+	struct _rwargs args[] = {
+		{ .method = IPC_M_DATA_WRITE, .buf = (void *) buf, .size = size,
+		    .out_size = out_size },
+	};
 
-	aid_t opening_request = async_send_fast(exch, imethod,
-	    arg1, arg2, arg3, arg4, answer);
+	return async_rw_internal(sess, imethod, arg1, arg2, arg3, arg4, answer,
+	    sizeof(args) / sizeof(*args), args);
+}
 
-	if (opening_request == 0) {
-		async_exchange_end(exch);
-		return ENOMEM;
-	}
+errno_t async_write_2(async_sess_t *sess, sysarg_t imethod,
+    sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4,
+    ipc_call_t *answer,
+    const void *buf1, size_t size1, size_t *out_size1,
+    const void *buf2, size_t size2, size_t *out_size2)
+{
+	struct _rwargs args[] = {
+		{ .method = IPC_M_DATA_WRITE, .buf = (void *) buf1, .size = size1, .out_size = out_size1 },
+		{ .method = IPC_M_DATA_WRITE, .buf = (void *) buf2, .size = size2, .out_size = out_size2 },
+	};
 
-	ipc_call_t write_answer;
-	aid_t write_request = async_send_2(exch, IPC_M_DATA_WRITE,
-	    (sysarg_t) src, (sysarg_t) srcsize, &write_answer);
+	return async_rw_internal(sess, imethod, arg1, arg2, arg3, arg4, answer,
+	    sizeof(args) / sizeof(*args), args);
+}
 
-	async_exchange_end(exch);
+errno_t async_write_3(async_sess_t *sess, sysarg_t imethod,
+    sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4,
+    ipc_call_t *answer,
+    const void *buf1, size_t size1, size_t *out_size1,
+    const void *buf2, size_t size2, size_t *out_size2,
+    const void *buf3, size_t size3, size_t *out_size3)
+{
+	struct _rwargs args[] = {
+		{ .method = IPC_M_DATA_WRITE, .buf = (void *) buf1, .size = size1, .out_size = out_size1 },
+		{ .method = IPC_M_DATA_WRITE, .buf = (void *) buf2, .size = size2, .out_size = out_size2 },
+		{ .method = IPC_M_DATA_WRITE, .buf = (void *) buf3, .size = size3, .out_size = out_size3 },
+	};
 
-	if (write_request == 0) {
-		async_forget(opening_request);
-		return ENOMEM;
-	}
-
-	errno_t write_rc;
-	errno_t opening_rc;
-	async_wait_for(write_request, &write_rc);
-	async_wait_for(opening_request, &opening_rc);
-
-	if (write_rc != EOK)
-		return write_rc;
-
-	if (opening_rc != EOK)
-		return opening_rc;
-
-	if (out_written)
-		*out_written = IPC_GET_ARG2(write_answer);
-
-	return EOK;
+	return async_rw_internal(sess, imethod, arg1, arg2, arg3, arg4, answer,
+	    sizeof(args) / sizeof(*args), args);
 }
 
 /** Start IPC_M_DATA_READ using the async framework.

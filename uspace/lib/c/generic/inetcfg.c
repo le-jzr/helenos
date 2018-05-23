@@ -177,53 +177,22 @@ errno_t inetcfg_addr_delete(sysarg_t addr_id)
 
 errno_t inetcfg_addr_get(sysarg_t addr_id, inet_addr_info_t *ainfo)
 {
-	async_exch_t *exch = async_exchange_begin(inetcfg_sess);
-
 	ipc_call_t answer;
-	aid_t req = async_send_1(exch, INETCFG_ADDR_GET, addr_id, &answer);
-
-	ipc_call_t answer_naddr;
-	aid_t req_naddr = async_data_read(exch, &ainfo->naddr,
-	    sizeof(inet_naddr_t), &answer_naddr);
-
-	errno_t retval_naddr;
-	async_wait_for(req_naddr, &retval_naddr);
-
-	if (retval_naddr != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return retval_naddr;
-	}
-
-	ipc_call_t answer_name;
 	char name_buf[LOC_NAME_MAXLEN + 1];
-	aid_t req_name = async_data_read(exch, name_buf, LOC_NAME_MAXLEN,
-	    &answer_name);
+	size_t act_size;
 
-	async_exchange_end(exch);
+	errno_t rc = async_read_2(inetcfg_sess,
+	    INETCFG_ADDR_GET, addr_id, 0, 0, 0, &answer,
+	    &ainfo->naddr, sizeof(ainfo->naddr), NULL,
+	    name_buf, LOC_NAME_MAXLEN, &act_size);
 
-	errno_t retval_name;
-	async_wait_for(req_name, &retval_name);
+	if (rc != EOK)
+		return rc;
 
-	if (retval_name != EOK) {
-		async_forget(req);
-		return retval_name;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK)
-		return retval;
-
-	size_t act_size = IPC_GET_ARG2(answer_name);
 	assert(act_size <= LOC_NAME_MAXLEN);
-
 	name_buf[act_size] = '\0';
-
 	ainfo->ilink = IPC_GET_ARG1(answer);
 	ainfo->name = str_dup(name_buf);
-
 	return EOK;
 }
 
@@ -278,39 +247,23 @@ errno_t inetcfg_link_add(sysarg_t link_id)
 
 errno_t inetcfg_link_get(sysarg_t link_id, inet_link_info_t *linfo)
 {
-	ipc_call_t dreply;
-	errno_t dretval;
 	size_t act_size;
 	char name_buf[LOC_NAME_MAXLEN + 1];
 
-	async_exch_t *exch = async_exchange_begin(inetcfg_sess);
-
 	ipc_call_t answer;
-	aid_t req = async_send_1(exch, INETCFG_LINK_GET, link_id, &answer);
-	aid_t dreq = async_data_read(exch, name_buf, LOC_NAME_MAXLEN, &dreply);
-	errno_t rc = async_data_read_start(exch, &linfo->mac_addr, sizeof(addr48_t));
-	async_wait_for(dreq, &dretval);
+	errno_t rc = async_read_2(inetcfg_sess,
+	    INETCFG_LINK_GET, link_id, 0, 0, 0, &answer,
+	    name_buf, LOC_NAME_MAXLEN, &act_size,
+	    &linfo->mac_addr, sizeof(linfo->mac_addr), NULL);
 
-	async_exchange_end(exch);
+	if (rc != EOK)
+		return rc;
 
-	if (dretval != EOK || rc != EOK) {
-		async_forget(req);
-		return dretval;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK)
-		return retval;
-
-	act_size = IPC_GET_ARG2(dreply);
 	assert(act_size <= LOC_NAME_MAXLEN);
 	name_buf[act_size] = '\0';
 
 	linfo->name = str_dup(name_buf);
 	linfo->def_mtu = IPC_GET_ARG1(answer);
-
 	return EOK;
 }
 
@@ -375,65 +328,22 @@ errno_t inetcfg_sroute_delete(sysarg_t sroute_id)
 
 errno_t inetcfg_sroute_get(sysarg_t sroute_id, inet_sroute_info_t *srinfo)
 {
-	async_exch_t *exch = async_exchange_begin(inetcfg_sess);
-
 	ipc_call_t answer;
-	aid_t req = async_send_1(exch, INETCFG_SROUTE_GET, sroute_id, &answer);
-
-	ipc_call_t answer_dest;
-	aid_t req_dest = async_data_read(exch, &srinfo->dest,
-	    sizeof(inet_naddr_t), &answer_dest);
-
-	errno_t retval_dest;
-	async_wait_for(req_dest, &retval_dest);
-
-	if (retval_dest != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return retval_dest;
-	}
-
-	ipc_call_t answer_router;
-	aid_t req_router = async_data_read(exch, &srinfo->router,
-	    sizeof(inet_addr_t), &answer_router);
-
-	errno_t retval_router;
-	async_wait_for(req_router, &retval_router);
-
-	if (retval_router != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return retval_router;
-	}
-
-	ipc_call_t answer_name;
 	char name_buf[LOC_NAME_MAXLEN + 1];
-	aid_t req_name = async_data_read(exch, name_buf, LOC_NAME_MAXLEN,
-	    &answer_name);
+	size_t act_size;
 
-	async_exchange_end(exch);
+	errno_t rc = async_read_3(inetcfg_sess,
+	    INETCFG_SROUTE_GET, sroute_id, 0, 0, 0, &answer,
+	    &srinfo->dest, sizeof(srinfo->dest), NULL,
+	    &srinfo->router, sizeof(srinfo->router), NULL,
+	    name_buf, LOC_NAME_MAXLEN, &act_size);
 
-	errno_t retval_name;
-	async_wait_for(req_name, &retval_name);
+	if (rc != EOK)
+		return rc;
 
-	if (retval_name != EOK) {
-		async_forget(req);
-		return retval_name;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK)
-		return retval;
-
-	size_t act_size = IPC_GET_ARG2(answer_name);
 	assert(act_size <= LOC_NAME_MAXLEN);
-
 	name_buf[act_size] = '\0';
-
 	srinfo->name = str_dup(name_buf);
-
 	return EOK;
 }
 
