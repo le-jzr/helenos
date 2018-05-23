@@ -55,34 +55,14 @@ static fibril_local char plugged_device_name[PLUGGED_DEVICE_NAME_MAXLEN + 1] = "
  */
 static void receive_device_name(async_sess_t *sess)
 {
-	async_exch_t *exch = async_exchange_begin(sess);
+	size_t len;
 
-	aid_t opening_request = async_send_0(exch, IPC_M_USBVIRT_GET_NAME, NULL);
-	if (opening_request == 0) {
-		async_exchange_end(exch);
-		return;
-	}
+	errno_t rc = async_read(sess, IPC_M_USBVIRT_GET_NAME, 0, 0, 0, 0,
+	    plugged_device_name, PLUGGED_DEVICE_NAME_MAXLEN, &len, NULL);
 
-	ipc_call_t data_request_call;
-	aid_t data_request = async_data_read(exch, plugged_device_name,
-	    PLUGGED_DEVICE_NAME_MAXLEN, &data_request_call);
-
-	async_exchange_end(exch);
-
-	if (data_request == 0) {
-		async_forget(opening_request);
-		return;
-	}
-
-	errno_t data_request_rc;
-	errno_t opening_request_rc;
-	async_wait_for(data_request, &data_request_rc);
-	async_wait_for(opening_request, &opening_request_rc);
-
-	if ((data_request_rc != EOK) || (opening_request_rc != EOK))
+	if (rc != EOK)
 		return;
 
-	size_t len = IPC_GET_ARG2(data_request_call);
 	plugged_device_name[len] = 0;
 }
 

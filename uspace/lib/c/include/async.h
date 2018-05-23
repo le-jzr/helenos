@@ -494,15 +494,15 @@ extern void *async_as_area_create(void *, size_t, unsigned int, async_sess_t *,
     sysarg_t, sysarg_t, sysarg_t);
 
 errno_t async_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, void *dst, size_t size,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, void *dst, size_t dstsize,
     size_t *out_size, ipc_call_t *answer);
 
 errno_t async_write(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, const void *src, size_t size,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, const void *src, size_t srcsize,
     size_t *out_written, ipc_call_t *answer);
 
 errno_t async_write_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, void *src, size_t srcsize,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, const void *src, size_t srcsize,
     void *dst, size_t dstsize, size_t *out_dstsize, ipc_call_t *answer);
 
 #endif

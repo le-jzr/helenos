@@ -2752,7 +2752,7 @@ errno_t async_share_out_finalize(cap_call_handle_t chandle, void **dst)
 }
 
 errno_t async_write_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, void *src, size_t srcsize,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, const void *src, size_t srcsize,
     void *dst, size_t dstsize, size_t *out_dstsize, ipc_call_t *answer)
 {
 	async_exch_t *exch = async_exchange_begin(sess);

@@ -48,25 +48,8 @@
 errno_t
 clock_dev_time_get(async_sess_t *sess, struct tm *t)
 {
-	aid_t req;
-	errno_t ret;
-
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	req = async_send_1(exch, DEV_IFACE_ID(CLOCK_DEV_IFACE),
-	    CLOCK_DEV_TIME_GET, NULL);
-	ret = async_data_read_start(exch, t, sizeof(*t));
-
-	async_exchange_end(exch);
-
-	errno_t rc;
-	if (ret != EOK) {
-		async_forget(req);
-		return ret;
-	}
-
-	async_wait_for(req, &rc);
-	return (errno_t)rc;
+	return async_read(sess, DEV_IFACE_ID(CLOCK_DEV_IFACE),
+	    CLOCK_DEV_TIME_GET, 0, 0, 0, t, sizeof(*t), NULL, NULL);
 }
 
 /** Set the current time
@@ -79,25 +62,8 @@ clock_dev_time_get(async_sess_t *sess, struct tm *t)
 errno_t
 clock_dev_time_set(async_sess_t *sess, struct tm *t)
 {
-	aid_t req;
-	errno_t ret;
-
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	req = async_send_1(exch, DEV_IFACE_ID(CLOCK_DEV_IFACE),
-	    CLOCK_DEV_TIME_SET, NULL);
-	ret = async_data_write_start(exch, t, sizeof(*t));
-
-	async_exchange_end(exch);
-
-	errno_t rc;
-	if (ret != EOK) {
-		async_forget(req);
-		return ret;
-	}
-
-	async_wait_for(req, &rc);
-	return (errno_t)rc;
+	return async_write(sess, DEV_IFACE_ID(CLOCK_DEV_IFACE),
+	    CLOCK_DEV_TIME_SET, 0, 0, 0, t, sizeof(*t), NULL, NULL);
 }
 
 /** @}

@@ -319,26 +319,8 @@ size_t udp_rmsg_size(udp_rmsg_t *rmsg)
  */
 errno_t udp_rmsg_read(udp_rmsg_t *rmsg, size_t off, void *buf, size_t bsize)
 {
-	async_exch_t *exch;
-	ipc_call_t answer;
-
-	exch = async_exchange_begin(rmsg->udp->sess);
-	aid_t req = async_send_1(exch, UDP_RMSG_READ, off, &answer);
-	errno_t rc = async_data_read_start(exch, buf, bsize);
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-	if (retval != EOK) {
-		return retval;
-	}
-
-	return EOK;
+	return async_read(rmsg->udp->sess, UDP_RMSG_READ, off, 0, 0, 0,
+	    buf, bsize, NULL, NULL);
 }
 
 /** Get remote endpoint of received message.
@@ -383,24 +365,14 @@ uint8_t udp_rerr_code(udp_rerr_t *rerr)
  */
 static errno_t udp_rmsg_info(udp_t *udp, udp_rmsg_t *rmsg)
 {
-	async_exch_t *exch;
 	inet_ep_t ep;
 	ipc_call_t answer;
-
-	exch = async_exchange_begin(udp->sess);
-	aid_t req = async_send_0(exch, UDP_RMSG_INFO, &answer);
-	errno_t rc = async_data_read_start(exch, &ep, sizeof(inet_ep_t));
-	async_exchange_end(exch);
+	errno_t rc = async_read(udp->sess, UDP_RMSG_INFO, 0, 0, 0, 0,
+	    &ep, sizeof(ep), NULL, &answer);
 
 	if (rc != EOK) {
-		async_forget(req);
 		return rc;
 	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-	if (retval != EOK)
-		return retval;
 
 	rmsg->udp = udp;
 	rmsg->assoc_id = IPC_GET_ARG1(answer);

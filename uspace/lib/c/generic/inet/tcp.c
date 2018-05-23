@@ -449,27 +449,8 @@ errno_t tcp_conn_wait_connected(tcp_conn_t *conn)
  */
 errno_t tcp_conn_send(tcp_conn_t *conn, const void *data, size_t bytes)
 {
-	async_exch_t *exch;
-	errno_t rc;
-
-	exch = async_exchange_begin(conn->tcp->sess);
-	aid_t req = async_send_1(exch, TCP_CONN_SEND, conn->id, NULL);
-
-	rc = async_data_write_start(exch, data, bytes);
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	async_wait_for(req, &rc);
-	return rc;
+	return async_write(conn->tcp->sess, TCP_CONN_SEND, conn->id, 0, 0, 0,
+	    data, bytes, NULL, NULL);
 }
 
 /** Send FIN.
@@ -541,36 +522,11 @@ errno_t tcp_conn_reset(tcp_conn_t *conn)
  */
 errno_t tcp_conn_recv(tcp_conn_t *conn, void *buf, size_t bsize, size_t *nrecv)
 {
-	async_exch_t *exch;
-	ipc_call_t answer;
-
 	fibril_mutex_lock(&conn->lock);
-	if (!conn->data_avail) {
-		fibril_mutex_unlock(&conn->lock);
-		return EAGAIN;
-	}
-
-	exch = async_exchange_begin(conn->tcp->sess);
-	aid_t req = async_send_1(exch, TCP_CONN_RECV, conn->id, &answer);
-	errno_t rc = async_data_read_start(exch, buf, bsize);
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		fibril_mutex_unlock(&conn->lock);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-	if (retval != EOK) {
-		fibril_mutex_unlock(&conn->lock);
-		return retval;
-	}
-
-	*nrecv = IPC_GET_ARG1(answer);
+	errno_t rc = async_read(conn->tcp->sess, TCP_CONN_RECV,
+	    conn->id, 0, 0, 0, buf, bsize, nrecv, NULL);
 	fibril_mutex_unlock(&conn->lock);
-	return EOK;
+	return rc;
 }
 
 /** Read received data from connection with blocking.
@@ -590,44 +546,24 @@ errno_t tcp_conn_recv(tcp_conn_t *conn, void *buf, size_t bsize, size_t *nrecv)
 errno_t tcp_conn_recv_wait(tcp_conn_t *conn, void *buf, size_t bsize,
     size_t *nrecv)
 {
-	async_exch_t *exch;
-	ipc_call_t answer;
+	errno_t rc = EAGAIN;
 
-again:
 	fibril_mutex_lock(&conn->lock);
-	while (!conn->data_avail) {
-		fibril_condvar_wait(&conn->cv, &conn->lock);
-	}
 
-	exch = async_exchange_begin(conn->tcp->sess);
-	aid_t req = async_send_1(exch, TCP_CONN_RECV_WAIT, conn->id, &answer);
-	errno_t rc = async_data_read_start(exch, buf, bsize);
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		if (rc == EAGAIN) {
-			conn->data_avail = false;
-			fibril_mutex_unlock(&conn->lock);
-			goto again;
+	while (rc == EAGAIN) {
+		while (!conn->data_avail) {
+			fibril_condvar_wait(&conn->cv, &conn->lock);
 		}
-		fibril_mutex_unlock(&conn->lock);
-		return rc;
-	}
 
-	errno_t retval;
-	async_wait_for(req, &retval);
-	if (retval != EOK) {
-		if (rc == EAGAIN) {
+		errno_t rc = async_read(conn->tcp->sess, TCP_CONN_RECV_WAIT,
+		    conn->id, 0, 0, 0, buf, bsize, nrecv, NULL);
+
+		if (rc == EAGAIN)
 			conn->data_avail = false;
-		}
-		fibril_mutex_unlock(&conn->lock);
-		return retval;
 	}
 
-	*nrecv = IPC_GET_ARG1(answer);
 	fibril_mutex_unlock(&conn->lock);
-	return EOK;
+	return rc;
 }
 
 /** Connection established event.

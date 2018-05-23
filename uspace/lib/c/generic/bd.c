@@ -84,73 +84,21 @@ void bd_close(bd_t *bd)
 
 errno_t bd_read_blocks(bd_t *bd, aoff64_t ba, size_t cnt, void *data, size_t size)
 {
-	async_exch_t *exch = async_exchange_begin(bd->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_3(exch, BD_READ_BLOCKS, LOWER32(ba),
-	    UPPER32(ba), cnt, &answer);
-	errno_t rc = async_data_read_start(exch, data, size);
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK)
-		return retval;
-
-	return EOK;
+	return async_read(bd->sess, BD_READ_BLOCKS, LOWER32(ba),
+	    UPPER32(ba), cnt, 0, data, size, NULL, NULL);
 }
 
 errno_t bd_read_toc(bd_t *bd, uint8_t session, void *buf, size_t size)
 {
-	async_exch_t *exch = async_exchange_begin(bd->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_1(exch, BD_READ_TOC, session, &answer);
-	errno_t rc = async_data_read_start(exch, buf, size);
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK)
-		return retval;
-
-	return EOK;
+	return async_read(bd->sess, BD_READ_TOC, session, 0, 0, 0,
+	    buf, size, NULL, NULL);
 }
 
 errno_t bd_write_blocks(bd_t *bd, aoff64_t ba, size_t cnt, const void *data,
     size_t size)
 {
-	async_exch_t *exch = async_exchange_begin(bd->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_3(exch, BD_WRITE_BLOCKS, LOWER32(ba),
-	    UPPER32(ba), cnt, &answer);
-	errno_t rc = async_data_write_start(exch, data, size);
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-	if (retval != EOK)
-		return retval;
-
-	return EOK;
+	return async_write(bd->sess, BD_WRITE_BLOCKS, LOWER32(ba),
+	    UPPER32(ba), cnt, 0, data, size, NULL, NULL);
 }
 
 errno_t bd_sync_cache(bd_t *bd, aoff64_t ba, size_t cnt)

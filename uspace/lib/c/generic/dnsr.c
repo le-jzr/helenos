@@ -38,11 +38,13 @@
 #include <str.h>
 
 static FIBRIL_MUTEX_INITIALIZE(dnsr_sess_mutex);
-
 static async_sess_t *dnsr_sess = NULL;
 
-static async_exch_t *dnsr_exchange_begin(void)
+static async_sess_t *dnsr_session(void)
 {
+	if (dnsr_sess != NULL)
+		return dnsr_sess;
+
 	fibril_mutex_lock(&dnsr_sess_mutex);
 
 	if (dnsr_sess == NULL) {
@@ -55,10 +57,14 @@ static async_exch_t *dnsr_exchange_begin(void)
 		    IPC_FLAG_BLOCKING);
 	}
 
-	async_sess_t *sess = dnsr_sess;
 	fibril_mutex_unlock(&dnsr_sess_mutex);
 
-	return async_exchange_begin(sess);
+	return dnsr_sess;
+}
+
+static async_exch_t *dnsr_exchange_begin(void)
+{
+	return async_exchange_begin(dnsr_session());
 }
 
 static void dnsr_exchange_end(async_exch_t *exch)
@@ -151,44 +157,14 @@ void dnsr_hostinfo_destroy(dnsr_hostinfo_t *info)
 
 errno_t dnsr_get_srvaddr(inet_addr_t *srvaddr)
 {
-	async_exch_t *exch = dnsr_exchange_begin();
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, DNSR_GET_SRVADDR, &answer);
-	errno_t rc = async_data_read_start(exch, srvaddr, sizeof(inet_addr_t));
-
-	loc_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_read(dnsr_session(), DNSR_GET_SRVADDR, 0, 0, 0, 0,
+	    srvaddr, sizeof(*srvaddr), NULL, NULL);
 }
 
 errno_t dnsr_set_srvaddr(inet_addr_t *srvaddr)
 {
-	async_exch_t *exch = dnsr_exchange_begin();
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, DNSR_SET_SRVADDR, &answer);
-	errno_t rc = async_data_write_start(exch, srvaddr, sizeof(inet_addr_t));
-
-	loc_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write(dnsr_session(), DNSR_SET_SRVADDR, 0, 0, 0, 0,
+	    srvaddr, sizeof(*srvaddr), NULL, NULL);
 }
 
 /** @}

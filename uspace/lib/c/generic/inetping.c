@@ -117,36 +117,9 @@ errno_t inetping_send(inetping_sdu_t *sdu)
 
 errno_t inetping_get_srcaddr(const inet_addr_t *remote, inet_addr_t *local)
 {
-	async_exch_t *exch = async_exchange_begin(inetping_sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, INETPING_GET_SRCADDR, &answer);
-
-	errno_t rc = async_data_write_start(exch, remote, sizeof(*remote));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
-
-	ipc_call_t answer_local;
-	aid_t req_local = async_data_read(exch, local, sizeof(*local),
-	    &answer_local);
-
-	async_exchange_end(exch);
-
-	errno_t retval_local;
-	async_wait_for(req_local, &retval_local);
-
-	if (retval_local != EOK) {
-		async_forget(req);
-		return retval_local;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write_read(inetping_sess, INETPING_GET_SRCADDR,
+	    0, 0, 0, 0, remote, sizeof(*remote), local, sizeof(*local),
+	    NULL, NULL);
 }
 
 static void inetping_ev_recv(cap_call_handle_t icall_handle, ipc_call_t *icall)

@@ -95,33 +95,20 @@ void chardev_close(chardev_t *chardev)
  */
 errno_t chardev_read(chardev_t *chardev, void *buf, size_t size, size_t *nread)
 {
-	async_exch_t *exch = async_exchange_begin(chardev->sess);
-
 	if (size > DATA_XFER_LIMIT) {
 		/* This should not hurt anything. */
 		size = DATA_XFER_LIMIT;
 	}
 
 	ipc_call_t answer;
-	aid_t req = async_send_0(exch, CHARDEV_READ, &answer);
-	errno_t rc = async_data_read_start(exch, buf, size);
-	async_exchange_end(exch);
+	errno_t rc = async_read(chardev->sess, CHARDEV_READ, 0, 0, 0, 0,
+	    buf, size, nread, &answer);
 
 	if (rc != EOK) {
-		async_forget(req);
 		*nread = 0;
 		return rc;
 	}
 
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK) {
-		*nread = 0;
-		return retval;
-	}
-
-	*nread = IPC_GET_ARG2(answer);
 	/* In case of partial success, ARG1 contains the error code */
 	return (errno_t) IPC_GET_ARG1(answer);
 
@@ -146,33 +133,19 @@ errno_t chardev_read(chardev_t *chardev, void *buf, size_t size, size_t *nread)
 static errno_t chardev_write_once(chardev_t *chardev, const void *data,
     size_t size, size_t *nwritten)
 {
-	async_exch_t *exch = async_exchange_begin(chardev->sess);
-	ipc_call_t answer;
-	aid_t req;
-	errno_t rc;
-
 	/* Break down large transfers */
 	if (size > DATA_XFER_LIMIT)
 		size = DATA_XFER_LIMIT;
 
-	req = async_send_0(exch, CHARDEV_WRITE, &answer);
-	rc = async_data_write_start(exch, data, size);
-	async_exchange_end(exch);
+	ipc_call_t answer;
+	errno_t rc = async_write(chardev->sess, CHARDEV_WRITE, 0, 0, 0, 0,
+	    data, size, nwritten, &answer);
 
 	if (rc != EOK) {
-		async_forget(req);
 		*nwritten = 0;
 		return rc;
 	}
 
-	errno_t retval;
-	async_wait_for(req, &retval);
-	if (retval != EOK) {
-		*nwritten = 0;
-		return retval;
-	}
-
-	*nwritten = IPC_GET_ARG2(answer);
 	/* In case of partial success, ARG1 contains the error code */
 	return (errno_t) IPC_GET_ARG1(answer);
 }
