@@ -147,22 +147,12 @@ static errno_t vfs_connect_internal(service_id_t service_id, unsigned flags,
 
 	/* Tell the mountee that it is being mounted. */
 	ipc_call_t answer;
-	async_exch_t *exch = vfs_exchange_grab(fs_handle);
-	aid_t msg = async_send_1(exch, VFS_OUT_MOUNTED, (sysarg_t) service_id,
-	    &answer);
-	/* Send the mount options */
-	errno_t rc = async_data_write_start(exch, options, str_size(options));
-	if (rc != EOK) {
-		async_forget(msg);
-		vfs_exchange_release(exch);
-		return rc;
-	}
+	errno_t rc = async_write(vfs_session(fs_handle), VFS_OUT_MOUNTED,
+	    (sysarg_t) service_id, 0, 0, 0, options, str_size(options),
+	    NULL, &answer);
 
-	async_wait_for(msg, &rc);
-	if (rc != EOK) {
-		vfs_exchange_release(exch);
+	if (rc != EOK)
 		return rc;
-	}
 
 	vfs_lookup_res_t res;
 	res.triplet.fs_handle = fs_handle;
@@ -175,14 +165,13 @@ static errno_t vfs_connect_internal(service_id_t service_id, unsigned flags,
 	/* Add reference to the mounted root. */
 	*root = vfs_node_get(&res);
 	if (!*root) {
+		async_exch_t *exch = vfs_exchange_grab(fs_handle);
 		aid_t msg = async_send_1(exch, VFS_OUT_UNMOUNTED,
 		    (sysarg_t) service_id, NULL);
 		async_forget(msg);
 		vfs_exchange_release(exch);
 		return ENOMEM;
 	}
-
-	vfs_exchange_release(exch);
 
 	return EOK;
 }
@@ -191,8 +180,6 @@ errno_t vfs_op_fsprobe(const char *fs_name, service_id_t sid,
     vfs_fs_probe_info_t *info)
 {
 	fs_handle_t fs_handle = 0;
-	errno_t rc;
-	errno_t retval;
 
 	fibril_mutex_lock(&fs_list_lock);
 	fs_handle = fs_name_to_handle(0, fs_name, false);
@@ -202,23 +189,8 @@ errno_t vfs_op_fsprobe(const char *fs_name, service_id_t sid,
 		return ENOFS;
 
 	/* Send probe request to the file system server */
-	ipc_call_t answer;
-	async_exch_t *exch = vfs_exchange_grab(fs_handle);
-	aid_t msg = async_send_1(exch, VFS_OUT_FSPROBE, (sysarg_t) sid,
-	    &answer);
-	if (msg == 0)
-		return EINVAL;
-
-	/* Read probe information */
-	retval = async_data_read_start(exch, info, sizeof(*info));
-	if (retval != EOK) {
-		async_forget(msg);
-		return retval;
-	}
-
-	async_wait_for(msg, &rc);
-	vfs_exchange_release(exch);
-	return rc;
+	return async_read(vfs_session(fs_handle), VFS_OUT_FSPROBE,
+	    (sysarg_t) sid, 0, 0, 0, info, sizeof(*info), NULL, NULL);
 }
 
 errno_t vfs_op_mount(int mpfd, unsigned service_id, unsigned flags,
@@ -346,10 +318,10 @@ errno_t vfs_op_open(int fd, int mode)
 	return EOK;
 }
 
-typedef errno_t (*rdwr_ipc_cb_t)(async_exch_t *, vfs_file_t *, aoff64_t,
+typedef errno_t (*rdwr_ipc_cb_t)(async_sess_t *, vfs_file_t *, aoff64_t,
     ipc_call_t *, bool, void *);
 
-static errno_t rdwr_ipc_client(async_exch_t *exch, vfs_file_t *file, aoff64_t pos,
+static errno_t rdwr_ipc_client(async_sess_t *sess, vfs_file_t *file, aoff64_t pos,
     ipc_call_t *answer, bool read, void *data)
 {
 	size_t *bytes = (size_t *) data;
@@ -363,6 +335,10 @@ static errno_t rdwr_ipc_client(async_exch_t *exch, vfs_file_t *file, aoff64_t po
 	 * don't have to bother.
 	 */
 
+	async_exch_t *exch = async_exchange_begin(sess);
+	if (exch == NULL)
+		return ENOENT;
+
 	if (read) {
 		rc = async_data_read_forward_4_1(exch, VFS_OUT_READ,
 		    file->node->service_id, file->node->index,
@@ -373,36 +349,28 @@ static errno_t rdwr_ipc_client(async_exch_t *exch, vfs_file_t *file, aoff64_t po
 		    LOWER32(pos), UPPER32(pos), answer);
 	}
 
+	async_exchange_end(exch);
+
 	*bytes = IPC_GET_ARG1(*answer);
 	return rc;
 }
 
-static errno_t rdwr_ipc_internal(async_exch_t *exch, vfs_file_t *file, aoff64_t pos,
+static errno_t rdwr_ipc_internal(async_sess_t *sess, vfs_file_t *file, aoff64_t pos,
     ipc_call_t *answer, bool read, void *data)
 {
-	rdwr_io_chunk_t *chunk = (rdwr_io_chunk_t *) data;
-
-	if (exch == NULL)
+	if (sess == NULL)
 		return ENOENT;
 
-	aid_t msg = async_send_fast(exch, read ? VFS_OUT_READ : VFS_OUT_WRITE,
+	rdwr_io_chunk_t *chunk = (rdwr_io_chunk_t *) data;
+
+	errno_t rc = async_read(sess, read ? VFS_OUT_READ : VFS_OUT_WRITE,
 	    file->node->service_id, file->node->index, LOWER32(pos),
-	    UPPER32(pos), answer);
-	if (msg == 0)
-		return EINVAL;
+	    UPPER32(pos), chunk->buffer, chunk->size, NULL, answer);
 
-	errno_t retval = async_data_read_start(exch, chunk->buffer, chunk->size);
-	if (retval != EOK) {
-		async_forget(msg);
-		return retval;
-	}
+	if (rc == EOK)
+		chunk->size = IPC_GET_ARG1(*answer);
 
-	errno_t rc;
-	async_wait_for(msg, &rc);
-
-	chunk->size = IPC_GET_ARG1(*answer);
-
-	return (errno_t) rc;
+	return rc;
 }
 
 static errno_t vfs_rdwr(int fd, aoff64_t pos, bool read, rdwr_ipc_cb_t ipc_cb,
@@ -465,8 +433,6 @@ static errno_t vfs_rdwr(int fd, aoff64_t pos, bool read, rdwr_ipc_cb_t ipc_cb,
 		fibril_rwlock_read_lock(&namespace_rwlock);
 	}
 
-	async_exch_t *fs_exch = vfs_exchange_grab(file->node->fs_handle);
-
 	if (!read && file->append)
 		pos = file->node->size;
 
@@ -474,9 +440,8 @@ static errno_t vfs_rdwr(int fd, aoff64_t pos, bool read, rdwr_ipc_cb_t ipc_cb,
 	 * Handle communication with the endpoint FS.
 	 */
 	ipc_call_t answer;
-	errno_t rc = ipc_cb(fs_exch, file, pos, &answer, read, ipc_cb_data);
-
-	vfs_exchange_release(fs_exch);
+	errno_t rc = ipc_cb(vfs_session(file->node->fs_handle), file, pos,
+	    &answer, read, ipc_cb_data);
 
 	if (file->node->type == VFS_NODE_DIRECTORY)
 		fibril_rwlock_read_unlock(&namespace_rwlock);

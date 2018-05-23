@@ -168,6 +168,7 @@ extern list_t plb_entries;	/**< List of active PLB entries. */
 /** Holding this rwlock prevents changes in file system namespace. */
 extern fibril_rwlock_t namespace_rwlock;
 
+extern async_sess_t *vfs_session(fs_handle_t);
 extern async_exch_t *vfs_exchange_grab(fs_handle_t);
 extern void vfs_exchange_release(async_exch_t *);
 

@@ -243,6 +243,25 @@ void vfs_register(cap_call_handle_t req_handle, ipc_call_t *request)
 	    FS_NAME_MAXLEN, fs_info->vfs_info.name, fs_info->fs_handle);
 }
 
+async_sess_t *vfs_session(fs_handle_t handle)
+{
+	fibril_mutex_lock(&fs_list_lock);
+
+	list_foreach(fs_list, fs_link, fs_info_t, fs) {
+		if (fs->fs_handle == handle) {
+			async_sess_t *sess = fs->sess;
+			fibril_mutex_unlock(&fs_list_lock);
+
+			assert(sess);
+			return sess;
+		}
+	}
+
+	fibril_mutex_unlock(&fs_list_lock);
+
+	return NULL;
+}
+
 /** Begin an exchange for a given file system handle
  *
  * @param handle File system handle.
@@ -258,23 +277,13 @@ async_exch_t *vfs_exchange_grab(fs_handle_t handle)
 	 * We simply lookup the session in fs_list and
 	 * begin an exchange.
 	 */
-	fibril_mutex_lock(&fs_list_lock);
+	async_sess_t *sess = vfs_session(handle);
+	if (sess == NULL)
+		return NULL;
 
-	list_foreach(fs_list, fs_link, fs_info_t, fs) {
-		if (fs->fs_handle == handle) {
-			fibril_mutex_unlock(&fs_list_lock);
-
-			assert(fs->sess);
-			async_exch_t *exch = async_exchange_begin(fs->sess);
-
-			assert(exch);
-			return exch;
-		}
-	}
-
-	fibril_mutex_unlock(&fs_list_lock);
-
-	return NULL;
+	async_exch_t *exch = async_exchange_begin(sess);
+	assert(exch);
+	return exch;
 }
 
 /** End VFS server exchange.
