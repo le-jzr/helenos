@@ -102,7 +102,7 @@ errno_t chardev_read(chardev_t *chardev, void *buf, size_t size, size_t *nread)
 
 	ipc_call_t answer;
 	errno_t rc = async_read(chardev->sess, CHARDEV_READ, 0, 0, 0, 0,
-	    buf, size, nread, &answer);
+	    &answer, buf, size, nread);
 
 	if (rc != EOK) {
 		*nread = 0;
@@ -139,7 +139,7 @@ static errno_t chardev_write_once(chardev_t *chardev, const void *data,
 
 	ipc_call_t answer;
 	errno_t rc = async_write(chardev->sess, CHARDEV_WRITE, 0, 0, 0, 0,
-	    data, size, nwritten, &answer);
+	    &answer, data, size, nwritten);
 
 	if (rc != EOK) {
 		*nwritten = 0;

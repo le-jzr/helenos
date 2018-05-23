@@ -49,7 +49,7 @@ errno_t
 clock_dev_time_get(async_sess_t *sess, struct tm *t)
 {
 	return async_read(sess, DEV_IFACE_ID(CLOCK_DEV_IFACE),
-	    CLOCK_DEV_TIME_GET, 0, 0, 0, t, sizeof(*t), NULL, NULL);
+	    CLOCK_DEV_TIME_GET, 0, 0, 0, NULL, t, sizeof(*t), NULL);
 }
 
 /** Set the current time
@@ -63,7 +63,7 @@ errno_t
 clock_dev_time_set(async_sess_t *sess, struct tm *t)
 {
 	return async_write(sess, DEV_IFACE_ID(CLOCK_DEV_IFACE),
-	    CLOCK_DEV_TIME_SET, 0, 0, 0, t, sizeof(*t), NULL, NULL);
+	    CLOCK_DEV_TIME_SET, 0, 0, 0, NULL, t, sizeof(*t), NULL);
 }
 
 /** @}

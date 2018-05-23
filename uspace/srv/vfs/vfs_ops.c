@@ -148,8 +148,8 @@ static errno_t vfs_connect_internal(service_id_t service_id, unsigned flags,
 	/* Tell the mountee that it is being mounted. */
 	ipc_call_t answer;
 	errno_t rc = async_write(vfs_session(fs_handle), VFS_OUT_MOUNTED,
-	    (sysarg_t) service_id, 0, 0, 0, options, str_size(options),
-	    NULL, &answer);
+	    (sysarg_t) service_id, 0, 0, 0, &answer,
+	    options, str_size(options), NULL);
 
 	if (rc != EOK)
 		return rc;
@@ -190,7 +190,7 @@ errno_t vfs_op_fsprobe(const char *fs_name, service_id_t sid,
 
 	/* Send probe request to the file system server */
 	return async_read(vfs_session(fs_handle), VFS_OUT_FSPROBE,
-	    (sysarg_t) sid, 0, 0, 0, info, sizeof(*info), NULL, NULL);
+	    (sysarg_t) sid, 0, 0, 0, NULL, info, sizeof(*info), NULL);
 }
 
 errno_t vfs_op_mount(int mpfd, unsigned service_id, unsigned flags,
@@ -365,7 +365,7 @@ static errno_t rdwr_ipc_internal(async_sess_t *sess, vfs_file_t *file, aoff64_t 
 
 	errno_t rc = async_read(sess, read ? VFS_OUT_READ : VFS_OUT_WRITE,
 	    file->node->service_id, file->node->index, LOWER32(pos),
-	    UPPER32(pos), chunk->buffer, chunk->size, NULL, answer);
+	    UPPER32(pos), answer, chunk->buffer, chunk->size, NULL);
 
 	if (rc == EOK)
 		chunk->size = IPC_GET_ARG1(*answer);

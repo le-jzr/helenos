@@ -54,67 +54,13 @@
  * @return Error code.
  *
  */
-errno_t usbvirt_ipc_send_control_read(async_sess_t *sess, void *setup_buffer,
+errno_t usbvirt_ipc_send_control_read(async_sess_t *sess, const void *setup_buffer,
     size_t setup_buffer_size, void *data_buffer, size_t data_buffer_size,
     size_t *data_transferred_size)
 {
-	if (!sess)
-		return EINVAL;
-
-	if ((setup_buffer == NULL) || (setup_buffer_size == 0))
-		return EINVAL;
-
-	if ((data_buffer == NULL) || (data_buffer_size == 0))
-		return EINVAL;
-
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	aid_t opening_request = async_send_0(exch, IPC_M_USBVIRT_CONTROL_READ,
-	    NULL);
-	if (opening_request == 0) {
-		async_exchange_end(exch);
-		return ENOMEM;
-	}
-
-	errno_t rc = async_data_write_start(exch, setup_buffer,
-	    setup_buffer_size);
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(opening_request);
-		return rc;
-	}
-
-	ipc_call_t data_request_call;
-	aid_t data_request = async_data_read(exch, data_buffer,
-	    data_buffer_size, &data_request_call);
-
-	async_exchange_end(exch);
-
-	if (data_request == 0) {
-		async_forget(opening_request);
-		return ENOMEM;
-	}
-
-	errno_t data_request_rc;
-	errno_t opening_request_rc;
-	async_wait_for(data_request, &data_request_rc);
-	async_wait_for(opening_request, &opening_request_rc);
-
-	if (data_request_rc != EOK) {
-		/* Prefer the return code of the opening request. */
-		if (opening_request_rc != EOK)
-			return (errno_t) opening_request_rc;
-		else
-			return (errno_t) data_request_rc;
-	}
-
-	if (opening_request_rc != EOK)
-		return (errno_t) opening_request_rc;
-
-	if (data_transferred_size != NULL)
-		*data_transferred_size = IPC_GET_ARG2(data_request_call);
-
-	return EOK;
+	return async_write_read(sess, IPC_M_USBVIRT_CONTROL_READ, 0, 0, 0, 0,
+	    NULL, setup_buffer, setup_buffer_size, data_buffer,
+	    data_buffer_size, data_transferred_size);
 }
 
 /** Send control write transfer to virtual USB device.
@@ -129,8 +75,8 @@ errno_t usbvirt_ipc_send_control_read(async_sess_t *sess, void *setup_buffer,
  * @return Error code.
  *
  */
-errno_t usbvirt_ipc_send_control_write(async_sess_t *sess, void *setup_buffer,
-    size_t setup_buffer_size, void *data_buffer, size_t data_buffer_size)
+errno_t usbvirt_ipc_send_control_write(async_sess_t *sess, const void *setup_buffer,
+    size_t setup_buffer_size, const void *data_buffer, size_t data_buffer_size)
 {
 	if (!sess)
 		return EINVAL;
@@ -141,39 +87,10 @@ errno_t usbvirt_ipc_send_control_write(async_sess_t *sess, void *setup_buffer,
 	if ((data_buffer_size > 0) && (data_buffer == NULL))
 		return EINVAL;
 
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	aid_t opening_request = async_send_1(exch, IPC_M_USBVIRT_CONTROL_WRITE,
-	    data_buffer_size, NULL);
-	if (opening_request == 0) {
-		async_exchange_end(exch);
-		return ENOMEM;
-	}
-
-	errno_t rc = async_data_write_start(exch, setup_buffer,
-	    setup_buffer_size);
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(opening_request);
-		return rc;
-	}
-
-	if (data_buffer_size > 0) {
-		rc = async_data_write_start(exch, data_buffer,
-		    data_buffer_size);
-		if (rc != EOK) {
-			async_exchange_end(exch);
-			async_forget(opening_request);
-			return rc;
-		}
-	}
-
-	async_exchange_end(exch);
-
-	errno_t opening_request_rc;
-	async_wait_for(opening_request, &opening_request_rc);
-
-	return (errno_t) opening_request_rc;
+	return async_write_2(sess, IPC_M_USBVIRT_CONTROL_WRITE,
+	    data_buffer_size, 0, 0, 0, NULL,
+	    setup_buffer, setup_buffer_size, NULL,
+	    data_buffer, data_buffer_size, NULL);
 }
 
 /** Request data transfer from virtual USB device.
@@ -191,9 +108,6 @@ errno_t usbvirt_ipc_send_control_write(async_sess_t *sess, void *setup_buffer,
 errno_t usbvirt_ipc_send_data_in(async_sess_t *sess, usb_endpoint_t ep,
     usb_transfer_type_t tr_type, void *data, size_t data_size, size_t *act_size)
 {
-	if (!sess)
-		return EINVAL;
-
 	usbvirt_hc_to_device_method_t method;
 
 	switch (tr_type) {
@@ -210,48 +124,8 @@ errno_t usbvirt_ipc_send_data_in(async_sess_t *sess, usb_endpoint_t ep,
 	if ((ep <= 0) || (ep >= USBVIRT_ENDPOINT_MAX))
 		return EINVAL;
 
-	if ((data == NULL) || (data_size == 0))
-		return EINVAL;
-
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	aid_t opening_request = async_send_2(exch, method, ep, tr_type, NULL);
-	if (opening_request == 0) {
-		async_exchange_end(exch);
-		return ENOMEM;
-	}
-
-	ipc_call_t data_request_call;
-	aid_t data_request = async_data_read(exch, data, data_size,
-	    &data_request_call);
-
-	async_exchange_end(exch);
-
-	if (data_request == 0) {
-		async_forget(opening_request);
-		return ENOMEM;
-	}
-
-	errno_t data_request_rc;
-	errno_t opening_request_rc;
-	async_wait_for(data_request, &data_request_rc);
-	async_wait_for(opening_request, &opening_request_rc);
-
-	if (data_request_rc != EOK) {
-		/* Prefer the return code of the opening request. */
-		if (opening_request_rc != EOK)
-			return (errno_t) opening_request_rc;
-		else
-			return (errno_t) data_request_rc;
-	}
-
-	if (opening_request_rc != EOK)
-		return (errno_t) opening_request_rc;
-
-	if (act_size != NULL)
-		*act_size = IPC_GET_ARG2(data_request_call);
-
-	return EOK;
+	return async_read(sess, method, ep, tr_type, 0, 0, NULL,
+	    data, data_size, act_size);
 }
 
 /** Send data to virtual USB device.

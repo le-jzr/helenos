@@ -157,14 +157,14 @@ void dnsr_hostinfo_destroy(dnsr_hostinfo_t *info)
 
 errno_t dnsr_get_srvaddr(inet_addr_t *srvaddr)
 {
-	return async_read(dnsr_session(), DNSR_GET_SRVADDR, 0, 0, 0, 0,
-	    srvaddr, sizeof(*srvaddr), NULL, NULL);
+	return async_read(dnsr_session(), DNSR_GET_SRVADDR, 0, 0, 0, 0, NULL,
+	    srvaddr, sizeof(*srvaddr), NULL);
 }
 
 errno_t dnsr_set_srvaddr(inet_addr_t *srvaddr)
 {
-	return async_write(dnsr_session(), DNSR_SET_SRVADDR, 0, 0, 0, 0,
-	    srvaddr, sizeof(*srvaddr), NULL, NULL);
+	return async_write(dnsr_session(), DNSR_SET_SRVADDR, 0, 0, 0, 0, NULL,
+	    srvaddr, sizeof(*srvaddr), NULL);
 }
 
 /** @}

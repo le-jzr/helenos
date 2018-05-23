@@ -85,20 +85,20 @@ void bd_close(bd_t *bd)
 errno_t bd_read_blocks(bd_t *bd, aoff64_t ba, size_t cnt, void *data, size_t size)
 {
 	return async_read(bd->sess, BD_READ_BLOCKS, LOWER32(ba),
-	    UPPER32(ba), cnt, 0, data, size, NULL, NULL);
+	    UPPER32(ba), cnt, 0, NULL, data, size, NULL);
 }
 
 errno_t bd_read_toc(bd_t *bd, uint8_t session, void *buf, size_t size)
 {
-	return async_read(bd->sess, BD_READ_TOC, session, 0, 0, 0,
-	    buf, size, NULL, NULL);
+	return async_read(bd->sess, BD_READ_TOC, session, 0, 0, 0, NULL,
+	    buf, size, NULL);
 }
 
 errno_t bd_write_blocks(bd_t *bd, aoff64_t ba, size_t cnt, const void *data,
     size_t size)
 {
 	return async_write(bd->sess, BD_WRITE_BLOCKS, LOWER32(ba),
-	    UPPER32(ba), cnt, 0, data, size, NULL, NULL);
+	    UPPER32(ba), cnt, 0, NULL, data, size, NULL);
 }
 
 errno_t bd_sync_cache(bd_t *bd, aoff64_t ba, size_t cnt)

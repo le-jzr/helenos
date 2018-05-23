@@ -111,6 +111,7 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <libarch/barrier.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <mem.h>
@@ -2752,9 +2753,19 @@ errno_t async_share_out_finalize(cap_call_handle_t chandle, void **dst)
 }
 
 errno_t async_write_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, const void *src, size_t srcsize,
-    void *dst, size_t dstsize, size_t *out_dstsize, ipc_call_t *answer)
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
+    const void *src, size_t srcsize, void *dst, size_t dstsize,
+    size_t *out_dstsize)
 {
+	if (!sess)
+		return EINVAL;
+
+	if (src == NULL && srcsize != 0)
+		return EINVAL;
+
+	if (dst == NULL && dstsize != 0)
+		return EINVAL;
+
 	async_exch_t *exch = async_exchange_begin(sess);
 
 	aid_t opening_request = async_send_fast(exch, imethod,
@@ -2810,8 +2821,8 @@ errno_t async_write_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
 }
 
 errno_t async_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, void *dst, size_t dstsize,
-    size_t *out_size, ipc_call_t *answer)
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
+    void *dst, size_t dstsize, size_t *out_size)
 {
 	async_exch_t *exch = async_exchange_begin(sess);
 
@@ -2851,9 +2862,62 @@ errno_t async_read(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
 	return EOK;
 }
 
+errno_t async_write_n(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer, int n, ...)
+{
+	async_exch_t *exch = async_exchange_begin(sess);
+
+	aid_t opening_request = async_send_fast(exch, imethod,
+	    arg1, arg2, arg3, arg4, answer);
+
+	if (opening_request == 0) {
+		async_exchange_end(exch);
+		return ENOMEM;
+	}
+
+	va_list ap;
+	va_start(ap, n);
+	errno_t rc = EOK;
+
+	while (n--) {
+		const void *src = va_arg(ap, const void *);
+		size_t srcsize = va_arg(ap, size_t);
+		size_t *out_written = va_arg(ap, size_t *);
+
+		ipc_call_t write_answer;
+		aid_t write_request = async_send_2(exch, IPC_M_DATA_WRITE,
+		    (sysarg_t) src, (sysarg_t) srcsize, &write_answer);
+
+		if (write_request == 0) {
+			rc = ENOMEM;
+			break;
+		}
+
+		async_wait_for(write_request, &rc);
+
+		if (rc != EOK)
+			break;
+
+		if (out_written)
+			*out_written = IPC_GET_ARG2(write_answer);
+	}
+
+	va_end(ap);
+
+	async_exchange_end(exch);
+
+	if (rc != EOK) {
+		async_forget(opening_request);
+		return rc;
+	}
+
+	async_wait_for(opening_request, &rc);
+	return rc;
+}
+
 errno_t async_write(async_sess_t *sess, sysarg_t imethod, sysarg_t arg1,
-    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, const void *src,
-    size_t srcsize, size_t *out_written, ipc_call_t *answer)
+    sysarg_t arg2, sysarg_t arg3, sysarg_t arg4, ipc_call_t *answer,
+    const void *src, size_t srcsize, size_t *out_written)
 {
 	async_exch_t *exch = async_exchange_begin(sess);
 

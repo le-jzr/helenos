@@ -450,7 +450,7 @@ errno_t tcp_conn_wait_connected(tcp_conn_t *conn)
 errno_t tcp_conn_send(tcp_conn_t *conn, const void *data, size_t bytes)
 {
 	return async_write(conn->tcp->sess, TCP_CONN_SEND, conn->id, 0, 0, 0,
-	    data, bytes, NULL, NULL);
+	    NULL, data, bytes, NULL);
 }
 
 /** Send FIN.
@@ -524,7 +524,7 @@ errno_t tcp_conn_recv(tcp_conn_t *conn, void *buf, size_t bsize, size_t *nrecv)
 {
 	fibril_mutex_lock(&conn->lock);
 	errno_t rc = async_read(conn->tcp->sess, TCP_CONN_RECV,
-	    conn->id, 0, 0, 0, buf, bsize, nrecv, NULL);
+	    conn->id, 0, 0, 0, NULL, buf, bsize, nrecv);
 	fibril_mutex_unlock(&conn->lock);
 	return rc;
 }
@@ -556,7 +556,7 @@ errno_t tcp_conn_recv_wait(tcp_conn_t *conn, void *buf, size_t bsize,
 		}
 
 		errno_t rc = async_read(conn->tcp->sess, TCP_CONN_RECV_WAIT,
-		    conn->id, 0, 0, 0, buf, bsize, nrecv, NULL);
+		    conn->id, 0, 0, 0, NULL, buf, bsize, nrecv);
 
 		if (rc == EAGAIN)
 			conn->data_avail = false;

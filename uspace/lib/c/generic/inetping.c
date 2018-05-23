@@ -118,8 +118,8 @@ errno_t inetping_send(inetping_sdu_t *sdu)
 errno_t inetping_get_srcaddr(const inet_addr_t *remote, inet_addr_t *local)
 {
 	return async_write_read(inetping_sess, INETPING_GET_SRCADDR,
-	    0, 0, 0, 0, remote, sizeof(*remote), local, sizeof(*local),
-	    NULL, NULL);
+	    0, 0, 0, 0, NULL, remote, sizeof(*remote), local, sizeof(*local),
+	    NULL);
 }
 
 static void inetping_ev_recv(cap_call_handle_t icall_handle, ipc_call_t *icall)

@@ -57,8 +57,8 @@ static void receive_device_name(async_sess_t *sess)
 {
 	size_t len;
 
-	errno_t rc = async_read(sess, IPC_M_USBVIRT_GET_NAME, 0, 0, 0, 0,
-	    plugged_device_name, PLUGGED_DEVICE_NAME_MAXLEN, &len, NULL);
+	errno_t rc = async_read(sess, IPC_M_USBVIRT_GET_NAME, 0, 0, 0, 0, NULL,
+	    plugged_device_name, PLUGGED_DEVICE_NAME_MAXLEN, &len);
 
 	if (rc != EOK)
 		return;

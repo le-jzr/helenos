@@ -319,8 +319,8 @@ size_t udp_rmsg_size(udp_rmsg_t *rmsg)
  */
 errno_t udp_rmsg_read(udp_rmsg_t *rmsg, size_t off, void *buf, size_t bsize)
 {
-	return async_read(rmsg->udp->sess, UDP_RMSG_READ, off, 0, 0, 0,
-	    buf, bsize, NULL, NULL);
+	return async_read(rmsg->udp->sess, UDP_RMSG_READ, off, 0, 0, 0, NULL,
+	    buf, bsize, NULL);
 }
 
 /** Get remote endpoint of received message.
@@ -367,8 +367,8 @@ static errno_t udp_rmsg_info(udp_t *udp, udp_rmsg_t *rmsg)
 {
 	inet_ep_t ep;
 	ipc_call_t answer;
-	errno_t rc = async_read(udp->sess, UDP_RMSG_INFO, 0, 0, 0, 0,
-	    &ep, sizeof(ep), NULL, &answer);
+	errno_t rc = async_read(udp->sess, UDP_RMSG_INFO, 0, 0, 0, 0, &answer,
+	    &ep, sizeof(ep), NULL);
 
 	if (rc != EOK) {
 		return rc;
