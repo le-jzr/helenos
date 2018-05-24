@@ -86,54 +86,17 @@ void iplink_close(iplink_t *iplink)
 
 errno_t iplink_send(iplink_t *iplink, iplink_sdu_t *sdu)
 {
-	async_exch_t *exch = async_exchange_begin(iplink->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_2(exch, IPLINK_SEND, (sysarg_t) sdu->src,
-	    (sysarg_t) sdu->dest, &answer);
-
-	errno_t rc = async_data_write_start(exch, sdu->data, sdu->size);
-
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write(iplink->sess,
+	    IPLINK_SEND, (sysarg_t) sdu->src, (sysarg_t) sdu->dest, 0, 0, NULL,
+	    sdu->data, sdu->size, NULL);
 }
 
 errno_t iplink_send6(iplink_t *iplink, iplink_sdu6_t *sdu)
 {
-	async_exch_t *exch = async_exchange_begin(iplink->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, IPLINK_SEND6, &answer);
-
-	errno_t rc = async_data_write_start(exch, &sdu->dest, sizeof(addr48_t));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
-
-	rc = async_data_write_start(exch, sdu->data, sdu->size);
-
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write_2(iplink->sess,
+	    IPLINK_SEND6, 0, 0, 0, 0, NULL,
+	    &sdu->dest, sizeof(sdu->dest), NULL,
+	    sdu->data, sdu->size, NULL);
 }
 
 errno_t iplink_get_mtu(iplink_t *iplink, size_t *rmtu)
@@ -154,89 +117,31 @@ errno_t iplink_get_mtu(iplink_t *iplink, size_t *rmtu)
 
 errno_t iplink_get_mac48(iplink_t *iplink, addr48_t *mac)
 {
-	async_exch_t *exch = async_exchange_begin(iplink->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, IPLINK_GET_MAC48, &answer);
-
-	errno_t rc = async_data_read_start(exch, mac, sizeof(addr48_t));
-
-	loc_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_read(iplink->sess,
+	    IPLINK_GET_MAC48, 0, 0, 0, 0, NULL,
+	    mac, sizeof(addr48_t), NULL);
 }
 
 errno_t iplink_set_mac48(iplink_t *iplink, addr48_t mac)
 {
-	async_exch_t *exch = async_exchange_begin(iplink->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, IPLINK_GET_MAC48, &answer);
-
-	errno_t rc = async_data_read_start(exch, mac, sizeof(addr48_t));
-
-	loc_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write(iplink->sess,
+	    IPLINK_SET_MAC48, 0, 0, 0, 0, NULL,
+	    mac, sizeof(addr48_t), NULL);
 }
 
 
 errno_t iplink_addr_add(iplink_t *iplink, inet_addr_t *addr)
 {
-	async_exch_t *exch = async_exchange_begin(iplink->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, IPLINK_ADDR_ADD, &answer);
-
-	errno_t rc = async_data_write_start(exch, addr, sizeof(inet_addr_t));
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write(iplink->sess,
+	    IPLINK_ADDR_ADD, 0, 0, 0, 0, NULL,
+	    addr, sizeof(*addr), NULL);
 }
 
 errno_t iplink_addr_remove(iplink_t *iplink, inet_addr_t *addr)
 {
-	async_exch_t *exch = async_exchange_begin(iplink->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, IPLINK_ADDR_REMOVE, &answer);
-
-	errno_t rc = async_data_write_start(exch, addr, sizeof(inet_addr_t));
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write(iplink->sess,
+	    IPLINK_ADDR_REMOVE, 0, 0, 0, 0, NULL,
+	    addr, sizeof(*addr), NULL);
 }
 
 void *iplink_get_userptr(iplink_t *iplink)

@@ -175,7 +175,7 @@ extern errno_t usbhc_release_default_address(async_exch_t *);
 extern errno_t usbhc_device_enumerate(async_exch_t *, unsigned, usb_speed_t);
 extern errno_t usbhc_device_remove(async_exch_t *, unsigned);
 
-extern errno_t usbhc_register_endpoint(async_exch_t *, usb_pipe_desc_t *, const usb_endpoint_descriptors_t *);
+extern errno_t usbhc_register_endpoint(async_sess_t *, usb_pipe_desc_t *, const usb_endpoint_descriptors_t *);
 extern errno_t usbhc_unregister_endpoint(async_exch_t *, const usb_pipe_desc_t *);
 
 extern errno_t usbhc_transfer(async_exch_t *, const usbhc_iface_transfer_request_t *, size_t *);

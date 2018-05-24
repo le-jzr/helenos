@@ -411,10 +411,6 @@ errno_t usb_pipe_register(usb_pipe_t *pipe,
 	assert(pipe->bus_session);
 	assert(ep_desc);
 
-	async_exch_t *exch = async_exchange_begin(pipe->bus_session);
-	if (!exch)
-		return ENOMEM;
-
 	usb_endpoint_descriptors_t descriptors = { 0 };
 
 #define COPY(field) descriptors.endpoint.field = ep_desc->field
@@ -432,10 +428,8 @@ errno_t usb_pipe_register(usb_pipe_t *pipe,
 	}
 #undef COPY
 
-	const errno_t ret = usbhc_register_endpoint(exch,
+	return usbhc_register_endpoint(pipe->bus_session,
 	    &pipe->desc, &descriptors);
-	async_exchange_end(exch);
-	return ret;
 }
 
 /** Revert endpoint registration with the host controller.

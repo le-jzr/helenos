@@ -50,15 +50,13 @@
 static FIBRIL_MUTEX_INITIALIZE(clip_mutex);
 static async_sess_t *clip_sess = NULL;
 
-/** Start an async exchange on the clipboard session.
- *
- * @return New exchange.
- *
- */
-static async_exch_t *clip_exchange_begin(void)
+static async_sess_t *clip_session(void)
 {
 	service_id_t sid;
 	errno_t rc;
+
+	if (clip_sess != NULL)
+		return clip_sess;
 
 	fibril_mutex_lock(&clip_mutex);
 
@@ -74,7 +72,17 @@ static async_exch_t *clip_exchange_begin(void)
 
 	fibril_mutex_unlock(&clip_mutex);
 
-	return async_exchange_begin(clip_sess);
+	return clip_sess;
+}
+
+/** Start an async exchange on the clipboard session.
+ *
+ * @return New exchange.
+ *
+ */
+static async_exch_t *clip_exchange_begin(void)
+{
+	return async_exchange_begin(clip_session());
 }
 
 /** Finish an async exchange on the clipboard session.
@@ -109,24 +117,9 @@ errno_t clipboard_put_str(const char *str)
 
 		return (errno_t) rc;
 	} else {
-		async_exch_t *exch = clip_exchange_begin();
-		aid_t req = async_send_1(exch, CLIPBOARD_PUT_DATA, CLIPBOARD_TAG_DATA,
-		    NULL);
-		errno_t rc = async_data_write_start(exch, (void *) str, size);
-		clip_exchange_end(exch);
-
-		if (rc != EOK) {
-			errno_t rc_orig;
-			async_wait_for(req, &rc_orig);
-			if (rc_orig == EOK)
-				return (errno_t) rc;
-			else
-				return (errno_t) rc_orig;
-		}
-
-		async_wait_for(req, &rc);
-
-		return (errno_t) rc;
+		return async_write(clip_session(),
+		    CLIPBOARD_PUT_DATA, CLIPBOARD_TAG_DATA, 0, 0, 0, NULL,
+		    str, size, NULL);
 	}
 }
 
@@ -170,29 +163,17 @@ errno_t clipboard_get_str(char **str)
 			if (sbuf == NULL)
 				return ENOMEM;
 
-			exch = clip_exchange_begin();
-			aid_t req = async_send_1(exch, CLIPBOARD_GET_DATA, tag, NULL);
-			rc = async_data_read_start(exch, (void *) sbuf, size);
-			clip_exchange_end(exch);
+			errno_t rc = async_read(clip_session(),
+			    CLIPBOARD_GET_DATA, tag, 0, 0, 0, NULL,
+			    sbuf, size, NULL);
 
 			if ((errno_t) rc == EOVERFLOW) {
 				/*
-				 * The data in the clipboard has changed since
-				 * the last call of CLIPBOARD_CONTENT
-				 */
-				break;
+				* The data in the clipboard has changed since
+				* the last call of CLIPBOARD_CONTENT
+				*/
+				continue;
 			}
-
-			if (rc != EOK) {
-				errno_t rc_orig;
-				async_wait_for(req, &rc_orig);
-				if (rc_orig == EOK)
-					return (errno_t) rc;
-				else
-					return (errno_t) rc_orig;
-			}
-
-			async_wait_for(req, &rc);
 
 			if (rc == EOK) {
 				sbuf[size] = 0;

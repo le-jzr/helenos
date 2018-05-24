@@ -58,94 +58,30 @@ errno_t visualizer_yield(async_sess_t *sess)
 
 errno_t visualizer_enumerate_modes(async_sess_t *sess, vslmode_t *mode, sysarg_t nth)
 {
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_1(exch, VISUALIZER_ENUMERATE_MODES, nth, &answer);
-
-	errno_t rc = async_data_read_start(exch, mode, sizeof(vslmode_t));
-
-	async_exchange_end(exch);
-
-	errno_t ret;
-	async_wait_for(req, &ret);
-
-	if (rc != EOK) {
-		return rc;
-	} else if (ret != EOK) {
-		return ret;
-	} else {
-		return EOK;
-	}
+	return async_read(sess,
+	    VISUALIZER_ENUMERATE_MODES, nth, 0, 0, 0, NULL,
+	    mode, sizeof(*mode), NULL);
 }
 
 errno_t visualizer_get_default_mode(async_sess_t *sess, vslmode_t *mode)
 {
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, VISUALIZER_GET_DEFAULT_MODE, &answer);
-
-	errno_t rc = async_data_read_start(exch, mode, sizeof(vslmode_t));
-
-	async_exchange_end(exch);
-
-	errno_t ret;
-	async_wait_for(req, &ret);
-
-	if (rc != EOK) {
-		return rc;
-	} else if (ret != EOK) {
-		return ret;
-	} else {
-		return EOK;
-	}
+	return async_read(sess,
+	    VISUALIZER_GET_DEFAULT_MODE, 0, 0, 0, 0, NULL,
+	    mode, sizeof(*mode), NULL);
 }
 
 errno_t visualizer_get_current_mode(async_sess_t *sess, vslmode_t *mode)
 {
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, VISUALIZER_GET_CURRENT_MODE, &answer);
-
-	errno_t rc = async_data_read_start(exch, mode, sizeof(vslmode_t));
-
-	async_exchange_end(exch);
-
-	errno_t ret;
-	async_wait_for(req, &ret);
-
-	if (rc != EOK) {
-		return rc;
-	} else if (ret != EOK) {
-		return ret;
-	} else {
-		return EOK;
-	}
+	return async_read(sess,
+	    VISUALIZER_GET_CURRENT_MODE, 0, 0, 0, 0, NULL,
+	    mode, sizeof(*mode), NULL);
 }
 
 errno_t visualizer_get_mode(async_sess_t *sess, vslmode_t *mode, sysarg_t index)
 {
-	async_exch_t *exch = async_exchange_begin(sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_1(exch, VISUALIZER_GET_MODE, index, &answer);
-
-	errno_t rc = async_data_read_start(exch, mode, sizeof(vslmode_t));
-
-	async_exchange_end(exch);
-
-	errno_t ret;
-	async_wait_for(req, &ret);
-
-	if (rc != EOK) {
-		return rc;
-	} else if (ret != EOK) {
-		return ret;
-	} else {
-		return EOK;
-	}
+	return async_read(sess,
+	    VISUALIZER_GET_MODE, index, 0, 0, 0, NULL,
+	    mode, sizeof(*mode), NULL);
 }
 
 errno_t visualizer_set_mode(async_sess_t *sess, sysarg_t index, sysarg_t version, void *cells)

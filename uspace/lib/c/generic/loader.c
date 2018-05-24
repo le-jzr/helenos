@@ -88,22 +88,9 @@ loader_t *loader_connect(void)
  */
 errno_t loader_get_task_id(loader_t *ldr, task_id_t *task_id)
 {
-	/* Get task ID. */
-	async_exch_t *exch = async_exchange_begin(ldr->sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, LOADER_GET_TASKID, &answer);
-	errno_t rc = async_data_read_start(exch, task_id, sizeof(task_id_t));
-
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return (errno_t) rc;
-	}
-
-	async_wait_for(req, &rc);
-	return (errno_t) rc;
+	return async_read(ldr->sess,
+	    LOADER_GET_TASKID, 0, 0, 0, 0, NULL,
+	    task_id, sizeof(*task_id), NULL);
 }
 
 /** Set current working directory for the loaded task.
@@ -126,22 +113,12 @@ errno_t loader_set_cwd(loader_t *ldr)
 
 	size_t len = str_length(cwd);
 
-	async_exch_t *exch = async_exchange_begin(ldr->sess);
+	errno_t rc = async_write(ldr->sess,
+	    LOADER_SET_CWD, 0, 0, 0, 0, NULL,
+	    cwd, len, NULL);
 
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, LOADER_SET_CWD, &answer);
-	errno_t rc = async_data_write_start(exch, cwd, len);
-
-	async_exchange_end(exch);
 	free(cwd);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return (errno_t) rc;
-	}
-
-	async_wait_for(req, &rc);
-	return (errno_t) rc;
+	return rc;
 }
 
 /** Set the program to load.
@@ -247,23 +224,12 @@ errno_t loader_set_args(loader_t *ldr, const char *const argv[])
 	}
 
 	/* Send serialized arguments to the loader */
-	async_exch_t *exch = async_exchange_begin(ldr->sess);
+	errno_t rc = async_write(ldr->sess,
+	    LOADER_SET_ARGS, 0, 0, 0, 0, NULL,
+	    arg_buf, buffer_size, NULL);
 
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, LOADER_SET_ARGS, &answer);
-	errno_t rc = async_data_write_start(exch, (void *) arg_buf,
-	    buffer_size);
-
-	async_exchange_end(exch);
 	free(arg_buf);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return (errno_t) rc;
-	}
-
-	async_wait_for(req, &rc);
-	return (errno_t) rc;
+	return rc;
 }
 
 /** Add a file to the task's inbox.

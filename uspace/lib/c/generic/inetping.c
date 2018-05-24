@@ -81,38 +81,11 @@ errno_t inetping_init(inetping_ev_ops_t *ev_ops)
 
 errno_t inetping_send(inetping_sdu_t *sdu)
 {
-	async_exch_t *exch = async_exchange_begin(inetping_sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_1(exch, INETPING_SEND, sdu->seq_no, &answer);
-
-	errno_t rc = async_data_write_start(exch, &sdu->src, sizeof(sdu->src));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
-
-	rc = async_data_write_start(exch, &sdu->dest, sizeof(sdu->dest));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
-
-	rc = async_data_write_start(exch, sdu->data, sdu->size);
-
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write_3(inetping_sess,
+	    INETPING_SEND, sdu->seq_no, 0, 0, 0, NULL,
+	    &sdu->src, sizeof(sdu->src), NULL,
+	    &sdu->dest, sizeof(sdu->dest), NULL,
+	    sdu->data, sdu->size, NULL);
 }
 
 errno_t inetping_get_srcaddr(const inet_addr_t *remote, inet_addr_t *local)

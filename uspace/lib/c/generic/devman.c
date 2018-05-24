@@ -487,28 +487,15 @@ errno_t devman_fun_offline(devman_handle_t funh)
 static errno_t devman_get_handles_once(sysarg_t method, sysarg_t arg1,
     devman_handle_t *handle_buf, size_t buf_size, size_t *act_size)
 {
-	async_exch_t *exch = devman_exchange_begin_blocking(INTERFACE_DDF_CLIENT);
-
 	ipc_call_t answer;
-	aid_t req = async_send_1(exch, method, arg1, &answer);
-	errno_t rc = async_data_read_start(exch, handle_buf, buf_size);
+	errno_t rc = async_read(devman_session_blocking(INTERFACE_DDF_CLIENT),
+	    method, arg1, 0, 0, 0, &answer,
+	    handle_buf, buf_size, NULL);
 
-	devman_exchange_end(exch);
+	if (rc == EOK && act_size)
+		*act_size = IPC_GET_ARG1(answer);
 
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK) {
-		return retval;
-	}
-
-	*act_size = IPC_GET_ARG1(answer);
-	return EOK;
+	return rc;
 }
 
 /** Get list of handles.

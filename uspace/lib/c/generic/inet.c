@@ -111,68 +111,19 @@ errno_t inet_init(uint8_t protocol, inet_ev_ops_t *ev_ops)
 
 errno_t inet_send(inet_dgram_t *dgram, uint8_t ttl, inet_df_t df)
 {
-	async_exch_t *exch = async_exchange_begin(inet_sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_4(exch, INET_SEND, dgram->iplink, dgram->tos,
-	    ttl, df, &answer);
-
-	errno_t rc = async_data_write_start(exch, &dgram->src, sizeof(inet_addr_t));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
-
-	rc = async_data_write_start(exch, &dgram->dest, sizeof(inet_addr_t));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
-
-	rc = async_data_write_start(exch, dgram->data, dgram->size);
-
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write_3(inet_sess,
+	    INET_SEND, dgram->iplink, dgram->tos, ttl, df, NULL,
+	    &dgram->src, sizeof(dgram->src), NULL,
+	    &dgram->dest, sizeof(dgram->dest), NULL,
+	    dgram->data, dgram->size, NULL);
 }
 
 errno_t inet_get_srcaddr(inet_addr_t *remote, uint8_t tos, inet_addr_t *local)
 {
-	async_exch_t *exch = async_exchange_begin(inet_sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_1(exch, INET_GET_SRCADDR, tos, &answer);
-
-	errno_t rc = async_data_write_start(exch, remote, sizeof(inet_addr_t));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
-
-	rc = async_data_read_start(exch, local, sizeof(inet_addr_t));
-
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	return retval;
+	return async_write_read(inet_sess,
+	    INET_GET_SRCADDR, tos, 0, 0, 0, NULL,
+	    remote, sizeof(*remote),
+	    local, sizeof(*local), NULL);
 }
 
 static void inet_ev_recv(cap_call_handle_t icall_handle, ipc_call_t *icall)

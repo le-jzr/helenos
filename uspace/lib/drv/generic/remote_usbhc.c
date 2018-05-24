@@ -111,45 +111,24 @@ errno_t usbhc_device_remove(async_exch_t *exch, unsigned port)
 	    IPC_M_USB_DEVICE_REMOVE, port);
 }
 
-errno_t usbhc_register_endpoint(async_exch_t *exch, usb_pipe_desc_t *pipe_desc,
+errno_t usbhc_register_endpoint(async_sess_t *sess, usb_pipe_desc_t *pipe_desc,
     const usb_endpoint_descriptors_t *desc)
 {
-	if (!exch)
-		return EBADMEM;
+	if (!sess)
+		return EINVAL;
 
 	if (!desc)
 		return EINVAL;
 
-	aid_t opening_request = async_send_1(exch,
-	    DEV_IFACE_ID(USBHC_DEV_IFACE), IPC_M_USB_REGISTER_ENDPOINT, NULL);
-
-	if (opening_request == 0) {
-		return ENOMEM;
-	}
-
-	errno_t ret = async_data_write_start(exch, desc, sizeof(*desc));
-	if (ret != EOK) {
-		async_forget(opening_request);
-		return ret;
-	}
-
-	/* Wait for the answer. */
-	errno_t opening_request_rc;
-	async_wait_for(opening_request, &opening_request_rc);
-
-	if (opening_request_rc)
-		return (errno_t) opening_request_rc;
-
 	usb_pipe_desc_t dest;
-	ret = async_data_read_start(exch, &dest, sizeof(dest));
-	if (ret != EOK) {
-		return ret;
-	}
+	errno_t rc = async_write_read(sess,
+	    DEV_IFACE_ID(USBHC_DEV_IFACE), IPC_M_USB_REGISTER_ENDPOINT, 0, 0, 0,
+	    NULL, desc, sizeof(*desc), &dest, sizeof(dest), NULL);
 
-	if (pipe_desc)
+	if (rc == EOK && pipe_desc)
 		*pipe_desc = dest;
 
-	return EOK;
+	return rc;
 }
 
 errno_t usbhc_unregister_endpoint(async_exch_t *exch, const usb_pipe_desc_t *pipe_desc)

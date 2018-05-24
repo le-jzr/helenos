@@ -41,28 +41,15 @@ static async_sess_t *inetcfg_sess = NULL;
 static errno_t inetcfg_get_ids_once(sysarg_t method, sysarg_t arg1,
     sysarg_t *id_buf, size_t buf_size, size_t *act_size)
 {
-	async_exch_t *exch = async_exchange_begin(inetcfg_sess);
-
 	ipc_call_t answer;
-	aid_t req = async_send_1(exch, method, arg1, &answer);
-	errno_t rc = async_data_read_start(exch, id_buf, buf_size);
+	errno_t rc = async_read(inetcfg_sess,
+	    method, arg1, 0, 0, 0, &answer,
+	    id_buf, buf_size, NULL);
 
-	async_exchange_end(exch);
+	if (rc == EOK && act_size)
+		*act_size = IPC_GET_ARG1(answer);
 
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	if (retval != EOK) {
-		return retval;
-	}
-
-	*act_size = IPC_GET_ARG1(answer);
-	return EOK;
+	return rc;
 }
 
 /** Get list of IDs.
@@ -135,34 +122,16 @@ errno_t inetcfg_init(void)
 errno_t inetcfg_addr_create_static(const char *name, inet_naddr_t *naddr,
     sysarg_t link_id, sysarg_t *addr_id)
 {
-	async_exch_t *exch = async_exchange_begin(inetcfg_sess);
-
 	ipc_call_t answer;
-	aid_t req = async_send_1(exch, INETCFG_ADDR_CREATE_STATIC, link_id,
-	    &answer);
+	errno_t rc = async_write_2(inetcfg_sess,
+	    INETCFG_ADDR_CREATE_STATIC, link_id, 0, 0, 0, &answer,
+	    naddr, sizeof(*naddr), NULL,
+	    name, str_size(name), NULL);
 
-	errno_t rc = async_data_write_start(exch, naddr, sizeof(inet_naddr_t));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
+	if (rc == EOK && addr_id)
+		*addr_id = IPC_GET_ARG1(answer);
 
-	rc = async_data_write_start(exch, name, str_size(name));
-
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	*addr_id = IPC_GET_ARG1(answer);
-
-	return retval;
+	return rc;
 }
 
 errno_t inetcfg_addr_delete(sysarg_t addr_id)
@@ -198,23 +167,15 @@ errno_t inetcfg_addr_get(sysarg_t addr_id, inet_addr_info_t *ainfo)
 
 errno_t inetcfg_addr_get_id(const char *name, sysarg_t link_id, sysarg_t *addr_id)
 {
-	async_exch_t *exch = async_exchange_begin(inetcfg_sess);
-
 	ipc_call_t answer;
-	aid_t req = async_send_1(exch, INETCFG_ADDR_GET_ID, link_id, &answer);
-	errno_t retval = async_data_write_start(exch, name, str_size(name));
+	errno_t rc = async_write(inetcfg_sess,
+	    INETCFG_ADDR_GET_ID, link_id, 0, 0, 0, &answer,
+	    name, str_size(name), NULL);
 
-	async_exchange_end(exch);
+	if (rc == EOK && addr_id)
+		*addr_id = IPC_GET_ARG1(answer);
 
-	if (retval != EOK) {
-		async_forget(req);
-		return retval;
-	}
-
-	async_wait_for(req, &retval);
-	*addr_id = IPC_GET_ARG1(answer);
-
-	return retval;
+	return rc;
 }
 
 errno_t inetcfg_get_addr_list(sysarg_t **addrs, size_t *count)
@@ -280,40 +241,17 @@ errno_t inetcfg_link_remove(sysarg_t link_id)
 errno_t inetcfg_sroute_create(const char *name, inet_naddr_t *dest,
     inet_addr_t *router, sysarg_t *sroute_id)
 {
-	async_exch_t *exch = async_exchange_begin(inetcfg_sess);
-
 	ipc_call_t answer;
-	aid_t req = async_send_0(exch, INETCFG_SROUTE_CREATE, &answer);
+	errno_t rc = async_write_3(inetcfg_sess,
+	    INETCFG_SROUTE_CREATE, 0, 0, 0, 0, &answer,
+	    dest, sizeof(*dest), NULL,
+	    router, sizeof(*router), NULL,
+	    name, str_size(name), NULL);
 
-	errno_t rc = async_data_write_start(exch, dest, sizeof(inet_naddr_t));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
+	if (rc == EOK && sroute_id)
+		*sroute_id = IPC_GET_ARG1(answer);
 
-	rc = async_data_write_start(exch, router, sizeof(inet_addr_t));
-	if (rc != EOK) {
-		async_exchange_end(exch);
-		async_forget(req);
-		return rc;
-	}
-
-	rc = async_data_write_start(exch, name, str_size(name));
-
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-
-	*sroute_id = IPC_GET_ARG1(answer);
-
-	return retval;
+	return rc;
 }
 
 errno_t inetcfg_sroute_delete(sysarg_t sroute_id)
@@ -349,23 +287,15 @@ errno_t inetcfg_sroute_get(sysarg_t sroute_id, inet_sroute_info_t *srinfo)
 
 errno_t inetcfg_sroute_get_id(const char *name, sysarg_t *sroute_id)
 {
-	async_exch_t *exch = async_exchange_begin(inetcfg_sess);
-
 	ipc_call_t answer;
-	aid_t req = async_send_0(exch, INETCFG_SROUTE_GET_ID, &answer);
-	errno_t retval = async_data_write_start(exch, name, str_size(name));
+	errno_t rc = async_write(inetcfg_sess,
+	    INETCFG_SROUTE_GET_ID, 0, 0, 0, 0, &answer,
+	    name, str_size(name), NULL);
 
-	async_exchange_end(exch);
+	if (rc == EOK && sroute_id)
+		*sroute_id = IPC_GET_ARG1(answer);
 
-	if (retval != EOK) {
-		async_forget(req);
-		return retval;
-	}
-
-	async_wait_for(req, &retval);
-	*sroute_id = IPC_GET_ARG1(answer);
-
-	return retval;
+	return rc;
 }
 
 /** @}

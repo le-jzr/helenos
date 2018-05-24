@@ -303,55 +303,16 @@ errno_t iplink_conn(cap_call_handle_t icall_handle, ipc_call_t *icall, void *arg
 /* XXX Version should be part of @a sdu */
 errno_t iplink_ev_recv(iplink_srv_t *srv, iplink_recv_sdu_t *sdu, ip_ver_t ver)
 {
-	if (srv->client_sess == NULL)
-		return EIO;
-
-	async_exch_t *exch = async_exchange_begin(srv->client_sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_1(exch, IPLINK_EV_RECV, (sysarg_t)ver,
-	    &answer);
-
-	errno_t rc = async_data_write_start(exch, sdu->data, sdu->size);
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-	if (retval != EOK)
-		return retval;
-
-	return EOK;
+	return async_write(srv->client_sess,
+	    IPLINK_EV_RECV, (sysarg_t) ver, 0, 0, 0, NULL,
+	    sdu->data, sdu->size, NULL);
 }
 
 errno_t iplink_ev_change_addr(iplink_srv_t *srv, addr48_t *addr)
 {
-	if (srv->client_sess == NULL)
-		return EIO;
-
-	async_exch_t *exch = async_exchange_begin(srv->client_sess);
-
-	ipc_call_t answer;
-	aid_t req = async_send_0(exch, IPLINK_EV_CHANGE_ADDR, &answer);
-
-	errno_t rc = async_data_write_start(exch, addr, sizeof(addr48_t));
-	async_exchange_end(exch);
-
-	if (rc != EOK) {
-		async_forget(req);
-		return rc;
-	}
-
-	errno_t retval;
-	async_wait_for(req, &retval);
-	if (retval != EOK)
-		return retval;
-
-	return EOK;
+	return async_write(srv->client_sess,
+	    IPLINK_EV_CHANGE_ADDR, 0, 0, 0, 0, NULL,
+	    addr, sizeof(addr48_t), NULL);
 }
 
 /** @}
