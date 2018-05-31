@@ -234,8 +234,8 @@ void async_set_client_data_destructor(async_client_data_dtor_t dtor)
 	async_client_data_destroy = dtor;
 }
 
+static futex_t client_futex = FUTEX_INITIALIZER;
 static hash_table_t client_hash_table;
-static hash_table_t conn_hash_table;
 
 // TODO: lockfree notification_queue?
 static futex_t notification_futex = FUTEX_INITIALIZER;
@@ -243,9 +243,11 @@ static hash_table_t notification_hash_table;
 static LIST_INITIALIZE(notification_queue);
 static FIBRIL_SEMAPHORE_INITIALIZE(notification_semaphore, 0);
 
-static LIST_INITIALIZE(timeout_list);
-
 static sysarg_t notification_avail = 0;
+
+/* The remaining structures are guarded by async_futex. */
+static hash_table_t conn_hash_table;
+static LIST_INITIALIZE(timeout_list);
 
 static size_t client_key_hash(void *key)
 {
@@ -333,12 +335,13 @@ static client_t *async_client_get(task_id_t client_id, bool create)
 {
 	client_t *client = NULL;
 
-	futex_down(&async_futex);
+	futex_lock(&client_futex);
 	ht_link_t *link = hash_table_find(&client_hash_table, &client_id);
 	if (link) {
 		client = hash_table_get_inst(link, client_t, link);
 		atomic_inc(&client->refcnt);
 	} else if (create) {
+		// FIXME: malloc in futex critical section.
 		client = malloc(sizeof(client_t));
 		if (client) {
 			client->in_task_id = client_id;
@@ -349,7 +352,7 @@ static client_t *async_client_get(task_id_t client_id, bool create)
 		}
 	}
 
-	futex_up(&async_futex);
+	futex_unlock(&client_futex);
 	return client;
 }
 
@@ -357,7 +360,7 @@ static void async_client_put(client_t *client)
 {
 	bool destroy;
 
-	futex_down(&async_futex);
+	futex_lock(&client_futex);
 
 	if (atomic_predec(&client->refcnt) == 0) {
 		hash_table_remove(&client_hash_table, &client->in_task_id);
@@ -365,7 +368,7 @@ static void async_client_put(client_t *client)
 	} else
 		destroy = false;
 
-	futex_up(&async_futex);
+	futex_unlock(&client_futex);
 
 	if (destroy) {
 		if (client->data)
