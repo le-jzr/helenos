@@ -102,7 +102,6 @@
 
 #include <ipc/irq.h>
 #include <ipc/event.h>
-#include <futex.h>
 #include <fibril.h>
 #include <adt/hash_table.h>
 #include <adt/hash.h>
@@ -119,9 +118,6 @@
 #include <as.h>
 #include <abi/mm/as.h>
 #include "../private/libc.h"
-
-/** Async framework global futex */
-futex_t async_futex = FUTEX_INITIALIZER;
 
 /** Number of threads waiting for IPC in the kernel. */
 static atomic_t threads_in_ipc_wait = { 0 };
@@ -145,7 +141,8 @@ typedef struct {
 
 /* Server connection data */
 typedef struct {
-	awaiter_t wdata;
+	/** Fibril handling the connection. */
+	fid_t fid;
 
 	/** Hash table link. */
 	ht_link_t link;
@@ -158,6 +155,9 @@ typedef struct {
 
 	/** Link to the client tracking structure. */
 	client_t *client;
+
+	/** Message event. */
+	fibril_event_t msg_arrived;
 
 	/** Messages that should be delivered to this fibril. */
 	list_t msg_queue;
@@ -341,7 +341,7 @@ static client_t *async_client_get(task_id_t client_id, bool create)
 		client = hash_table_get_inst(link, client_t, link);
 		atomic_inc(&client->refcnt);
 	} else if (create) {
-		// FIXME: malloc in futex critical section.
+		// FIXME: malloc and async_client_data_create in futex critical section.
 		client = malloc(sizeof(client_t));
 		if (client) {
 			client->in_task_id = client_id;
@@ -425,12 +425,12 @@ static errno_t connection_fibril(void *arg)
 	/*
 	 * Remove myself from the connection hash table.
 	 */
-	futex_down(&async_futex);
+	fibril_global_lock();
 	hash_table_remove(&conn_hash_table, &(conn_key_t){
 		.task_id = fibril_connection->in_task_id,
 		.phone_hash = fibril_connection->in_phone_hash
 	});
-	futex_up(&async_futex);
+	fibril_global_unlock();
 
 	/*
 	 * Answer all remaining messages with EHANGUP.
@@ -484,11 +484,12 @@ static fid_t async_new_connection(task_id_t in_task_id, sysarg_t in_phone_hash,
 		if (chandle != CAP_NIL)
 			ipc_answer_0(chandle, ENOMEM);
 
-		return (uintptr_t) NULL;
+		return (fid_t) NULL;
 	}
 
 	conn->in_task_id = in_task_id;
 	conn->in_phone_hash = in_phone_hash;
+	conn->msg_arrived = FIBRIL_EVENT_INIT;
 	list_initialize(&conn->msg_queue);
 	conn->chandle = chandle;
 	conn->close_chandle = CAP_NIL;
@@ -499,27 +500,26 @@ static fid_t async_new_connection(task_id_t in_task_id, sysarg_t in_phone_hash,
 		conn->call = *call;
 
 	/* We will activate the fibril ASAP */
-	conn->wdata.active = true;
-	conn->wdata.fid = fibril_create(connection_fibril, conn);
+	conn->fid = fibril_create(connection_fibril, conn);
 
-	if (conn->wdata.fid == 0) {
+	if (conn->fid == 0) {
 		free(conn);
 
 		if (chandle != CAP_NIL)
 			ipc_answer_0(chandle, ENOMEM);
 
-		return (uintptr_t) NULL;
+		return (fid_t) NULL;
 	}
 
 	/* Add connection to the connection hash table */
 
-	futex_down(&async_futex);
+	fibril_global_lock();
 	hash_table_insert(&conn_hash_table, &conn->link);
-	futex_up(&async_futex);
+	fibril_global_unlock();
 
-	fibril_add_ready(conn->wdata.fid);
+	fibril_add_ready(conn->fid);
 
-	return conn->wdata.fid;
+	return conn->fid;
 }
 
 /** Wrapper for making IPC_M_CONNECT_TO_ME calls using the async framework.
@@ -562,7 +562,7 @@ errno_t async_create_callback_port(async_exch_t *exch, iface_t iface, sysarg_t a
 	sysarg_t phone_hash = IPC_GET_ARG5(answer);
 	fid_t fid = async_new_connection(answer.in_task_id, phone_hash,
 	    CAP_NIL, NULL, handler, data);
-	if (fid == (uintptr_t) NULL)
+	if (fid == (fid_t) NULL)
 		return ENOMEM;
 
 	return EOK;
@@ -598,32 +598,6 @@ static hash_table_ops_t notification_hash_table_ops = {
 	.remove_callback = NULL
 };
 
-/** Sort in current fibril's timeout request.
- *
- * @param wd Wait data of the current fibril.
- *
- */
-void async_insert_timeout(awaiter_t *wd)
-{
-	assert(wd);
-
-	wd->to_event.occurred = false;
-	wd->to_event.inlist = true;
-
-	link_t *tmp = timeout_list.head.next;
-	while (tmp != &timeout_list.head) {
-		awaiter_t *cur =
-		    list_get_instance(tmp, awaiter_t, to_event.link);
-
-		if (tv_gteq(&cur->to_event.expires, &wd->to_event.expires))
-			break;
-
-		tmp = tmp->next;
-	}
-
-	list_insert_before(&wd->to_event.link, tmp);
-}
-
 /** Try to route a call to an appropriate connection fibril.
  *
  * If the proper connection fibril is found, a message with the call is added to
@@ -641,24 +615,19 @@ static bool route_call(cap_call_handle_t chandle, ipc_call_t *call)
 {
 	assert(call);
 
-	futex_down(&async_futex);
-
 	ht_link_t *link = hash_table_find(&conn_hash_table, &(conn_key_t){
 		.task_id = call->in_task_id,
 		.phone_hash = call->in_phone_hash
 	});
-	if (!link) {
-		futex_up(&async_futex);
+	if (!link)
 		return false;
-	}
 
 	connection_t *conn = hash_table_get_inst(link, connection_t, link);
 
+	// FIXME: malloc in critical section
 	msg_t *msg = malloc(sizeof(*msg));
-	if (!msg) {
-		futex_up(&async_futex);
+	if (!msg)
 		return false;
-	}
 
 	msg->chandle = chandle;
 	msg->call = *call;
@@ -668,19 +637,7 @@ static bool route_call(cap_call_handle_t chandle, ipc_call_t *call)
 		conn->close_chandle = chandle;
 
 	/* If the connection fibril is waiting for an event, activate it */
-	if (!conn->wdata.active) {
-
-		/* If in timeout list, remove it */
-		if (conn->wdata.to_event.inlist) {
-			conn->wdata.to_event.inlist = false;
-			list_remove(&conn->wdata.to_event.link);
-		}
-
-		conn->wdata.active = true;
-		fibril_add_ready(conn->wdata.fid);
-	}
-
-	futex_up(&async_futex);
+	fibril_notify_locked(&conn->msg_arrived);
 	return true;
 }
 
@@ -953,13 +910,13 @@ cap_call_handle_t async_get_call_timeout(ipc_call_t *call, suseconds_t usecs)
 	 */
 	connection_t *conn = fibril_connection;
 
-	futex_down(&async_futex);
-
+	struct timeval expires;
 	if (usecs) {
-		getuptime(&conn->wdata.to_event.expires);
-		tv_add_diff(&conn->wdata.to_event.expires, usecs);
-	} else
-		conn->wdata.to_event.inlist = false;
+		getuptime(&expires);
+		tv_add_diff(&expires, usecs);
+	}
+
+	fibril_global_lock();
 
 	/* If nothing in queue, wait until something arrives */
 	while (list_empty(&conn->msg_queue)) {
@@ -973,33 +930,20 @@ cap_call_handle_t async_get_call_timeout(ipc_call_t *call, suseconds_t usecs)
 			 */
 			memset(call, 0, sizeof(ipc_call_t));
 			IPC_SET_IMETHOD(*call, IPC_M_PHONE_HUNGUP);
-			futex_up(&async_futex);
+			fibril_global_unlock();
 			return conn->close_chandle;
 		}
 
-		if (usecs)
-			async_insert_timeout(&conn->wdata);
+		if (usecs) {
+			errno_t rc = fibril_wait_timeout_locked(
+			    &conn->msg_arrived, &expires);
 
-		conn->wdata.active = false;
-
-		/*
-		 * Note: the current fibril will be rescheduled either due to a
-		 * timeout or due to an arriving message destined to it. In the
-		 * former case, handle_expired_timeouts() and, in the latter
-		 * case, route_call() will perform the wakeup.
-		 */
-		fibril_switch(FIBRIL_TO_MANAGER);
-
-		/*
-		 * Futex is up after getting back from async_manager.
-		 * Get it again.
-		 */
-		futex_down(&async_futex);
-		if ((usecs) && (conn->wdata.to_event.occurred) &&
-		    (list_empty(&conn->msg_queue))) {
-			/* If we timed out -> exit */
-			futex_up(&async_futex);
-			return CAP_NIL;
+			if (rc == ETIMEOUT) {
+				fibril_global_unlock();
+				return CAP_NIL;
+			}
+		} else {
+			fibril_wait_for_locked(&conn->msg_arrived);
 		}
 	}
 
@@ -1007,11 +951,12 @@ cap_call_handle_t async_get_call_timeout(ipc_call_t *call, suseconds_t usecs)
 	    msg_t, link);
 	list_remove(&msg->link);
 
+	fibril_global_unlock();
+
 	cap_call_handle_t chandle = msg->chandle;
 	*call = msg->call;
 	free(msg);
 
-	futex_up(&async_futex);
 	return chandle;
 }
 
@@ -1064,7 +1009,9 @@ static void handle_call(cap_call_handle_t chandle, ipc_call_t *call)
 
 	/* Kernel notification */
 	if ((chandle == CAP_NIL) && (call->flags & IPC_CALL_NOTIF)) {
+		fibril_global_unlock();
 		queue_notification(call);
+		fibril_global_lock();
 		return;
 	}
 
@@ -1073,6 +1020,8 @@ static void handle_call(cap_call_handle_t chandle, ipc_call_t *call)
 		iface_t iface = (iface_t) IPC_GET_ARG1(*call);
 		sysarg_t in_phone_hash = IPC_GET_ARG5(*call);
 
+		fibril_global_unlock();
+
 		// TODO: Currently ignores all ports but the first one.
 		void *data;
 		async_port_handler_t handler =
@@ -1080,6 +1029,8 @@ static void handle_call(cap_call_handle_t chandle, ipc_call_t *call)
 
 		async_new_connection(call->in_task_id, in_phone_hash, chandle,
 		    call, handler, data);
+
+		fibril_global_lock();
 		return;
 	}
 
@@ -1091,154 +1042,42 @@ static void handle_call(cap_call_handle_t chandle, ipc_call_t *call)
 	ipc_answer_0(chandle, EHANGUP);
 }
 
-/** Fire all timeouts that expired. */
-static void handle_expired_timeouts(void)
+static void async_idle_func(suseconds_t timeout)
 {
-	struct timeval tv;
-	getuptime(&tv);
+	unsigned flags = SYNCH_FLAGS_NONE;
+	if (timeout == 0)
+		flags = SYNCH_FLAGS_NON_BLOCKING;
+	if (timeout < 0)
+		timeout = SYNCH_NO_TIMEOUT;
 
-	futex_down(&async_futex);
+	atomic_inc(&threads_in_ipc_wait);
 
-	link_t *cur = list_first(&timeout_list);
-	while (cur != NULL) {
-		awaiter_t *waiter =
-		    list_get_instance(cur, awaiter_t, to_event.link);
+	ipc_call_t call;
+	fibril_global_unlock();
+	errno_t rc = ipc_wait_cycle(&call, timeout, flags);
+	fibril_global_lock();
+	atomic_dec(&threads_in_ipc_wait);
 
-		if (tv_gt(&waiter->to_event.expires, &tv))
-			break;
+	if (rc != EOK)
+		return;
 
-		list_remove(&waiter->to_event.link);
-		waiter->to_event.inlist = false;
-		waiter->to_event.occurred = true;
+	if (call.flags & IPC_CALL_ANSWERED)
+		return;
 
-		/*
-		 * Redundant condition?
-		 * The fibril should not be active when it gets here.
-		 */
-		if (!waiter->active) {
-			waiter->active = true;
-			fibril_add_ready(waiter->fid);
-		}
-
-		cur = list_first(&timeout_list);
+	if (call.cap_handle == CAP_NIL && (call.flags & IPC_CALL_NOTIF) == 0) {
+		/* Neither a notification nor an answer. */
+		return;
 	}
 
-	futex_up(&async_futex);
+	handle_call(call.cap_handle, &call);
 }
 
-/** Endless loop dispatching incoming calls and answers.
- *
- * @return Never returns.
- *
- */
-static errno_t async_manager_worker(void)
+
+/** Interrupt one thread of this task from waiting for IPC. */
+static void async_poke_func(void)
 {
-	while (true) {
-		if (fibril_switch(FIBRIL_FROM_MANAGER)) {
-			futex_up(&async_futex);
-			/*
-			 * async_futex is always held when entering a manager
-			 * fibril.
-			 */
-			continue;
-		}
-
-		futex_down(&async_futex);
-
-		suseconds_t timeout;
-		unsigned int flags = SYNCH_FLAGS_NONE;
-		if (!list_empty(&timeout_list)) {
-			awaiter_t *waiter = list_get_instance(
-			    list_first(&timeout_list), awaiter_t, to_event.link);
-
-			struct timeval tv;
-			getuptime(&tv);
-
-			if (tv_gteq(&tv, &waiter->to_event.expires)) {
-				futex_up(&async_futex);
-				handle_expired_timeouts();
-				/*
-				 * Notice that even if the event(s) already
-				 * expired (and thus the other fibril was
-				 * supposed to be running already),
-				 * we check for incoming IPC.
-				 *
-				 * Otherwise, a fibril that continuously
-				 * creates (almost) expired events could
-				 * prevent IPC retrieval from the kernel.
-				 */
-				timeout = 0;
-				flags = SYNCH_FLAGS_NON_BLOCKING;
-
-			} else {
-				timeout = tv_sub_diff(&waiter->to_event.expires,
-				    &tv);
-				futex_up(&async_futex);
-			}
-		} else {
-			futex_up(&async_futex);
-			timeout = SYNCH_NO_TIMEOUT;
-		}
-
-		atomic_inc(&threads_in_ipc_wait);
-
-		ipc_call_t call;
-		errno_t rc = ipc_wait_cycle(&call, timeout, flags);
-
-		atomic_dec(&threads_in_ipc_wait);
-
-		assert(rc == EOK);
-
-		if (call.cap_handle == CAP_NIL) {
-			if ((call.flags &
-			    (IPC_CALL_NOTIF | IPC_CALL_ANSWERED)) == 0) {
-				/* Neither a notification nor an answer. */
-				handle_expired_timeouts();
-				continue;
-			}
-		}
-
-		if (call.flags & IPC_CALL_ANSWERED)
-			continue;
-
-		handle_call(call.cap_handle, &call);
-	}
-
-	return 0;
-}
-
-/** Function to start async_manager as a standalone fibril.
- *
- * When more kernel threads are used, one async manager should exist per thread.
- *
- * @param arg Unused.
- * @return Never returns.
- *
- */
-static errno_t async_manager_fibril(void *arg)
-{
-	futex_up(&async_futex);
-
-	/*
-	 * async_futex is always locked when entering manager
-	 */
-	async_manager_worker();
-
-	return 0;
-}
-
-/** Add one manager to manager list. */
-void async_create_manager(void)
-{
-	fid_t fid = fibril_create_generic(async_manager_fibril, NULL, PAGE_SIZE);
-	if (fid != 0)
-		fibril_add_manager(fid);
-}
-
-/** Remove one manager from manager list */
-void async_destroy_manager(void)
-{
-	fibril_remove_manager();
+	if (atomic_get(&threads_in_ipc_wait) > 0)
+		ipc_poke();
 }
 
 /** Initialize the async framework.
@@ -1255,6 +1094,8 @@ void __async_server_init(void)
 	if (!hash_table_create(&notification_hash_table, 0, 0,
 	    &notification_hash_table_ops))
 		abort();
+
+	fibril_set_idle_func(async_idle_func, async_poke_func);
 }
 
 errno_t async_answer_0(cap_call_handle_t chandle, errno_t retval)
@@ -1339,13 +1180,6 @@ errno_t async_connect_to_me(async_exch_t *exch, sysarg_t arg1, sysarg_t arg2,
 		return (errno_t) rc;
 
 	return EOK;
-}
-
-/** Interrupt one thread of this task from waiting for IPC. */
-void async_poke(void)
-{
-	if (atomic_get(&threads_in_ipc_wait) > 0)
-		ipc_poke();
 }
 
 /** Wrapper for receiving the IPC_M_SHARE_IN calls using the async framework.

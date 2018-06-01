@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011 Martin Decky
+ * Copyright (c) 2006 Ondrej Palkovsky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,35 +26,10 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup libcipc
- * @{
- */
-/** @file
- */
+#ifndef LIBC_PRIVATE_FIBRIL_H_
+#define LIBC_PRIVATE_FIBRIL_H_
 
-#ifndef LIBC_IPC_COMMON_H_
-#define LIBC_IPC_COMMON_H_
-
-#include <abi/ipc/ipc.h>
-#include <atomic.h>
-#include <abi/proc/task.h>
-#include <futex.h>
-#include <abi/cap.h>
-
-#define IPC_FLAG_BLOCKING  0x01
-
-struct async_call;
-
-typedef struct {
-	sysarg_t args[IPC_CALL_LEN];
-	task_id_t in_task_id;
-	sysarg_t in_phone_hash;
-	unsigned flags;
-	struct async_call *label;
-	cap_call_handle_t cap_handle;
-} ipc_call_t;
+extern fibril_t *fibril_setup(void);
+extern void fibril_teardown(fibril_t *);
 
 #endif
-
-/** @}
- */

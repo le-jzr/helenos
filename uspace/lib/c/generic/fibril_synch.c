@@ -43,18 +43,26 @@
 #include <stacktrace.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <mem.h>
 #include "private/async.h"
 
-static void optimize_execution_power(void)
+enum {
+	CV_STATE_WAITING = 0,
+	CV_STATE_SIGNALLED = 1,
+	CV_STATE_TIMED_OUT = 2,
+};
+
+typedef struct {
+	fibril_t *fid;
+	link_t link;
+	fibril_event_t event;
+	fibril_mutex_t *mutex;
+	int state;
+} awaiter_t;
+
+static void awaiter_initialize(awaiter_t *waiter)
 {
-	/*
-	 * When waking up a worker fibril previously blocked in fibril
-	 * synchronization, chances are that there is an idle manager fibril
-	 * waiting for IPC, that could start executing the awakened worker
-	 * fibril right away. We try to detect this and bring the manager
-	 * fibril back to fruitful work.
-	 */
-	async_poke();
+	memset(waiter, 0, sizeof(*waiter));
 }
 
 static void print_deadlock(fibril_owner_info_t *oi)
@@ -81,10 +89,13 @@ static void print_deadlock(fibril_owner_info_t *oi)
 }
 
 
-static void check_for_deadlock(fibril_owner_info_t *oi)
+static void check_fibril_for_deadlock(fibril_owner_info_t *oi, fibril_t *fib)
 {
+	fibril_global_assert_is_locked();
+
 	while (oi && oi->owned_by) {
-		if (oi->owned_by == (fibril_t *) fibril_get_id()) {
+		if (oi->owned_by == fib) {
+			fibril_global_unlock();
 			print_deadlock(oi);
 			abort();
 		}
@@ -92,6 +103,10 @@ static void check_for_deadlock(fibril_owner_info_t *oi)
 	}
 }
 
+static void check_for_deadlock(fibril_owner_info_t *oi)
+{
+	check_fibril_for_deadlock(oi, fibril_self());
+}
 
 void fibril_mutex_initialize(fibril_mutex_t *fm)
 {
@@ -104,40 +119,41 @@ void fibril_mutex_lock(fibril_mutex_t *fm)
 {
 	fibril_t *f = (fibril_t *) fibril_get_id();
 
-	futex_down(&async_futex);
+	fibril_global_lock();
 	if (fm->counter-- <= 0) {
 		awaiter_t wdata;
 
 		awaiter_initialize(&wdata);
 		wdata.fid = fibril_get_id();
-		wdata.wu_event.inlist = true;
-		list_append(&wdata.wu_event.link, &fm->waiters);
+		list_append(&wdata.link, &fm->waiters);
 		check_for_deadlock(&fm->oi);
 		f->waits_for = &fm->oi;
-		fibril_switch(FIBRIL_TO_MANAGER);
+		fibril_wait_for_locked(&wdata.event);
 	} else {
 		fm->oi.owned_by = f;
-		futex_up(&async_futex);
 	}
+	fibril_global_unlock();
 }
 
 bool fibril_mutex_trylock(fibril_mutex_t *fm)
 {
 	bool locked = false;
 
-	futex_down(&async_futex);
+	fibril_global_lock();
 	if (fm->counter > 0) {
 		fm->counter--;
 		fm->oi.owned_by = (fibril_t *) fibril_get_id();
 		locked = true;
 	}
-	futex_up(&async_futex);
+	fibril_global_unlock();
 
 	return locked;
 }
 
 static void _fibril_mutex_unlock_unsafe(fibril_mutex_t *fm)
 {
+	assert(fm->oi.owned_by == (fibril_t *) fibril_get_id());
+
 	if (fm->counter++ < 0) {
 		link_t *tmp;
 		awaiter_t *wdp;
@@ -145,17 +161,14 @@ static void _fibril_mutex_unlock_unsafe(fibril_mutex_t *fm)
 
 		tmp = list_first(&fm->waiters);
 		assert(tmp != NULL);
-		wdp = list_get_instance(tmp, awaiter_t, wu_event.link);
-		wdp->active = true;
-		wdp->wu_event.inlist = false;
+		wdp = list_get_instance(tmp, awaiter_t, link);
 
 		f = (fibril_t *) wdp->fid;
 		fm->oi.owned_by = f;
 		f->waits_for = NULL;
 
-		list_remove(&wdp->wu_event.link);
-		fibril_add_ready(wdp->fid);
-		optimize_execution_power();
+		list_remove(&wdp->link);
+		fibril_notify_locked(&wdp->event);
 	} else {
 		fm->oi.owned_by = NULL;
 	}
@@ -163,21 +176,16 @@ static void _fibril_mutex_unlock_unsafe(fibril_mutex_t *fm)
 
 void fibril_mutex_unlock(fibril_mutex_t *fm)
 {
-	assert(fibril_mutex_is_locked(fm));
-	futex_down(&async_futex);
+	fibril_global_lock();
 	_fibril_mutex_unlock_unsafe(fm);
-	futex_up(&async_futex);
+	fibril_global_unlock();
 }
 
 bool fibril_mutex_is_locked(fibril_mutex_t *fm)
 {
-	bool locked = false;
-
-	futex_down(&async_futex);
-	if (fm->counter <= 0)
-		locked = true;
-	futex_up(&async_futex);
-
+	fibril_global_lock();
+	bool locked = (fm->oi.owned_by == (fibril_t *) fibril_get_id());
+	fibril_global_unlock();
 	return locked;
 }
 
@@ -193,57 +201,56 @@ void fibril_rwlock_read_lock(fibril_rwlock_t *frw)
 {
 	fibril_t *f = (fibril_t *) fibril_get_id();
 
-	futex_down(&async_futex);
+	fibril_global_lock();
 	if (frw->writers) {
 		awaiter_t wdata;
 
 		awaiter_initialize(&wdata);
 		wdata.fid = (fid_t) f;
-		wdata.wu_event.inlist = true;
 		f->flags &= ~FIBRIL_WRITER;
-		list_append(&wdata.wu_event.link, &frw->waiters);
+		list_append(&wdata.link, &frw->waiters);
 		check_for_deadlock(&frw->oi);
 		f->waits_for = &frw->oi;
-		fibril_switch(FIBRIL_TO_MANAGER);
+
+		fibril_wait_for_locked(&wdata.event);
 	} else {
 		/* Consider the first reader the owner. */
 		if (frw->readers++ == 0)
 			frw->oi.owned_by = f;
-		futex_up(&async_futex);
 	}
+	fibril_global_unlock();
 }
 
 void fibril_rwlock_write_lock(fibril_rwlock_t *frw)
 {
 	fibril_t *f = (fibril_t *) fibril_get_id();
 
-	futex_down(&async_futex);
+	fibril_global_lock();
 	if (frw->writers || frw->readers) {
 		awaiter_t wdata;
 
 		awaiter_initialize(&wdata);
 		wdata.fid = (fid_t) f;
-		wdata.wu_event.inlist = true;
 		f->flags |= FIBRIL_WRITER;
-		list_append(&wdata.wu_event.link, &frw->waiters);
+		list_append(&wdata.link, &frw->waiters);
 		check_for_deadlock(&frw->oi);
 		f->waits_for = &frw->oi;
-		fibril_switch(FIBRIL_TO_MANAGER);
+
+		fibril_wait_for_locked(&wdata.event);
 	} else {
 		frw->oi.owned_by = f;
 		frw->writers++;
-		futex_up(&async_futex);
 	}
+	fibril_global_unlock();
 }
 
 static void _fibril_rwlock_common_unlock(fibril_rwlock_t *frw)
 {
-	futex_down(&async_futex);
 	if (frw->readers) {
 		if (--frw->readers) {
 			if (frw->oi.owned_by == (fibril_t *) fibril_get_id()) {
 				/*
-				 * If this reader firbril was considered the
+				 * If this reader fibril was considered the
 				 * owner of this rwlock, clear the ownership
 				 * information even if there are still more
 				 * readers.
@@ -255,7 +262,8 @@ static void _fibril_rwlock_common_unlock(fibril_rwlock_t *frw)
 				 */
 				frw->oi.owned_by = NULL;
 			}
-			goto out;
+
+			return;
 		}
 	} else {
 		frw->writers--;
@@ -270,73 +278,58 @@ static void _fibril_rwlock_common_unlock(fibril_rwlock_t *frw)
 		awaiter_t *wdp;
 		fibril_t *f;
 
-		wdp = list_get_instance(tmp, awaiter_t, wu_event.link);
+		wdp = list_get_instance(tmp, awaiter_t, link);
 		f = (fibril_t *) wdp->fid;
-
-		f->waits_for = NULL;
 
 		if (f->flags & FIBRIL_WRITER) {
 			if (frw->readers)
 				break;
-			wdp->active = true;
-			wdp->wu_event.inlist = false;
-			list_remove(&wdp->wu_event.link);
-			fibril_add_ready(wdp->fid);
 			frw->writers++;
-			frw->oi.owned_by = f;
-			optimize_execution_power();
-			break;
 		} else {
-			wdp->active = true;
-			wdp->wu_event.inlist = false;
-			list_remove(&wdp->wu_event.link);
-			fibril_add_ready(wdp->fid);
-			if (frw->readers++ == 0) {
-				/* Consider the first reader the owner. */
-				frw->oi.owned_by = f;
-			}
-			optimize_execution_power();
+			frw->readers++;
 		}
+
+		f->waits_for = NULL;
+		list_remove(&wdp->link);
+		frw->oi.owned_by = f;
+		fibril_notify_locked(&wdp->event);
+
+		if (frw->writers)
+			break;
 	}
-out:
-	futex_up(&async_futex);
 }
 
 void fibril_rwlock_read_unlock(fibril_rwlock_t *frw)
 {
-	assert(fibril_rwlock_is_read_locked(frw));
+	fibril_global_lock();
+	assert(frw->readers > 0);
 	_fibril_rwlock_common_unlock(frw);
+	fibril_global_unlock();
 }
 
 void fibril_rwlock_write_unlock(fibril_rwlock_t *frw)
 {
-	assert(fibril_rwlock_is_write_locked(frw));
+	fibril_global_lock();
+	assert(frw->writers == 1);
+	assert(frw->oi.owned_by == fibril_self());
 	_fibril_rwlock_common_unlock(frw);
+	fibril_global_unlock();
 }
 
 bool fibril_rwlock_is_read_locked(fibril_rwlock_t *frw)
 {
-	bool locked = false;
-
-	futex_down(&async_futex);
-	if (frw->readers)
-		locked = true;
-	futex_up(&async_futex);
-
+	fibril_global_lock();
+	bool locked = (frw->readers > 0);
+	fibril_global_unlock();
 	return locked;
 }
 
 bool fibril_rwlock_is_write_locked(fibril_rwlock_t *frw)
 {
-	bool locked = false;
-
-	futex_down(&async_futex);
-	if (frw->writers) {
-		assert(frw->writers == 1);
-		locked = true;
-	}
-	futex_up(&async_futex);
-
+	fibril_global_lock();
+	assert(frw->writers <= 1);
+	bool locked = (frw->writers > 0) && (frw->oi.owned_by == fibril_self());
+	fibril_global_unlock();
 	return locked;
 }
 
@@ -351,6 +344,46 @@ void fibril_condvar_initialize(fibril_condvar_t *fcv)
 	list_initialize(&fcv->waiters);
 }
 
+static void fibril_condvar_notify_locked(awaiter_t *w, int state)
+{
+	fibril_global_assert_is_locked();
+
+	if (w->state != CV_STATE_WAITING) {
+		/* Timer fired after the CV was signalled. */
+		assert(state == CV_STATE_TIMED_OUT);
+		assert(w->state == CV_STATE_SIGNALLED);
+		return;
+	}
+
+	w->state = state;
+
+	/* Dequeue from the condition variable. */
+	list_remove(&w->link);
+
+	/* Try to acquire the mutex. */
+	if (w->mutex->counter-- <= 0) {
+		/* Currently blocked, queue on the mutex. */
+		check_fibril_for_deadlock(&w->mutex->oi, w->fid);
+		list_append(&w->link, &w->mutex->waiters);
+		w->fid->waits_for = &w->mutex->oi;
+	} else {
+		/* Successfully locked. Wake up the fibril. */
+		w->mutex->oi.owned_by = w->fid;
+		fibril_notify_locked(&w->event);
+	}
+}
+
+static void fibril_condvar_timed_out(void *arg)
+{
+	awaiter_t *w = arg;
+	fibril_condvar_notify_locked(w, CV_STATE_TIMED_OUT);
+}
+
+/**
+ * FIXME: If `timeout` is negative, the function returns ETIMEOUT immediately,
+ *        and if `timeout` is 0, the wait never times out.
+ *        This is not consistent with other similar APIs.
+ */
 errno_t
 fibril_condvar_wait_timeout(fibril_condvar_t *fcv, fibril_mutex_t *fm,
     suseconds_t timeout)
@@ -364,69 +397,66 @@ fibril_condvar_wait_timeout(fibril_condvar_t *fcv, fibril_mutex_t *fm,
 
 	awaiter_initialize(&wdata);
 	wdata.fid = fibril_get_id();
-	wdata.to_event.inlist = timeout > 0;
-	wdata.wu_event.inlist = true;
+	wdata.mutex = fm;
 
-	futex_down(&async_futex);
+	fibril_tmr_t tmr = FIBRIL_TMR_INIT;
+	struct timeval expires;
+
 	if (timeout) {
-		getuptime(&wdata.to_event.expires);
-		tv_add_diff(&wdata.to_event.expires, timeout);
-		async_insert_timeout(&wdata);
+		getuptime(&expires);
+		tv_add_diff(&expires, timeout);
 	}
-	list_append(&wdata.wu_event.link, &fcv->waiters);
+
+	fibril_global_lock();
 	_fibril_mutex_unlock_unsafe(fm);
-	fibril_switch(FIBRIL_TO_MANAGER);
-	fibril_mutex_lock(fm);
+	list_append(&wdata.link, &fcv->waiters);
 
-	/* async_futex not held after fibril_switch() */
-	futex_down(&async_futex);
-	if (wdata.to_event.inlist)
-		list_remove(&wdata.to_event.link);
-	if (wdata.wu_event.inlist)
-		list_remove(&wdata.wu_event.link);
-	futex_up(&async_futex);
+	if (timeout)
+		fibril_tmr_arm_locked(&tmr, &expires, fibril_condvar_timed_out, &wdata);
 
-	return wdata.to_event.occurred ? ETIMEOUT : EOK;
+	fibril_wait_for_locked(&wdata.event);
+
+	/* After resuming, fm is locked again. */
+
+	errno_t rc = EOK;
+
+	if (timeout) {
+		int state = wdata.state;
+		assert(state != CV_STATE_WAITING);
+
+		if (state == CV_STATE_TIMED_OUT)
+			rc = ETIMEOUT;
+		else
+			/* Clean up the timeout timer. */
+			fibril_tmr_disarm_locked(&tmr);
+	}
+
+	fibril_global_unlock();
+	return rc;
 }
 
 void fibril_condvar_wait(fibril_condvar_t *fcv, fibril_mutex_t *fm)
 {
-	errno_t rc;
-
-	rc = fibril_condvar_wait_timeout(fcv, fm, 0);
-	assert(rc == EOK);
-}
-
-static void _fibril_condvar_wakeup_common(fibril_condvar_t *fcv, bool once)
-{
-	link_t *tmp;
-	awaiter_t *wdp;
-
-	futex_down(&async_futex);
-	while (!list_empty(&fcv->waiters)) {
-		tmp = list_first(&fcv->waiters);
-		wdp = list_get_instance(tmp, awaiter_t, wu_event.link);
-		list_remove(&wdp->wu_event.link);
-		wdp->wu_event.inlist = false;
-		if (!wdp->active) {
-			wdp->active = true;
-			fibril_add_ready(wdp->fid);
-			optimize_execution_power();
-			if (once)
-				break;
-		}
-	}
-	futex_up(&async_futex);
+	(void) fibril_condvar_wait_timeout(fcv, fm, 0);
 }
 
 void fibril_condvar_signal(fibril_condvar_t *fcv)
 {
-	_fibril_condvar_wakeup_common(fcv, true);
+	fibril_global_lock();
+	awaiter_t *w = list_pop(&fcv->waiters, awaiter_t, link);
+	if (w != NULL)
+		fibril_condvar_notify_locked(w, CV_STATE_SIGNALLED);
+	fibril_global_unlock();
 }
 
 void fibril_condvar_broadcast(fibril_condvar_t *fcv)
 {
-	_fibril_condvar_wakeup_common(fcv, false);
+	fibril_global_lock();
+	awaiter_t *w;
+	while ((w = list_pop(&fcv->waiters, awaiter_t, link))) {
+		fibril_condvar_notify_locked(w, CV_STATE_SIGNALLED);
+	}
+	fibril_global_unlock();
 }
 
 /** Timer fibril.
@@ -608,7 +638,7 @@ fibril_timer_state_t fibril_timer_clear_locked(fibril_timer_t *timer)
 		if (timer->handler_fid == fibril_get_id()) {
 			printf("Deadlock detected.\n");
 			stacktrace_print();
-			printf("Fibril %zx is trying to clear timer %p from "
+			printf("Fibril %p is trying to clear timer %p from "
 			    "inside its handler %p.\n",
 			    fibril_get_id(), timer, timer->fun);
 			abort();
@@ -651,23 +681,17 @@ void fibril_semaphore_initialize(fibril_semaphore_t *sem, long count)
  */
 void fibril_semaphore_up(fibril_semaphore_t *sem)
 {
-	futex_down(&async_futex);
+	fibril_global_lock();
+
 	sem->count++;
 
-	if (sem->count > 0) {
-		futex_up(&async_futex);
-		return;
+	if (sem->count <= 0) {
+		awaiter_t *w = list_pop(&sem->waiters, awaiter_t, link);
+		assert(w);
+		fibril_notify_locked(&w->event);
 	}
 
-	link_t *tmp = list_first(&sem->waiters);
-	assert(tmp);
-	list_remove(tmp);
-
-	futex_up(&async_futex);
-
-	awaiter_t *wdp = list_get_instance(tmp, awaiter_t, wu_event.link);
-	fibril_add_ready(wdp->fid);
-	optimize_execution_power();
+	fibril_global_unlock();
 }
 
 /**
@@ -677,22 +701,19 @@ void fibril_semaphore_up(fibril_semaphore_t *sem)
  */
 void fibril_semaphore_down(fibril_semaphore_t *sem)
 {
-	futex_down(&async_futex);
+	fibril_global_lock();
+
 	sem->count--;
 
-	if (sem->count >= 0) {
-		futex_up(&async_futex);
-		return;
+	if (sem->count < 0) {
+		awaiter_t wdata;
+		awaiter_initialize(&wdata);
+
+		list_append(&wdata.link, &sem->waiters);
+		fibril_wait_for_locked(&wdata.event);
 	}
 
-	awaiter_t wdata;
-	awaiter_initialize(&wdata);
-
-	wdata.fid = fibril_get_id();
-	list_append(&wdata.wu_event.link, &sem->waiters);
-	fibril_switch(FIBRIL_TO_MANAGER);
-
-	/* async_futex not held after fibril_switch() */
+	fibril_global_unlock();
 }
 
 /** @}

@@ -103,7 +103,6 @@
 
 #include <ipc/irq.h>
 #include <ipc/event.h>
-#include <futex.h>
 #include <fibril.h>
 #include <adt/hash_table.h>
 #include <adt/hash.h>
@@ -126,7 +125,7 @@ async_sess_t session_ns;
 
 /** Message data */
 typedef struct {
-	awaiter_t wdata;
+	fibril_event_t received;
 
 	/** If reply was received. */
 	bool done;
@@ -143,30 +142,6 @@ typedef struct {
 	errno_t retval;
 } amsg_t;
 
-static void to_event_initialize(to_event_t *to)
-{
-	struct timeval tv = { 0, 0 };
-
-	to->inlist = false;
-	to->occurred = false;
-	link_initialize(&to->link);
-	to->expires = tv;
-}
-
-static void wu_event_initialize(wu_event_t *wu)
-{
-	wu->inlist = false;
-	link_initialize(&wu->link);
-}
-
-void awaiter_initialize(awaiter_t *aw)
-{
-	aw->fid = 0;
-	aw->active = false;
-	to_event_initialize(&aw->to_event);
-	wu_event_initialize(&aw->wu_event);
-}
-
 static amsg_t *amsg_create(void)
 {
 	amsg_t *msg = malloc(sizeof(amsg_t));
@@ -176,7 +151,7 @@ static amsg_t *amsg_create(void)
 		msg->destroyed = false;
 		msg->dataptr = NULL;
 		msg->retval = EINVAL;
-		awaiter_initialize(&msg->wdata);
+		msg->received = FIBRIL_EVENT_INIT;
 	}
 
 	return msg;
@@ -241,32 +216,26 @@ static void reply_received(void *arg, errno_t retval, ipc_call_t *data)
 {
 	assert(arg);
 
-	futex_down(&async_futex);
+	fibril_global_lock();
 
 	amsg_t *msg = (amsg_t *) arg;
 	msg->retval = retval;
 
-	/* Copy data after futex_down, just in case the call was detached */
+	/* Copy data after lock, just in case the call was detached */
 	if ((msg->dataptr) && (data))
 		*msg->dataptr = *data;
 
 	write_barrier();
 
-	/* Remove message from timeout list */
-	if (msg->wdata.to_event.inlist)
-		list_remove(&msg->wdata.to_event.link);
-
 	msg->done = true;
 
 	if (msg->forget) {
-		assert(msg->wdata.active);
 		amsg_destroy(msg);
-	} else if (!msg->wdata.active) {
-		msg->wdata.active = true;
-		fibril_add_ready(msg->wdata.fid);
+	} else {
+		fibril_notify_locked(&msg->received);
 	}
 
-	futex_up(&async_futex);
+	fibril_global_unlock();
 }
 
 /** Send message and return id of the sent message.
@@ -296,7 +265,6 @@ aid_t async_send_fast(async_exch_t *exch, sysarg_t imethod, sysarg_t arg1,
 		return 0;
 
 	msg->dataptr = dataptr;
-	msg->wdata.active = true;
 
 	ipc_call_async_4(exch->phone, imethod, arg1, arg2, arg3, arg4, msg,
 	    reply_received);
@@ -334,7 +302,6 @@ aid_t async_send_slow(async_exch_t *exch, sysarg_t imethod, sysarg_t arg1,
 		return 0;
 
 	msg->dataptr = dataptr;
-	msg->wdata.active = true;
 
 	ipc_call_async_5(exch->phone, imethod, arg1, arg2, arg3, arg4, arg5,
 	    msg, reply_received);
@@ -355,24 +322,18 @@ void async_wait_for(aid_t amsgid, errno_t *retval)
 
 	amsg_t *msg = (amsg_t *) amsgid;
 
-	futex_down(&async_futex);
+	fibril_global_lock();
 
 	assert(!msg->forget);
 	assert(!msg->destroyed);
 
 	if (msg->done) {
-		futex_up(&async_futex);
+		fibril_global_unlock();
 		goto done;
 	}
 
-	msg->wdata.fid = fibril_get_id();
-	msg->wdata.active = false;
-	msg->wdata.to_event.inlist = false;
-
-	/* Leave the async_futex locked when entering this function */
-	fibril_switch(FIBRIL_TO_MANAGER);
-
-	/* Futex is up automatically after fibril_switch */
+	fibril_wait_for_locked(&msg->received);
+	fibril_global_unlock();
 
 done:
 	if (retval)
@@ -401,16 +362,6 @@ errno_t async_wait_timeout(aid_t amsgid, errno_t *retval, suseconds_t timeout)
 
 	amsg_t *msg = (amsg_t *) amsgid;
 
-	futex_down(&async_futex);
-
-	assert(!msg->forget);
-	assert(!msg->destroyed);
-
-	if (msg->done) {
-		futex_up(&async_futex);
-		goto done;
-	}
-
 	/*
 	 * Negative timeout is converted to zero timeout to avoid
 	 * using tv_add with negative augmenter.
@@ -418,37 +369,26 @@ errno_t async_wait_timeout(aid_t amsgid, errno_t *retval, suseconds_t timeout)
 	if (timeout < 0)
 		timeout = 0;
 
-	getuptime(&msg->wdata.to_event.expires);
-	tv_add_diff(&msg->wdata.to_event.expires, timeout);
+	struct timeval expires;
+	getuptime(&expires);
+	tv_add_diff(&expires, timeout);
 
-	/*
-	 * Current fibril is inserted as waiting regardless of the
-	 * "size" of the timeout.
-	 *
-	 * Checking for msg->done and immediately bailing out when
-	 * timeout == 0 would mean that the manager fibril would never
-	 * run (consider single threaded program).
-	 * Thus the IPC answer would be never retrieved from the kernel.
-	 *
-	 * Notice that the actual delay would be very small because we
-	 * - switch to manager fibril
-	 * - the manager sees expired timeout
-	 * - and thus adds us back to ready queue
-	 * - manager switches back to some ready fibril
-	 *   (prior it, it checks for incoming IPC).
-	 *
-	 */
-	msg->wdata.fid = fibril_get_id();
-	msg->wdata.active = false;
-	async_insert_timeout(&msg->wdata);
+	fibril_global_lock();
 
-	/* Leave the async_futex locked when entering this function */
-	fibril_switch(FIBRIL_TO_MANAGER);
+	assert(!msg->forget);
+	assert(!msg->destroyed);
 
-	/* Futex is up automatically after fibril_switch */
+	if (msg->done) {
+		fibril_global_unlock();
+		goto done;
+	}
 
-	if (!msg->done)
-		return ETIMEOUT;
+	errno_t rc = fibril_wait_timeout_locked(&msg->received, &expires);
+
+	fibril_global_unlock();
+
+	if (rc != EOK)
+		return rc;
 
 done:
 	if (retval)
@@ -456,7 +396,7 @@ done:
 
 	amsg_destroy(msg);
 
-	return 0;
+	return EOK;
 }
 
 /** Discard the message / reply on arrival.
@@ -475,7 +415,7 @@ void async_forget(aid_t amsgid)
 	assert(!msg->forget);
 	assert(!msg->destroyed);
 
-	futex_down(&async_futex);
+	fibril_global_lock();
 
 	if (msg->done) {
 		amsg_destroy(msg);
@@ -484,7 +424,7 @@ void async_forget(aid_t amsgid)
 		msg->forget = true;
 	}
 
-	futex_up(&async_futex);
+	fibril_global_unlock();
 }
 
 /** Wait for specified time.
@@ -496,22 +436,12 @@ void async_forget(aid_t amsgid)
  */
 void async_usleep(suseconds_t timeout)
 {
-	awaiter_t awaiter;
-	awaiter_initialize(&awaiter);
+	struct timeval expires;
+	getuptime(&expires);
+	tv_add_diff(&expires, timeout);
 
-	awaiter.fid = fibril_get_id();
-
-	getuptime(&awaiter.to_event.expires);
-	tv_add_diff(&awaiter.to_event.expires, timeout);
-
-	futex_down(&async_futex);
-
-	async_insert_timeout(&awaiter);
-
-	/* Leave the async_futex locked when entering this function */
-	fibril_switch(FIBRIL_TO_MANAGER);
-
-	/* Futex is up automatically after fibril_switch() */
+	fibril_event_t event = FIBRIL_EVENT_INIT;
+	fibril_wait_timeout(&event, &expires);
 }
 
 /** Delay execution for the specified number of seconds
@@ -697,7 +627,6 @@ static errno_t async_connect_me_to_internal(cap_phone_handle_t phone,
 		return ENOENT;
 
 	msg->dataptr = &result;
-	msg->wdata.active = true;
 
 	ipc_call_async_4(phone, IPC_M_CONNECT_ME_TO, arg1, arg2, arg3, arg4,
 	    msg, reply_received);

@@ -45,6 +45,7 @@
 #include <errno.h>
 #include <as.h>
 #include "private/thread.h"
+#include "private/fibril.h"
 
 #ifdef FUTEX_UPGRADABLE
 #include <rcu.h>
@@ -66,8 +67,6 @@ void __thread_main(uspace_arg_t *uarg)
 	if (fibril == NULL)
 		thread_exit(0);
 
-	__tcb_set(fibril->tcb);
-
 #ifdef FUTEX_UPGRADABLE
 	rcu_register_fibril();
 	futex_upgrade_all_and_wait();
@@ -81,14 +80,11 @@ void __thread_main(uspace_arg_t *uarg)
 	 * free(uarg);
 	 */
 
-	/* If there is a manager, destroy it */
-	async_destroy_manager();
-
 #ifdef FUTEX_UPGRADABLE
 	rcu_deregister_fibril();
 #endif
 
-	fibril_teardown(fibril, false);
+	fibril_teardown(fibril);
 
 	thread_exit(0);
 }

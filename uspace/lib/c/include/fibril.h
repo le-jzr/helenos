@@ -39,23 +39,39 @@
 #include <types/common.h>
 #include <adt/list.h>
 #include <libarch/tls.h>
+#include <time.h>
 
 #define FIBRIL_WRITER	1
 
+typedef void (*fibril_idle_func_t)(suseconds_t);
+typedef void (*fibril_poke_func_t)(void);
+
 struct fibril;
+
+typedef struct {
+	struct fibril *fibril;
+} fibril_event_t;
 
 typedef struct {
 	struct fibril *owned_by;
 } fibril_owner_info_t;
 
-typedef enum {
-	FIBRIL_PREEMPT,
-	FIBRIL_TO_MANAGER,
-	FIBRIL_FROM_MANAGER,
-	FIBRIL_FROM_DEAD
-} fibril_switch_type_t;
+typedef void (*fibril_tmr_func_t)(void *);
 
-typedef sysarg_t fid_t;
+typedef struct {
+	/** Timer list link. */
+	link_t link;
+
+	/** Expiration time. */
+	struct timeval expires;
+
+	/** Function to call. */
+	fibril_tmr_func_t fn;
+	void *arg;
+
+	/** Event to trigger when the function finishes. */
+	fibril_event_t finished;
+} fibril_tmr_t;
 
 typedef struct fibril {
 	link_t link;
@@ -66,37 +82,60 @@ typedef struct fibril {
 	errno_t (*func)(void *);
 	tcb_t *tcb;
 
-	struct fibril *clean_after_me;
 	errno_t retval;
 	int flags;
 
 	fibril_owner_info_t *waits_for;
+
+	bool running;
 } fibril_t;
+
+// TODO: Left for backwards compatibility only.
+typedef fibril_t *fid_t;
+
+#define FIBRIL_EVENT_INIT ((fibril_event_t) {0})
+#define FIBRIL_TMR_INIT ((fibril_tmr_t) {0})
 
 /** Fibril-local variable specifier */
 #define fibril_local __thread
 
 #define FIBRIL_DFLT_STK_SIZE	0
 
-extern fid_t fibril_create_generic(errno_t (*func)(void *), void *arg, size_t);
-extern void fibril_destroy(fid_t fid);
-extern fibril_t *fibril_setup(void);
-extern void fibril_teardown(fibril_t *f, bool locked);
-extern int fibril_switch(fibril_switch_type_t stype);
-extern void fibril_add_ready(fid_t fid);
-extern void fibril_add_manager(fid_t fid);
-extern void fibril_remove_manager(void);
-extern fid_t fibril_get_id(void);
+extern fibril_t *fibril_create_generic(errno_t (*)(void *), void *, size_t);
+extern void fibril_destroy(fibril_t *);
+extern int fibril_yield(void);
+extern fibril_t *fibril_self(void);
+extern void fibril_add_ready(fid_t);
 
-static inline fid_t fibril_create(errno_t (*func)(void *), void *arg)
+// FIXME: compatibility
+static inline fid_t fibril_get_id(void)
+{
+	return fibril_self();
+}
+
+
+static inline fibril_t *fibril_create(errno_t (*func)(void *), void *arg)
 {
 	return fibril_create_generic(func, arg, FIBRIL_DFLT_STK_SIZE);
 }
 
-static inline int fibril_yield(void)
-{
-	return fibril_switch(FIBRIL_PREEMPT);
-}
+extern void fibril_wait_for(fibril_event_t *);
+extern errno_t fibril_wait_timeout(fibril_event_t *, struct timeval *);
+extern void fibril_notify(fibril_event_t *);
+extern void fibril_tmr_arm(fibril_tmr_t *, suseconds_t, fibril_tmr_func_t, void *);
+extern bool fibril_tmr_disarm(fibril_tmr_t *);
+
+extern void fibril_global_lock(void);
+extern void fibril_global_unlock(void);
+extern void fibril_global_assert_is_locked(void);
+
+extern void fibril_wait_for_locked(fibril_event_t *);
+extern errno_t fibril_wait_timeout_locked(fibril_event_t *, struct timeval *);
+extern void fibril_notify_locked(fibril_event_t *);
+extern void fibril_tmr_arm_locked(fibril_tmr_t *, struct timeval *, fibril_tmr_func_t, void *);
+extern bool fibril_tmr_disarm_locked(fibril_tmr_t *);
+
+extern void fibril_set_idle_func(fibril_idle_func_t, fibril_poke_func_t);
 
 #endif
 

@@ -109,8 +109,8 @@ typedef struct async_exch async_exch_t;
 
 #define async_manager() \
 	do { \
-		futex_down(&async_futex); \
-		fibril_switch(FIBRIL_FROM_DEAD); \
+		fibril_event_t ever = FIBRIL_EVENT_INIT; \
+		fibril_wait_for(&ever); \
 	} while (0)
 
 #define async_get_call(data) \
@@ -149,9 +149,6 @@ extern void async_forget(aid_t);
 
 extern void async_usleep(suseconds_t);
 extern void async_sleep(unsigned int);
-
-extern void async_create_manager(void);
-extern void async_destroy_manager(void);
 
 extern void async_set_client_data_constructor(async_client_data_ctor_t);
 extern void async_set_client_data_destructor(async_client_data_dtor_t);
