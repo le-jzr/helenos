@@ -615,19 +615,25 @@ static bool route_call(cap_call_handle_t chandle, ipc_call_t *call)
 {
 	assert(call);
 
+	fibril_global_lock();
+
 	ht_link_t *link = hash_table_find(&conn_hash_table, &(conn_key_t){
 		.task_id = call->in_task_id,
 		.phone_hash = call->in_phone_hash
 	});
-	if (!link)
+	if (!link) {
+		fibril_global_unlock();
 		return false;
+	}
 
 	connection_t *conn = hash_table_get_inst(link, connection_t, link);
 
 	// FIXME: malloc in critical section
 	msg_t *msg = malloc(sizeof(*msg));
-	if (!msg)
+	if (!msg) {
+		fibril_global_unlock();
 		return false;
+	}
 
 	msg->chandle = chandle;
 	msg->call = *call;
@@ -638,6 +644,7 @@ static bool route_call(cap_call_handle_t chandle, ipc_call_t *call)
 
 	/* If the connection fibril is waiting for an event, activate it */
 	fibril_notify_locked(&conn->msg_arrived);
+	fibril_global_unlock();
 	return true;
 }
 
@@ -1009,9 +1016,7 @@ static void handle_call(cap_call_handle_t chandle, ipc_call_t *call)
 
 	/* Kernel notification */
 	if ((chandle == CAP_NIL) && (call->flags & IPC_CALL_NOTIF)) {
-		fibril_global_unlock();
 		queue_notification(call);
-		fibril_global_lock();
 		return;
 	}
 
@@ -1019,8 +1024,6 @@ static void handle_call(cap_call_handle_t chandle, ipc_call_t *call)
 	if (IPC_GET_IMETHOD(*call) == IPC_M_CONNECT_ME_TO) {
 		iface_t iface = (iface_t) IPC_GET_ARG1(*call);
 		sysarg_t in_phone_hash = IPC_GET_ARG5(*call);
-
-		fibril_global_unlock();
 
 		// TODO: Currently ignores all ports but the first one.
 		void *data;
@@ -1030,7 +1033,6 @@ static void handle_call(cap_call_handle_t chandle, ipc_call_t *call)
 		async_new_connection(call->in_task_id, in_phone_hash, chandle,
 		    call, handler, data);
 
-		fibril_global_lock();
 		return;
 	}
 
@@ -1053,9 +1055,7 @@ static void async_idle_func(suseconds_t timeout)
 	atomic_inc(&threads_in_ipc_wait);
 
 	ipc_call_t call;
-	fibril_global_unlock();
 	errno_t rc = ipc_wait_cycle(&call, timeout, flags);
-	fibril_global_lock();
 	atomic_dec(&threads_in_ipc_wait);
 
 	if (rc != EOK)

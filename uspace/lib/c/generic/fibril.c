@@ -62,11 +62,24 @@ typedef enum {
 static futex_t fibril_futex = FUTEX_INITIALIZER;
 // FIXME: This should be relaxed atomic in order to not violate C11 memory model.
 static fibril_t *fibril_futex_owner;
+static int pending_pokes = 0;
 
 static LIST_INITIALIZE(ready_list);
 static LIST_INITIALIZE(fibril_list);
 static LIST_INITIALIZE(zombie_list);
 static LIST_INITIALIZE(timer_list);
+
+static void default_idle_func(suseconds_t timeout)
+{
+	(void) timeout;
+}
+
+static void default_poke_func(void)
+{
+}
+
+static fibril_idle_func_t fibril_idle_func = default_idle_func;
+static fibril_poke_func_t fibril_poke_func = default_poke_func;
 
 void fibril_global_lock(void)
 {
@@ -85,6 +98,10 @@ void fibril_global_unlock(void)
 	LIST_INITIALIZE(private_zombie_list);
 	list_concat(&private_zombie_list, &zombie_list);
 
+	bool poke = (pending_pokes > 0);
+	if (poke)
+		pending_pokes--;
+
 	futex_unlock(&fibril_futex);
 
 	/* Cleanup the zombies after unlock. all_link is already cleared. */
@@ -95,6 +112,19 @@ void fibril_global_unlock(void)
 		tls_free(z->tcb);
 		free(z);
 	}
+
+	/*
+	 * Poke the idlers.
+	 * We do this after unlock and one at a time because
+	 * (a) we don't want to execute the user function under lock, and
+	 * (b) the pokees are immediately locking the fibril_futex,
+	 *     so this order avoids the woken up thread going immediately
+	 *     back to sleep. The poked thread will acquire the futex
+	 *     uncontested (in most cases), and will keep the ball rolling
+	 *     on unlock.
+	 */
+	if (poke)
+		fibril_poke_func();
 }
 
 static void fibril_global_lock_hand_to(fibril_t *fibril)
@@ -114,18 +144,6 @@ static void fibril_zombify(fibril_t *fibril)
 	list_remove(&fibril->all_link);
 	list_append(&fibril->link, &zombie_list);
 }
-
-static void default_idle_func(suseconds_t timeout)
-{
-	(void) timeout;
-}
-
-static void default_poke_func(void)
-{
-}
-
-static fibril_idle_func_t fibril_idle_func = default_idle_func;
-static fibril_poke_func_t fibril_poke_func = default_poke_func;
 
 static int fibril_switch(fibril_switch_type_t stype);
 
@@ -230,6 +248,13 @@ static suseconds_t handle_expired_timeouts(void)
 	return -1;
 }
 
+static void run_idle_func(suseconds_t timeout)
+{
+	fibril_global_unlock();
+	fibril_idle_func(timeout);
+	fibril_global_lock();
+}
+
 /** Switch from the current fibril.
  *
  * `fibril_futex` must be held on entry, and it is still held on exit.
@@ -262,7 +287,7 @@ static int fibril_switch(fibril_switch_type_t stype)
 		//      whether or not there are ready fibrils.
 
 		/* Run the idle function once without blocking. */
-		fibril_idle_func(0);
+		run_idle_func(0);
 
 		if (list_empty(&ready_list))
 			/* No ready fibril. */
@@ -273,7 +298,7 @@ static int fibril_switch(fibril_switch_type_t stype)
 		 * loop the idle function.
 		 */
 		while (list_empty(&ready_list)) {
-			fibril_idle_func(next_timeout);
+			run_idle_func(next_timeout);
 			next_timeout = handle_expired_timeouts();
 		}
 	}
@@ -398,7 +423,8 @@ static void event_timeout_expired(void *arg)
 		return;
 
 	list_append(&event->fibril->link, &ready_list);
-	fibril_poke_func();
+	pending_pokes++;
+
 	event->fibril = NULL;
 }
 
@@ -452,7 +478,8 @@ void fibril_notify_locked(fibril_event_t *event)
 		return;
 
 	list_append(&event->fibril->link, &ready_list);
-	fibril_poke_func();
+	pending_pokes++;
+
 	event->fibril = _FIBRIL_EVENT_TRIGGERED;
 }
 
@@ -468,12 +495,14 @@ void fibril_notify(fibril_event_t *event)
 void fibril_add_ready(fibril_t *fibril)
 {
 	fibril_global_lock();
+
 	assert(!fibril->running);
 	fibril->running = true;
 
 	list_append(&fibril->link, &ready_list);
+	pending_pokes++;
+
 	fibril_global_unlock();
-	fibril_poke_func();
 }
 
 int fibril_yield(void)
