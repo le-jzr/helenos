@@ -180,7 +180,11 @@ typedef struct {
 
 /* Notification data */
 typedef struct {
-	ht_link_t link;
+	/** notification_hash_table link */
+	ht_link_t htlink;
+
+	/** notification_queue link */
+	link_t qlink;
 
 	/** Notification method */
 	sysarg_t imethod;
@@ -190,6 +194,15 @@ typedef struct {
 
 	/** Notification data */
 	void *data;
+
+	/**
+	 * Data of the most recent notification.
+	 * If count > 1, the data for previous notifications are lost.
+	 */
+	ipc_call_t calldata;
+
+	/** How many of this notification arrived since it was last handled. */
+	long count;
 } notification_t;
 
 /** Identifier of the incoming connection handled by the current fibril. */
@@ -223,7 +236,13 @@ void async_set_client_data_destructor(async_client_data_dtor_t dtor)
 
 static hash_table_t client_hash_table;
 static hash_table_t conn_hash_table;
+
+// TODO: lockfree notification_queue?
+static futex_t notification_futex = FUTEX_INITIALIZER;
 static hash_table_t notification_hash_table;
+static LIST_INITIALIZE(notification_queue);
+static FIBRIL_SEMAPHORE_INITIALIZE(notification_semaphore, 0);
+
 static LIST_INITIALIZE(timeout_list);
 
 static sysarg_t notification_avail = 0;
@@ -555,7 +574,7 @@ static size_t notification_key_hash(void *key)
 static size_t notification_hash(const ht_link_t *item)
 {
 	notification_t *notification =
-	    hash_table_get_inst(item, notification_t, link);
+	    hash_table_get_inst(item, notification_t, htlink);
 	return notification_key_hash(&notification->imethod);
 }
 
@@ -563,7 +582,7 @@ static bool notification_key_equal(void *key, const ht_link_t *item)
 {
 	sysarg_t id = *(sysarg_t *) key;
 	notification_t *notification =
-	    hash_table_get_inst(item, notification_t, link);
+	    hash_table_get_inst(item, notification_t, htlink);
 	return id == notification->imethod;
 }
 
@@ -662,33 +681,144 @@ static bool route_call(cap_call_handle_t chandle, ipc_call_t *call)
 	return true;
 }
 
-/** Process notification.
+static errno_t notification_fibril_func(void *arg)
+{
+	(void) arg;
+
+	while (true) {
+		fibril_semaphore_down(&notification_semaphore);
+
+		futex_lock(&notification_futex);
+
+		/*
+		 * The semaphore ensures that if we get this far,
+		 * the queue must be non-empty.
+		 */
+		assert(!list_empty(&notification_queue));
+
+		notification_t *notification = list_get_instance(
+		    list_first(&notification_queue), notification_t, qlink);
+		list_remove(&notification->qlink);
+
+		async_notification_handler_t handler = notification->handler;
+		void *data = notification->data;
+		ipc_call_t calldata = notification->calldata;
+		long count = notification->count;
+
+		notification->count = 0;
+
+		futex_unlock(&notification_futex);
+
+		// FIXME: Pass count to the handler. It might be important.
+		(void) count;
+
+		if (handler)
+			handler(&calldata, data);
+	}
+
+	/* Not reached. */
+	return EOK;
+}
+
+/**
+ * Creates a new dedicated fibril for handling notifications.
+ * By default, there is one such fibril. This function can be used to
+ * create more in order to increase the number of notification that can
+ * be processed concurrently.
+ *
+ * Currently, there is no way to destroy those fibrils after they are created.
+ */
+errno_t async_spawn_notification_handler()
+{
+	fid_t f = fibril_create(notification_fibril_func, NULL);
+	if (f == 0)
+		return ENOMEM;
+
+	fibril_add_ready(f);
+	return EOK;
+}
+
+/** Queue notification.
  *
  * @param call   Data of the incoming call.
  *
  */
-static void process_notification(ipc_call_t *call)
+static void queue_notification(ipc_call_t *call)
 {
-	async_notification_handler_t handler = NULL;
-	void *data = NULL;
-
 	assert(call);
 
-	futex_down(&async_futex);
+	futex_lock(&notification_futex);
 
 	ht_link_t *link = hash_table_find(&notification_hash_table,
 	    &IPC_GET_IMETHOD(*call));
-	if (link) {
-		notification_t *notification =
-		    hash_table_get_inst(link, notification_t, link);
-		handler = notification->handler;
-		data = notification->data;
+	if (!link) {
+		/* Invalid notification. */
+		// FIXME: Make sure this can't happen and turn it into assert.
+		futex_unlock(&notification_futex);
+		return;
 	}
 
-	futex_up(&async_futex);
+	notification_t *notification =
+	    hash_table_get_inst(link, notification_t, htlink);
 
-	if (handler)
-		handler(call, data);
+	notification->count++;
+	notification->calldata = *call;
+
+	if (link_in_use(&notification->qlink)) {
+		/* Notification already queued. */
+		futex_unlock(&notification_futex);
+		return;
+	}
+
+	list_append(&notification->qlink, &notification_queue);
+	futex_unlock(&notification_futex);
+
+	fibril_semaphore_up(&notification_semaphore);
+}
+
+static notification_t *notification_create(async_notification_handler_t handler, void *data)
+{
+	notification_t *notification = calloc(1, sizeof(notification_t));
+	if (!notification)
+		return NULL;
+
+	notification->handler = handler;
+	notification->data = data;
+
+	fid_t fib = 0;
+
+	futex_lock(&notification_futex);
+
+	if (notification_avail == 0) {
+		/* Attempt to create the first handler fibril. */
+		futex_unlock(&notification_futex);
+
+		fib = fibril_create(notification_fibril_func, NULL);
+		if (fib == 0) {
+			free(notification);
+			return NULL;
+		}
+
+		futex_lock(&notification_futex);
+	}
+
+	sysarg_t imethod = notification_avail;
+	notification_avail++;
+
+	notification->imethod = imethod;
+	hash_table_insert(&notification_hash_table, &notification->htlink);
+
+	futex_unlock(&notification_futex);
+
+	if (imethod == 0) {
+		assert(fib);
+		fibril_add_ready(fib);
+	} else if (fib) {
+		/* Another fibril beat us to it. */
+		fibril_destroy(fib);
+	}
+
+	return notification;
 }
 
 /** Subscribe to IRQ notification.
@@ -706,26 +836,13 @@ static void process_notification(ipc_call_t *call)
 errno_t async_irq_subscribe(int inr, async_notification_handler_t handler,
     void *data, const irq_code_t *ucode, cap_irq_handle_t *handle)
 {
-	notification_t *notification =
-	    (notification_t *) malloc(sizeof(notification_t));
+	notification_t *notification = notification_create(handler, data);
 	if (!notification)
 		return ENOMEM;
 
-	futex_down(&async_futex);
-
-	sysarg_t imethod = notification_avail;
-	notification_avail++;
-
-	notification->imethod = imethod;
-	notification->handler = handler;
-	notification->data = data;
-
-	hash_table_insert(&notification_hash_table, &notification->link);
-
-	futex_up(&async_futex);
-
 	cap_irq_handle_t ihandle;
-	errno_t rc = ipc_irq_subscribe(inr, imethod, ucode, &ihandle);
+	errno_t rc = ipc_irq_subscribe(inr, notification->imethod, ucode,
+	    &ihandle);
 	if (rc == EOK && handle != NULL) {
 		*handle = ihandle;
 	}
@@ -759,25 +876,11 @@ errno_t async_irq_unsubscribe(cap_irq_handle_t ihandle)
 errno_t async_event_subscribe(event_type_t evno,
     async_notification_handler_t handler, void *data)
 {
-	notification_t *notification =
-	    (notification_t *) malloc(sizeof(notification_t));
+	notification_t *notification = notification_create(handler, data);
 	if (!notification)
 		return ENOMEM;
 
-	futex_down(&async_futex);
-
-	sysarg_t imethod = notification_avail;
-	notification_avail++;
-
-	notification->imethod = imethod;
-	notification->handler = handler;
-	notification->data = data;
-
-	hash_table_insert(&notification_hash_table, &notification->link);
-
-	futex_up(&async_futex);
-
-	return ipc_event_subscribe(evno, imethod);
+	return ipc_event_subscribe(evno, notification->imethod);
 }
 
 /** Subscribe to task event notifications.
@@ -792,25 +895,11 @@ errno_t async_event_subscribe(event_type_t evno,
 errno_t async_event_task_subscribe(event_task_type_t evno,
     async_notification_handler_t handler, void *data)
 {
-	notification_t *notification =
-	    (notification_t *) malloc(sizeof(notification_t));
+	notification_t *notification = notification_create(handler, data);
 	if (!notification)
 		return ENOMEM;
 
-	futex_down(&async_futex);
-
-	sysarg_t imethod = notification_avail;
-	notification_avail++;
-
-	notification->imethod = imethod;
-	notification->handler = handler;
-	notification->data = data;
-
-	hash_table_insert(&notification_hash_table, &notification->link);
-
-	futex_up(&async_futex);
-
-	return ipc_event_task_subscribe(evno, imethod);
+	return ipc_event_task_subscribe(evno, notification->imethod);
 }
 
 /** Unmask event notifications.
@@ -975,7 +1064,7 @@ static void handle_call(cap_call_handle_t chandle, ipc_call_t *call)
 		fibril_t *fibril = (fibril_t *) __tcb_get()->fibril_data;
 		unsigned oldsw = fibril->switches;
 
-		process_notification(call);
+		queue_notification(call);
 
 		if (oldsw != fibril->switches) {
 			/*
