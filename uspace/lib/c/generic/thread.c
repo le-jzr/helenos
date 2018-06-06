@@ -51,6 +51,9 @@
 #include <rcu.h>
 #endif
 
+static FUTEX_INITIALIZE(thread_launch_futex);
+static void *thread_launch_stack = NULL;
+static uspace_arg_t thread_launch_uarg;
 
 /** Main thread function.
  *
@@ -89,55 +92,53 @@ void __thread_main(uspace_arg_t *uarg)
 	thread_exit(0);
 }
 
-/** Create userspace thread.
- *
- * This function creates new userspace thread and allocates userspace
- * stack and userspace argument structure for it.
- *
- * @param function Function implementing the thread.
- * @param arg Argument to be passed to thread.
- * @param name Symbolic name of the thread.
- * @param tid Thread ID of the newly created thread.
- *
- * @return Zero on success or a code from @ref errno.h on failure.
- */
-errno_t thread_create(void (*function)(void *), void *arg, const char *name,
-    thread_id_t *tid)
+static errno_t sys_thread_create(uspace_arg_t *uarg, const char *name,
+    thread_id_t *out_tid)
 {
-	uspace_arg_t *uarg =
-	    (uspace_arg_t *) malloc(sizeof(uspace_arg_t));
-	if (!uarg)
-		return ENOMEM;
+	return __SYSCALL4(SYS_THREAD_CREATE, (sysarg_t) uarg,
+	    (sysarg_t) name, (sysarg_t) str_size(name), (sysarg_t) out_tid);
+}
 
-	size_t stack_size = stack_size_get();
-	void *stack = as_area_create(AS_AREA_ANY, stack_size,
-	    AS_AREA_READ | AS_AREA_WRITE | AS_AREA_CACHEABLE | AS_AREA_GUARD |
-	    AS_AREA_LATE_RESERVE, AS_AREA_UNPAGED);
-	if (stack == AS_MAP_FAILED) {
-		free(uarg);
-		return ENOMEM;
+/* Restores a saved context by running it in a newly created anonymous thread. */
+errno_t sys_thread_run(const context_t *ctx)
+{
+	futex_down(&thread_launch_futex);
+
+	if (!thread_launch_stack) {
+		void *stack = as_area_create(AS_AREA_ANY, PAGE_SIZE,
+			    AS_AREA_READ | AS_AREA_WRITE | AS_AREA_CACHEABLE |
+			    AS_AREA_GUARD | AS_AREA_LATE_RESERVE,
+			    AS_AREA_UNPAGED);
+		if (stack == AS_MAP_FAILED) {
+			futex_up(&thread_launch_futex);
+			return ENOMEM;
+		}
+		thread_launch_stack = stack;
 	}
+
+	uspace_arg_t *uarg = &thread_launch_uarg;
+	uarg->uspace_entry = (void *) FADDR(__thread_entry);
+	uarg->uspace_stack = thread_launch_stack;
+	uarg->uspace_stack_size = PAGE_SIZE;
+	uarg->uspace_thread_function = NULL;
+	uarg->uspace_thread_arg = ctx;
+	uarg->uspace_uarg = uarg;
+
+#ifdef FUTEX_UPGRADABLE
+	futex_upgrade_all_and_wait();
+#endif
 
 	/* Make heap thread safe. */
 	malloc_enable_multithreaded();
 
-	uarg->uspace_entry = (void *) FADDR(__thread_entry);
-	uarg->uspace_stack = stack;
-	uarg->uspace_stack_size = stack_size;
-	uarg->uspace_thread_function = function;
-	uarg->uspace_thread_arg = arg;
-	uarg->uspace_uarg = uarg;
-
-	errno_t rc = (errno_t) __SYSCALL4(SYS_THREAD_CREATE, (sysarg_t) uarg,
-	    (sysarg_t) name, (sysarg_t) str_size(name), (sysarg_t) tid);
-
+	/*
+	 * We hand over the ownership of `thread_launch_futex` to the newly
+	 * created thread.
+	 */
+	errno_t rc = sys_thread_create(uarg, "", NULL);
 	if (rc != EOK) {
-		/*
-		 * Failed to create a new thread.
-		 * Free up the allocated data.
-		 */
-		as_area_destroy(stack);
-		free(uarg);
+		/* Failed to create a new thread. */
+		futex_up(&thread_launch_futex);
 	}
 
 	return rc;
@@ -148,10 +149,9 @@ errno_t thread_create(void (*function)(void *), void *arg, const char *name,
  * @param status Exit status. Currently not used.
  *
  */
-void thread_exit(int status)
+void sys_thread_exit(int status)
 {
 	__SYSCALL1(SYS_THREAD_EXIT, (sysarg_t) status);
-
 	/* Unreachable */
 	while (true)
 		;
