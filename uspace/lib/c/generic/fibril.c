@@ -62,7 +62,7 @@ typedef enum {
 static futex_t fibril_futex = FUTEX_INITIALIZER;
 // FIXME: This should be relaxed atomic in order to not violate C11 memory model.
 static fibril_t *fibril_futex_owner;
-static int pending_pokes = 0;
+static int idling_threads = 0;
 
 static LIST_INITIALIZE(ready_list);
 static LIST_INITIALIZE(fibril_list);
@@ -98,9 +98,8 @@ void fibril_global_unlock(void)
 	LIST_INITIALIZE(private_zombie_list);
 	list_concat(&private_zombie_list, &zombie_list);
 
-	bool poke = (pending_pokes > 0);
-	if (poke)
-		pending_pokes--;
+	/* Determine whether there is a thread in need of a good poking. */
+	bool poke = (idling_threads > 0) && !list_empty(&ready_list);
 
 	futex_unlock(&fibril_futex);
 
@@ -114,7 +113,7 @@ void fibril_global_unlock(void)
 	}
 
 	/*
-	 * Poke the idlers.
+	 * Poke an idler.
 	 * We do this after unlock and one at a time because
 	 * (a) we don't want to execute the user function under lock, and
 	 * (b) the pokees are immediately locking the fibril_futex,
@@ -250,9 +249,11 @@ static suseconds_t handle_expired_timeouts(void)
 
 static void run_idle_func(suseconds_t timeout)
 {
+	idling_threads++;
 	fibril_global_unlock();
 	fibril_idle_func(timeout);
 	fibril_global_lock();
+	idling_threads--;
 }
 
 /** Switch from the current fibril.
@@ -423,8 +424,6 @@ static void event_timeout_expired(void *arg)
 		return;
 
 	list_append(&event->fibril->link, &ready_list);
-	pending_pokes++;
-
 	event->fibril = NULL;
 }
 
@@ -478,8 +477,6 @@ void fibril_notify_locked(fibril_event_t *event)
 		return;
 
 	list_append(&event->fibril->link, &ready_list);
-	pending_pokes++;
-
 	event->fibril = _FIBRIL_EVENT_TRIGGERED;
 }
 
@@ -500,8 +497,6 @@ void fibril_add_ready(fibril_t *fibril)
 	fibril->running = true;
 
 	list_append(&fibril->link, &ready_list);
-	pending_pokes++;
-
 	fibril_global_unlock();
 }
 

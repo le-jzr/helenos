@@ -119,9 +119,6 @@
 #include <abi/mm/as.h>
 #include "../private/libc.h"
 
-/** Number of threads waiting for IPC in the kernel. */
-static atomic_t threads_in_ipc_wait = { 0 };
-
 /** Call data */
 typedef struct {
 	link_t link;
@@ -1052,12 +1049,8 @@ static void async_idle_func(suseconds_t timeout)
 	if (timeout < 0)
 		timeout = SYNCH_NO_TIMEOUT;
 
-	atomic_inc(&threads_in_ipc_wait);
-
 	ipc_call_t call;
 	errno_t rc = ipc_wait_cycle(&call, timeout, flags);
-	atomic_dec(&threads_in_ipc_wait);
-
 	if (rc != EOK)
 		return;
 
@@ -1070,14 +1063,6 @@ static void async_idle_func(suseconds_t timeout)
 	}
 
 	handle_call(call.cap_handle, &call);
-}
-
-
-/** Interrupt one thread of this task from waiting for IPC. */
-static void async_poke_func(void)
-{
-	if (atomic_get(&threads_in_ipc_wait) > 0)
-		ipc_poke();
 }
 
 /** Initialize the async framework.
@@ -1095,7 +1080,7 @@ void __async_server_init(void)
 	    &notification_hash_table_ops))
 		abort();
 
-	fibril_set_idle_func(async_idle_func, async_poke_func);
+	fibril_set_idle_func(async_idle_func, ipc_poke);
 }
 
 errno_t async_answer_0(cap_call_handle_t chandle, errno_t retval)
