@@ -1061,27 +1061,7 @@ static void handle_call(cap_call_handle_t chandle, ipc_call_t *call)
 
 	/* Kernel notification */
 	if ((chandle == CAP_NIL) && (call->flags & IPC_CALL_NOTIF)) {
-		fibril_t *fibril = (fibril_t *) __tcb_get()->fibril_data;
-		unsigned oldsw = fibril->switches;
-
 		queue_notification(call);
-
-		if (oldsw != fibril->switches) {
-			/*
-			 * The notification handler did not execute atomically
-			 * and so the current manager fibril assumed the role of
-			 * a notification fibril. While waiting for its
-			 * resources, it switched to another manager fibril that
-			 * had already existed or it created a new one. We
-			 * therefore know there is at least yet another
-			 * manager fibril that can take over. We now kill the
-			 * current 'notification' fibril to prevent fibril
-			 * population explosion.
-			 */
-			futex_down(&async_futex);
-			fibril_switch(FIBRIL_FROM_DEAD);
-		}
-
 		return;
 	}
 
