@@ -54,6 +54,7 @@
 #include "private/async.h"
 #include "private/malloc.h"
 #include "private/io.h"
+#include "private/thread.h"
 
 #ifdef FUTEX_UPGRADABLE
 #include <rcu.h>
@@ -83,12 +84,11 @@ void __libc_main(void *pcb_ptr)
 	}
 #endif
 
-	fibril_t *fibril = fibril_setup();
+	fibril_t *fibril = fibril_alloc();
 	if (fibril == NULL)
 		abort();
 
-	__tcb_set(fibril->tcb);
-
+	fibril_setup(fibril);
 
 #ifdef FUTEX_UPGRADABLE
 	rcu_register_fibril();

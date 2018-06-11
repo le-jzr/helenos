@@ -31,8 +31,8 @@
 #define DELAY    10
 
 #include <atomic.h>
+#include <fibril.h>
 #include <errno.h>
-#include <thread.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <inttypes.h>
@@ -43,10 +43,8 @@ static atomic_t threads_finished;
 
 static void threadtest(void *data)
 {
-	thread_detach(thread_get_id());
-
 	while (atomic_get(&finish))
-		thread_usleep(100000);
+		fibril_thread_usleep(100000);
 
 	atomic_inc(&threads_finished);
 }
@@ -61,23 +59,26 @@ const char *test_thread1(void)
 
 	TPRINTF("Creating threads");
 	for (i = 0; i < THREADS; i++) {
-		if (thread_create(threadtest, NULL, "threadtest", NULL) != EOK) {
+		fid_t f = fibril_run_heavy(threadtest, NULL);
+		if (!f) {
 			TPRINTF("\nCould not create thread %u\n", i);
 			break;
 		}
+		// fibril_detach(f);
+
 		TPRINTF(".");
 		total++;
 	}
 
 	TPRINTF("\nRunning threads for %u seconds...", DELAY);
-	thread_sleep(DELAY);
+	fibril_thread_sleep(DELAY);
 	TPRINTF("\n");
 
 	atomic_set(&finish, 0);
 	while (atomic_get(&threads_finished) < total) {
 		TPRINTF("Threads left: %" PRIua "\n",
 		    total - atomic_get(&threads_finished));
-		thread_sleep(1);
+		fibril_thread_sleep(1);
 	}
 
 	return NULL;

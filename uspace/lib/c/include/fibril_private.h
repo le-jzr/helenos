@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006 Jakub Jermar
+ * Copyright (c) 2006 Ondrej Palkovsky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,30 +26,31 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup libc
- * @{
- */
-/** @file
- */
+#ifndef LIBC_FIBRIL_PRIVATE_H_
+#define LIBC_FIBRIL_PRIVATE_H_
 
-#ifndef LIBC_THREAD_H_
-#define LIBC_THREAD_H_
+#include <adt/list.h>
+#include <context.h>
+#include <libarch/tls.h>
 
-#include <errno.h>
-#include <libarch/thread.h>
-#include <stdint.h>
-#include <abi/proc/thread.h>
-#include <time.h>
+struct fibril {
+	link_t link;
+	link_t all_link;
+	context_t ctx;
+	void *stack;
+	void *arg;
+	errno_t (*func)(void *);
+	tcb_t *tcb;
 
-extern errno_t thread_create(void (*)(void *), void *, const char *, thread_id_t *);
-extern void thread_exit(int) __attribute__((noreturn));
-extern void thread_detach(thread_id_t);
-extern errno_t thread_join(thread_id_t);
-extern thread_id_t thread_get_id(void);
-extern int thread_usleep(useconds_t);
-extern unsigned int thread_sleep(unsigned int);
+	fibril_t *clean_after_me;
+	fibril_owner_info_t *waits_for;
+
+	errno_t retval;
+
+	bool is_writer : 1;
+	bool is_heavy : 1;
+	bool is_running : 1;
+	bool stop_thread : 1;
+};
 
 #endif
-
-/** @}
- */

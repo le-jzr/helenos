@@ -32,184 +32,177 @@
 /** @file
  */
 
-#include <thread.h>
-#include <libc.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
+
+#include <fibril.h>
+#include <fibril_synch.h>
+#include <libc.h>
 #include <libarch/faddr.h>
 #include <abi/proc/uarg.h>
-#include <fibril.h>
 #include <stack.h>
 #include <str.h>
 #include <async.h>
-#include <errno.h>
 #include <as.h>
+#include <rcu.h>
 #include "private/thread.h"
 
-#ifdef FUTEX_UPGRADABLE
-#include <rcu.h>
-#endif
+typedef sysarg_t thread_id_t;
 
+#define SYS_THREAD_SIZE        PAGE_SIZE
+#define SYS_THREAD_STACK_SIZE  (SYS_THREAD_SIZE - offsetof(struct sys_thread, stack))
+
+/** Dynamic data for a running system thread instance.
+ *  The stack portion is only used during launch and exit.
+ */
+typedef struct sys_thread {
+	uspace_arg_t uarg;
+	fibril_t *fibril;
+	thread_id_t id;
+	uint8_t stack[];
+} sys_thread_t;
+
+#if JOIN_IS_IMPLEMENTED
+static _Atomic sys_thread_t *last_exitted = NULL;
+#endif
+static FIBRIL_SEMAPHORE_INITIALIZE(thread_exit_semaphore, 0);
+
+static errno_t sys_thread_create(uspace_arg_t *uarg, const char *name,
+    thread_id_t *out_tid)
+{
+	return __SYSCALL4(SYS_THREAD_CREATE, (sysarg_t) uarg,
+	    (sysarg_t) name, (sysarg_t) str_size(name), (sysarg_t) out_tid);
+}
+
+static _Noreturn void sys_thread_exit(void)
+{
+	__SYSCALL1(SYS_THREAD_EXIT, 0);
+	__builtin_unreachable();
+}
+
+static thread_id_t sys_thread_get_id(void)
+{
+	thread_id_t thread_id;
+	(void) __SYSCALL1(SYS_THREAD_GET_ID, (sysarg_t) &thread_id);
+	return thread_id;
+}
 
 /** Main thread function.
  *
- * This function is called from __thread_entry() and is used
- * to call the thread's implementing function and perform cleanup
- * and exit when thread returns back.
- *
- * @param uarg Pointer to userspace argument structure.
- *
+ * This function is called from __thread_entry().
  */
 void __thread_main(uspace_arg_t *uarg)
 {
-	fibril_t *fibril = fibril_setup();
-	if (fibril == NULL)
-		thread_exit(0);
+	sys_thread_t *t = (sys_thread_t *) uarg;
+	assert(t);
+	assert(t->fibril);
 
-	__tcb_set(fibril->tcb);
+	fibril_setup(t->fibril);
 
 #ifdef FUTEX_UPGRADABLE
 	rcu_register_fibril();
 	futex_upgrade_all_and_wait();
 #endif
 
-	uarg->uspace_thread_function(uarg->uspace_thread_arg);
-	/*
-	 * XXX: we cannot free the userspace stack while running on it
-	 *
-	 * free(uarg->uspace_stack);
-	 * free(uarg);
-	 */
+	/* Sleep the fibril until it's time to exit. */
+	fibril_semaphore_down(&thread_exit_semaphore);
 
-	/* If there is a manager, destroy it */
-	async_destroy_manager();
+	t->id = sys_thread_get_id();
+
+	/*
+	 * The running thread can't deallocate its own stack,
+	 * but we can deallocate the previous exitted thread (if thread join is
+	 * implemented).
+	 * This way, only one thread stack is stuck waiting to be deallocated.
+	 */
+	// FIXME: join is not implemented
+#if JOIN_IS_IMPLEMENTED
+	// XXX: must be acquire-release for correct ordering of the id field
+	sys_thread_t *last =
+	    __atomic_exchange_n(&last_exitted, t, __ATOMIC_ACQ_REL);
+	sys_thread_join(last->id);
+	as_area_destroy(last);
+#endif
 
 #ifdef FUTEX_UPGRADABLE
 	rcu_deregister_fibril();
 #endif
 
-	fibril_teardown(fibril, false);
-
-	thread_exit(0);
+	fibril_teardown(t->fibril, false);
+	sys_thread_exit();
 }
 
-/** Create userspace thread.
+/**
+ * Add one new anonymous thread to the fibril thread pool.
  *
- * This function creates new userspace thread and allocates userspace
- * stack and userspace argument structure for it.
- *
- * @param function Function implementing the thread.
- * @param arg Argument to be passed to thread.
- * @param name Symbolic name of the thread.
- * @param tid Thread ID of the newly created thread.
- *
- * @return Zero on success or a code from @ref errno.h on failure.
+ * Non-libc code should never call this function directly.
+ * Instead, use `fibril_set_thread_count()`.
  */
-errno_t thread_create(void (*function)(void *), void *arg, const char *name,
-    thread_id_t *tid)
+errno_t thread_add(void)
 {
-	uspace_arg_t *uarg =
-	    (uspace_arg_t *) malloc(sizeof(uspace_arg_t));
-	if (!uarg)
+	sys_thread_t *t = as_area_create(AS_AREA_ANY, SYS_THREAD_SIZE,
+	    AS_AREA_READ | AS_AREA_WRITE | AS_AREA_CACHEABLE |
+	    AS_AREA_GUARD | AS_AREA_LATE_RESERVE,
+	    AS_AREA_UNPAGED);
+	if (t == AS_MAP_FAILED)
 		return ENOMEM;
 
-	size_t stack_size = stack_size_get();
-	void *stack = as_area_create(AS_AREA_ANY, stack_size,
-	    AS_AREA_READ | AS_AREA_WRITE | AS_AREA_CACHEABLE | AS_AREA_GUARD |
-	    AS_AREA_LATE_RESERVE, AS_AREA_UNPAGED);
-	if (stack == AS_MAP_FAILED) {
-		free(uarg);
+	/* Allocate memory for the thread fibril data. */
+	t->fibril = fibril_alloc();
+	if (!t->fibril) {
+		as_area_destroy(t);
 		return ENOMEM;
 	}
 
 	/* Make heap thread safe. */
 	malloc_enable_multithreaded();
 
-	uarg->uspace_entry = (void *) FADDR(__thread_entry);
-	uarg->uspace_stack = stack;
-	uarg->uspace_stack_size = stack_size;
-	uarg->uspace_thread_function = function;
-	uarg->uspace_thread_arg = arg;
-	uarg->uspace_uarg = uarg;
+	t->uarg.uspace_entry = (void *) FADDR(__thread_entry);
+	t->uarg.uspace_stack = &t->stack[0];
+	t->uarg.uspace_stack_size = SYS_THREAD_STACK_SIZE;
+	t->uarg.uspace_thread_function = NULL;
+	t->uarg.uspace_thread_arg = NULL;
+	t->uarg.uspace_uarg = &t->uarg;
 
-	errno_t rc = (errno_t) __SYSCALL4(SYS_THREAD_CREATE, (sysarg_t) uarg,
-	    (sysarg_t) name, (sysarg_t) str_size(name), (sysarg_t) tid);
-
+	errno_t rc = sys_thread_create(&t->uarg, "", NULL);
 	if (rc != EOK) {
-		/*
-		 * Failed to create a new thread.
-		 * Free up the allocated data.
-		 */
-		as_area_destroy(stack);
-		free(uarg);
+		fibril_free(t->fibril);
+		as_area_destroy(t);
 	}
-
 	return rc;
 }
 
-/** Terminate current thread.
+/**
+ * Remove one thread from the fibril thread pool.
  *
- * @param status Exit status. Currently not used.
+ * This function will never terminate the main thread, i.e. the thread that
+ * first entered `main()`, but additional calls to `thread_remove()` may
+ * cause the same numberl of future threads created by `thread_add()` to exit
+ * immediately.
  *
+ * Non-libc code should never call this function directly.
+ * Instead, use `fibril_set_thread_count()`.
  */
-void thread_exit(int status)
+void thread_remove(void)
 {
-	__SYSCALL1(SYS_THREAD_EXIT, (sysarg_t) status);
-
-	/* Unreachable */
-	while (true)
-		;
+	fibril_semaphore_up(&thread_exit_semaphore);
 }
 
-/** Detach thread.
- *
- * Currently not implemented.
- *
- * @param thread TID.
+/**
+ * Block thread executing the current fibril unconditionally
+ * for specified number of microseconds.
  */
-void thread_detach(thread_id_t thread)
-{
-}
-
-/** Join thread.
- *
- * Currently not implemented.
- *
- * @param thread TID.
- *
- * @return Thread exit status.
- */
-errno_t thread_join(thread_id_t thread)
-{
-	return 0;
-}
-
-/** Get current thread ID.
- *
- * @return Current thread ID.
- */
-thread_id_t thread_get_id(void)
-{
-	thread_id_t thread_id;
-
-	(void) __SYSCALL1(SYS_THREAD_GET_ID, (sysarg_t) &thread_id);
-
-	return thread_id;
-}
-
-/** Wait unconditionally for specified number of microseconds
- *
- */
-int thread_usleep(useconds_t usec)
+void fibril_thread_usleep(useconds_t usec)
 {
 	(void) __SYSCALL1(SYS_THREAD_USLEEP, usec);
-	return 0;
 }
 
-/** Wait unconditionally for specified number of seconds
- *
+/**
+ * Block thread executing the current fibril unconditionally
+ * for specified number of seconds.
  */
-unsigned int thread_sleep(unsigned int sec)
+void fibril_thread_sleep(unsigned int sec)
 {
 	/*
 	 * Sleep in 1000 second steps to support
@@ -219,11 +212,9 @@ unsigned int thread_sleep(unsigned int sec)
 	while (sec > 0) {
 		unsigned int period = (sec > 1000) ? 1000 : sec;
 
-		thread_usleep(period * 1000000);
+		fibril_thread_usleep(period * 1000000);
 		sec -= period;
 	}
-
-	return 0;
 }
 
 /** @}

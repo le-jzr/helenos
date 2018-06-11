@@ -79,8 +79,8 @@
 #include <smp_memory_barrier.h>
 #include <assert.h>
 #include <time.h>
-#include <thread.h>
 
+#include "private/thread.h"
 
 /** RCU sleeps for RCU_SLEEP_MS before polling an active RCU reader again. */
 #define RCU_SLEEP_MS        10
@@ -431,7 +431,7 @@ static void sync_sleep(blocking_mode_t blocking_mode)
 	if (blocking_mode == BM_BLOCK_FIBRIL) {
 		async_usleep(RCU_SLEEP_MS * 1000);
 	} else {
-		thread_usleep(RCU_SLEEP_MS * 1000);
+		fibril_thread_usleep(RCU_SLEEP_MS * 1000);
 	}
 
 	futex_down(&rcu.sync_lock.futex);
