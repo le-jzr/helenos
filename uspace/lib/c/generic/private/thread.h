@@ -35,10 +35,30 @@
 #ifndef LIBC_PRIVATE_THREAD_H_
 #define LIBC_PRIVATE_THREAD_H_
 
+#include <fibril.h>
+#include <fibril_private.h>
 #include <abi/proc/uarg.h>
 
 extern void __thread_entry(void);
 extern void __thread_main(uspace_arg_t *);
+extern errno_t thread_add(void);
+extern void thread_remove(void);
+
+typedef enum {
+	FIBRIL_PREEMPT,
+	FIBRIL_TO_MANAGER,
+	FIBRIL_FROM_MANAGER,
+	FIBRIL_FROM_DEAD
+} fibril_switch_type_t;
+
+extern fibril_t *fibril_alloc(void);
+extern void fibril_free(fibril_t *);
+extern void fibril_setup(fibril_t *);
+extern void fibril_teardown(fibril_t *f, bool locked);
+extern int fibril_switch(fibril_switch_type_t stype);
+
+extern void fibril_add_manager(fid_t fid);
+extern void fibril_remove_manager(void);
 
 #endif
 

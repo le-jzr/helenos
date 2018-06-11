@@ -34,6 +34,7 @@
 
 #include <errno.h>
 #include <fibril.h>
+#include <fibril_private.h>
 #include <fibrildump.h>
 #include <stacktrace.h>
 #include <stdio.h>
