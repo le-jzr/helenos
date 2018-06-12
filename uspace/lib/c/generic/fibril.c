@@ -47,6 +47,8 @@
 #include <assert.h>
 #include <async.h>
 
+#include <io/kio.h>
+
 #include "private/thread.h"
 
 #ifdef FUTEX_UPGRADABLE
@@ -70,7 +72,7 @@ static LIST_INITIALIZE(fibril_list);
 /*
  * Number of threads reserved for light fibrils, not including the main thread.
  */
-static int thread_count_light = 3;
+static int thread_count_light = 1;
 
 /*
  * Number of heavy fibrils running.
@@ -237,6 +239,7 @@ int fibril_switch(fibril_switch_type_t stype)
 		break;
 	}
 
+#if 0
 	/* Check if we need to exit a thread. */
 	if (thread_count_heavy + thread_count_light + 4 < thread_count_real / 2) {
 		/* We keep up to twice the number of currently required threads,
@@ -244,12 +247,16 @@ int fibril_switch(fibril_switch_type_t stype)
 		 * allocated and deallocated.
 		 */
 
+		assert(thread_count_real > 0);
+
 		// FIXME: We can't signal the semaphore with async_futex locked.
 		if (stype == FIBRIL_FROM_MANAGER || stype == FIBRIL_PREEMPT) {
 			thread_count_real--;
 			dstf->stop_thread = true;
 		}
 	}
+
+#endif
 
 #ifdef FUTEX_UPGRADABLE
 	if (stype == FIBRIL_FROM_DEAD) {

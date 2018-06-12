@@ -1111,8 +1111,12 @@ static errno_t async_manager_worker(void)
 
 		atomic_inc(&threads_in_ipc_wait);
 
+		static futex_t wfutex = FUTEX_INITIALIZER;
+
 		ipc_call_t call;
+		futex_lock(&wfutex);
 		errno_t rc = ipc_wait_cycle(&call, timeout, flags);
+		futex_unlock(&wfutex);
 
 		atomic_dec(&threads_in_ipc_wait);
 
