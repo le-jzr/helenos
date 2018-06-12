@@ -257,6 +257,8 @@ int fibril_switch(fibril_switch_type_t stype)
 	}
 #endif
 
+	futex_give_to(&fibril_futex, dstf);
+
 	/* Swap to the next fibril. */
 	context_swap(&srcf->ctx, &dstf->ctx);
 

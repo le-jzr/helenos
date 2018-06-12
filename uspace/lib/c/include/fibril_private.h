@@ -29,6 +29,7 @@
 #ifndef LIBC_FIBRIL_PRIVATE_H_
 #define LIBC_FIBRIL_PRIVATE_H_
 
+#include <atomic.h>
 #include <adt/list.h>
 #include <context.h>
 #include <libarch/tls.h>
@@ -47,6 +48,8 @@ struct fibril {
 
 	errno_t retval;
 	unsigned int switches;
+
+	atomic_t futex_locks;
 
 	bool is_writer : 1;
 	bool is_heavy : 1;
