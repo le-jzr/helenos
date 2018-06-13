@@ -115,7 +115,7 @@ static service_id_t tmpfs_service_get(fs_node_t *fn)
 }
 
 /** libfs operations */
-libfs_ops_t tmpfs_libfs_ops = {
+const libfs_ops_t tmpfs_libfs_ops = {
 	.root_get = tmpfs_root_get,
 	.match = tmpfs_match,
 	.node_get = tmpfs_node_get,
@@ -188,7 +188,7 @@ static void nodes_remove_callback(ht_link_t *item)
 }
 
 /** TMPFS nodes hash table operations. */
-hash_table_ops_t nodes_ops = {
+const hash_table_ops_t nodes_ops = {
 	.hash = nodes_hash,
 	.key_hash = nodes_key_hash,
 	.key_equal = nodes_key_equal,
@@ -649,7 +649,7 @@ static errno_t tmpfs_sync(service_id_t service_id, fs_index_t index)
 	return EOK;
 }
 
-vfs_out_ops_t tmpfs_ops = {
+const vfs_out_ops_t tmpfs_ops = {
 	.fsprobe = tmpfs_fsprobe,
 	.mounted = tmpfs_mounted,
 	.unmounted = tmpfs_unmounted,

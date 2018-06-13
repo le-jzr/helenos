@@ -87,6 +87,8 @@ typedef struct {
 	errno_t (*size_block)(service_id_t, uint32_t *);
 	errno_t (*total_block_count)(service_id_t, uint64_t *);
 	errno_t (*free_block_count)(service_id_t, uint64_t *);
+
+	bool parallelize;
 } libfs_ops_t;
 
 typedef struct {
@@ -94,8 +96,8 @@ typedef struct {
 	uint8_t *plb_ro;         /**< Read-only PLB view. */
 } fs_reg_t;
 
-extern errno_t fs_register(async_sess_t *, vfs_info_t *, vfs_out_ops_t *,
-    libfs_ops_t *);
+extern errno_t fs_register(async_sess_t *, const vfs_info_t *,
+    const vfs_out_ops_t *, const libfs_ops_t *);
 
 extern void fs_node_initialize(fs_node_t *);
 

@@ -65,20 +65,22 @@
 
 static fs_reg_t reg;
 
-static vfs_out_ops_t *vfs_out_ops = NULL;
-static libfs_ops_t *libfs_ops = NULL;
+static FIBRIL_MUTEX_INITIALIZE(serializing_mutex);
+
+static const vfs_out_ops_t *vfs_out_ops = NULL;
+static const libfs_ops_t *libfs_ops = NULL;
 
 static char fs_name[FS_NAME_MAXLEN + 1];
 
-static void libfs_link(libfs_ops_t *, fs_handle_t, cap_call_handle_t,
+static void libfs_link(const libfs_ops_t *, fs_handle_t, cap_call_handle_t,
     ipc_call_t *);
-static void libfs_lookup(libfs_ops_t *, fs_handle_t, cap_call_handle_t,
+static void libfs_lookup(const libfs_ops_t *, fs_handle_t, cap_call_handle_t,
     ipc_call_t *);
-static void libfs_stat(libfs_ops_t *, fs_handle_t, cap_call_handle_t,
+static void libfs_stat(const libfs_ops_t *, fs_handle_t, cap_call_handle_t,
     ipc_call_t *);
-static void libfs_open_node(libfs_ops_t *, fs_handle_t, cap_call_handle_t,
+static void libfs_open_node(const libfs_ops_t *, fs_handle_t, cap_call_handle_t,
     ipc_call_t *);
-static void libfs_statfs(libfs_ops_t *, fs_handle_t, cap_call_handle_t,
+static void libfs_statfs(const libfs_ops_t *, fs_handle_t, cap_call_handle_t,
     ipc_call_t *);
 
 static void vfs_out_fsprobe(cap_call_handle_t req_handle, ipc_call_t *req)
@@ -298,6 +300,10 @@ static void vfs_connection(cap_call_handle_t icall_handle, ipc_call_t *icall,
 		if (!IPC_GET_IMETHOD(call))
 			return;
 
+		/* Some servers can't handle concurrent exchanges yet. */
+		if (!libfs_ops->parallelize)
+			fibril_mutex_lock(&serializing_mutex);
+
 		switch (IPC_GET_IMETHOD(call)) {
 		case VFS_OUT_FSPROBE:
 			vfs_out_fsprobe(chandle, &call);
@@ -348,6 +354,9 @@ static void vfs_connection(cap_call_handle_t icall_handle, ipc_call_t *icall,
 			async_answer_0(chandle, ENOTSUP);
 			break;
 		}
+
+		if (!libfs_ops->parallelize)
+			fibril_mutex_unlock(&serializing_mutex);
 	}
 }
 
@@ -366,8 +375,8 @@ static void vfs_connection(cap_call_handle_t icall_handle, ipc_call_t *icall,
  * @return EOK on success or a non-zero error code on errror.
  *
  */
-errno_t fs_register(async_sess_t *sess, vfs_info_t *info, vfs_out_ops_t *vops,
-    libfs_ops_t *lops)
+errno_t fs_register(async_sess_t *sess, const vfs_info_t *info,
+    const vfs_out_ops_t *vops, const libfs_ops_t *lops)
 {
 	/*
 	 * Tell VFS that we are here and want to get registered.
@@ -494,7 +503,7 @@ static errno_t receive_fname(char *buffer)
 
 /** Link a file at a path.
  */
-void libfs_link(libfs_ops_t *ops, fs_handle_t fs_handle,
+void libfs_link(const libfs_ops_t *ops, fs_handle_t fs_handle,
     cap_call_handle_t req_handle, ipc_call_t *req)
 {
 	service_id_t parent_sid = IPC_GET_ARG1(*req);
@@ -542,7 +551,7 @@ void libfs_link(libfs_ops_t *ops, fs_handle_t fs_handle,
  * @param request     VFS_OUT_LOOKUP request data itself.
  *
  */
-void libfs_lookup(libfs_ops_t *ops, fs_handle_t fs_handle,
+void libfs_lookup(const libfs_ops_t *ops, fs_handle_t fs_handle,
     cap_call_handle_t req_handle, ipc_call_t *req)
 {
 	unsigned first = IPC_GET_ARG1(*req);
@@ -723,7 +732,7 @@ out:
 		(void) ops->node_put(tmp);
 }
 
-void libfs_stat(libfs_ops_t *ops, fs_handle_t fs_handle,
+void libfs_stat(const libfs_ops_t *ops, fs_handle_t fs_handle,
     cap_call_handle_t req_handle, ipc_call_t *request)
 {
 	service_id_t service_id = (service_id_t) IPC_GET_ARG1(*request);
@@ -762,7 +771,7 @@ void libfs_stat(libfs_ops_t *ops, fs_handle_t fs_handle,
 	async_answer_0(req_handle, EOK);
 }
 
-void libfs_statfs(libfs_ops_t *ops, fs_handle_t fs_handle,
+void libfs_statfs(const libfs_ops_t *ops, fs_handle_t fs_handle,
     cap_call_handle_t req_handle, ipc_call_t *request)
 {
 	service_id_t service_id = (service_id_t) IPC_GET_ARG1(*request);
@@ -822,7 +831,7 @@ error:
  * @param request     VFS_OUT_OPEN_NODE request data itself.
  *
  */
-void libfs_open_node(libfs_ops_t *ops, fs_handle_t fs_handle,
+void libfs_open_node(const libfs_ops_t *ops, fs_handle_t fs_handle,
     cap_call_handle_t req_handle, ipc_call_t *request)
 {
 	service_id_t service_id = IPC_GET_ARG1(*request);

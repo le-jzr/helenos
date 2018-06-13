@@ -69,8 +69,8 @@ typedef struct tmpfs_node {
 	list_t cs_list;		/**< Child's siblings list. */
 } tmpfs_node_t;
 
-extern vfs_out_ops_t tmpfs_ops;
-extern libfs_ops_t tmpfs_libfs_ops;
+extern const vfs_out_ops_t tmpfs_ops;
+extern const libfs_ops_t tmpfs_libfs_ops;
 
 extern bool tmpfs_init(void);
 
