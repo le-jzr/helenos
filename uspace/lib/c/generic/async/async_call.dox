@@ -1,0 +1,223 @@
+/**
+ * @name IPC Call API
+ *
+ * @brief
+ * A client API for making asynchronous IPC calls to a server.
+ *
+ * An IPC call (an exchange, in old API's terminology) is started using
+ * `async_call_begin()`. It consists of an initial message, which determines
+ * the IPC protocol that is being followed, and an arbitrary additional
+ * sequence of messages (called "fragments"), and waits, as determined by
+ * the protocol.
+ *
+ * A fragment may be a simple message (a vector of register-sized numeric
+ * fields), a byte buffer read or write, operations establishing shared memory,
+ * operations establishing a new session (server-to-client or client-to-server),
+ * or operations for passing objects (aka capabilities) between the server and
+ * the client.
+ *
+ * Each fragment has a corresponding answer, which can be accessed as
+ * the `answer` field of the corresponding call structure after the fragment
+ * is completed. A fragment is not completed until `async_call_wait()` or
+ * `async_call_finish()` is called.
+ *
+ * `async_call_wait()` blocks until all the previously sent fragments are
+ * answered. More fragments can be sent after `async_call_wait()` returns.
+ *
+ * The initial message is not considered a fragment. Instead, it "wraps" the
+ * entire call.
+ *
+ * `async_call_finish()` first ends the call, and then waits for all fragments
+ * as well as the initial message. The call is considered closed after this
+ * and no more fragments can be sent.
+ *
+ * Both `async_call_wait()` and `async_call_finish()` return an error code
+ * if any operation has failed. No answers are available in that case.
+ * If either `async_call_wait()` or `async_call_finish()` fail, the call
+ * is considered closed and no further operations are legal.
+ *
+ * Both functions can also be called with a timeout. If the operation fails
+ * with `ETIMEOUT` the call is not closed. Instead, it is as if the function
+ * was never called, and further operations are possible.
+ *
+ * Additionally, there is `async_call_abort()` which closes the call, but does
+ * not wait for or make available any answers. The server may also be notified
+ * of the abort to stop the operation being performed. However, this is not
+ * guaranteed. There is no way to determine whether the operation finished or
+ * not before the abort. The only guarantee is that when `async_call_abort()`
+ * returns, any pointers passed into any function are no longer held, and
+ * are safe to dispose of.
+ *
+ * @{
+ */
+
+typedef struct async_call_data {
+	ipc_call_t answer;
+
+	/* ... */
+} async_call_data_t;
+
+typedef errno_t (*async_call_finalizer_t)(async_call_data_t *);
+
+typedef struct async_call {
+	async_call_data_t initial;
+
+	/* ... */
+} async_call_t;
+
+/**
+ * Initiates a new IPC call.
+ *
+ * @param call     Scratch space for the call data.
+ *                 Typically an address of an uninitialized local variable.
+ *
+ * @param sess     The session in which the call is to be made.
+ *
+ * @param imethod  Initial message method.
+ */
+void async_call_begin(
+	async_call_t *call,
+	async_sess_t *sess,
+
+	sysarg_t imethod,
+	sysarg_t arg1,
+	sysarg_t arg2,
+	sysarg_t arg3,
+	sysarg_t arg4
+);
+
+/** Ends the call, and waits for all unfinished fragments to finish. */
+errno_t async_call_finish(async_call_t *call);
+
+errno_t async_call_finish_timeout(
+	async_call_t *call,
+	const struct timeval *expires
+);
+
+
+/**
+ * Aborts the call. After this function returns, auxiliary structures
+ * and buffers are safe to deallocate.
+ */
+void async_call_abort(async_call_t *call);
+
+/** Waits for all unfinished fragments to finish, but doesn't end the call. */
+errno_t async_call_wait(async_call_t *call);
+
+errno_t async_call_wait_timeout(
+	async_call_t *call,
+	const struct timeval *expires
+);
+
+/**
+ * Sends a message with a finalizer. This is mainly useful for wrapping a more
+ * complicated protocol fragment into a single call.
+ *
+ * @param call       The call.
+ *
+ * @param data       Scratch space for the fragment data.
+ *                   Typically an address of an uninitialized local variable.
+ *
+ * @param imethod    Method number.
+ *
+ * @param finalizer  A function that is called when the fragment is finished.
+ *                   It is called with the `data` pointer as the only argument.
+ */
+void async_call_method_with_finalizer(
+	async_call_t *call,
+	async_call_data_t *data,
+	sysarg_t imethod,
+	sysarg_t arg1,
+	sysarg_t arg2,
+	sysarg_t arg3,
+	sysarg_t arg4,
+	async_call_finalizer_t finalizer
+);
+
+/**
+ * Sends a simple message as a fragment of the call.
+ *
+ * @param call       The call.
+ *
+ * @param data       Scratch space for the fragment data.
+ *                   Typically an address of an uninitialized local variable.
+ *
+ * @param imethod    Method number.
+ */
+void async_call_method(
+	async_call_t *call,
+	async_call_data_t *data,
+	sysarg_t imethod,
+	sysarg_t arg1,
+	sysarg_t arg2,
+	sysarg_t arg3,
+	sysarg_t arg4
+);
+
+/**
+ * Starts a data read.
+ *
+ * @param call       The call.
+ *
+ * @param data       Scratch space for the fragment data.
+ *                   Typically an address of an uninitialized local variable.
+ *
+ * @param dst        Destination buffer.
+ * @param size       Size of the destination buffer.
+ * @param nread      If not NULL, `*nread` is assigned the actual number of
+ *                   bytes read once the read is finished.
+ */
+void async_call_read(
+	async_call_t *call,
+	async_call_data_t *data,
+	void *dst,
+	size_t size,
+	size_t *nread
+);
+
+/**
+ * Starts a data write.
+ *
+ * @param call       The call.
+ *
+ * @param data       Scratch space for the fragment data.
+ *                   Typically an address of an uninitialized local variable.
+ *
+ * @param src        Source buffer.
+ * @param size       Size of the source buffer.
+ * @param nwritten   If not NULL, `*nwritten` is assigned the actual number of
+ *                   bytes written once the write is finished.
+ */
+void async_call_write(
+	async_call_t *call,
+	async_call_data_t *data,
+	const void *src,
+	size_t size,
+	size_t *nwritten
+);
+
+void async_call_share_in(
+	async_call_t *call,
+	async_call_data_t *data,
+	size_t size,
+	sysarg_t arg,
+	unsigned int *flags,
+	void **dst
+);
+
+void async_call_share_out(
+	async_call_t *call,
+	async_call_data_t *data,
+	void *src,
+	unsigned int flags
+);
+
+void async_call_connect_to_me(
+	async_call_t *call,
+	async_call_data_t *data,
+	sysarg_t arg1,
+	sysarg_t arg2,
+	sysarg_t arg3
+);
+
+/* @} */
