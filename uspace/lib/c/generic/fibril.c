@@ -65,14 +65,14 @@ static LIST_INITIALIZE(ready_list);
 static LIST_INITIALIZE(manager_list);
 static LIST_INITIALIZE(fibril_list);
 
-// TODO: Currently, 4 threads total is used as a sensible default. But this
-//       should eventually be set according to the environment
+// TODO: Currently, we default to 1 thread, because some code in HelenOS
+//       assumes this. It should eventually be set according to the environment
 //       (i.e. #cpus and/or environment variables).
 
 /*
  * Number of threads reserved for light fibrils, not including the main thread.
  */
-static int thread_count_light = 1;
+static int thread_count_light = 0;
 
 /*
  * Number of heavy fibrils running.

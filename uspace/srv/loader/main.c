@@ -391,6 +391,9 @@ static void ldr_connection(cap_call_handle_t icall_handle, ipc_call_t *icall,
  */
 int main(int argc, char *argv[])
 {
+	// Loader does not seem to like multiple threads.
+	fibril_set_thread_count(1);
+
 	async_set_fallback_port_handler(ldr_connection, NULL);
 
 	/* Introduce this task to the NS (give it our task ID). */
