@@ -41,8 +41,8 @@
 
 extern void __thread_entry(void);
 extern void __thread_main(uspace_arg_t *);
-extern errno_t thread_add(void);
-extern void thread_remove(void);
+extern errno_t thread_add(bool);
+extern void thread_remove(bool);
 
 typedef enum {
 	FIBRIL_PREEMPT,

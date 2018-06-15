@@ -66,7 +66,13 @@ typedef struct sys_thread {
 #if JOIN_IS_IMPLEMENTED
 static _Atomic sys_thread_t *last_exitted = NULL;
 #endif
+
+#ifdef CONFIG_SEPARATE_THREAD_POOLS
+static FIBRIL_SEMAPHORE_INITIALIZE(light_exit_semaphore, 0);
+static FIBRIL_SEMAPHORE_INITIALIZE(heavy_exit_semaphore, 0);
+#else
 static FIBRIL_SEMAPHORE_INITIALIZE(thread_exit_semaphore, 0);
+#endif
 
 static errno_t sys_thread_create(uspace_arg_t *uarg, const char *name,
     thread_id_t *out_tid)
@@ -106,7 +112,14 @@ void __thread_main(uspace_arg_t *uarg)
 #endif
 
 	/* Sleep the fibril until it's time to exit. */
+#ifdef CONFIG_SEPARATE_THREAD_POOLS
+	if (t->fibril->is_heavy)
+		fibril_semaphore_down(&heavy_exit_semaphore);
+	else
+		fibril_semaphore_down(&light_exit_semaphore);
+#else
 	fibril_semaphore_down(&thread_exit_semaphore);
+#endif
 
 	t->id = sys_thread_get_id();
 
@@ -139,7 +152,7 @@ void __thread_main(uspace_arg_t *uarg)
  * Non-libc code should never call this function directly.
  * Instead, use `fibril_set_thread_count()`.
  */
-errno_t thread_add(void)
+errno_t thread_add(bool heavy)
 {
 	sys_thread_t *t = as_area_create(AS_AREA_ANY, SYS_THREAD_SIZE,
 	    AS_AREA_READ | AS_AREA_WRITE | AS_AREA_CACHEABLE |
@@ -154,6 +167,7 @@ errno_t thread_add(void)
 		as_area_destroy(t);
 		return ENOMEM;
 	}
+	t->fibril->is_heavy = heavy;
 
 	/* Make heap thread safe. */
 	malloc_enable_multithreaded();
@@ -184,9 +198,16 @@ errno_t thread_add(void)
  * Non-libc code should never call this function directly.
  * Instead, use `fibril_set_thread_count()`.
  */
-void thread_remove(void)
+void thread_remove(bool heavy)
 {
+#ifdef CONFIG_SEPARATE_THREAD_POOLS
+	if (heavy)
+		fibril_semaphore_up(&heavy_exit_semaphore);
+	else
+		fibril_semaphore_up(&light_exit_semaphore);
+#else
 	fibril_semaphore_up(&thread_exit_semaphore);
+#endif
 }
 
 /**

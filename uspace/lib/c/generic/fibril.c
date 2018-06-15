@@ -65,22 +65,35 @@ static LIST_INITIALIZE(ready_list);
 static LIST_INITIALIZE(manager_list);
 static LIST_INITIALIZE(fibril_list);
 
-// TODO: Currently, 4 threads total is used as a sensible default. But this
-//       should eventually be set according to the environment
+#ifdef CONFIG_SEPARATE_THREAD_POOLS
+static futex_t heavy_ready_list_sem = FUTEX_INITIALIZE(0);
+static LIST_INITIALIZE(heavy_ready_list);
+static const bool separate_pools = true;
+#else
+static const bool separate_pools = false;
+#endif
+
+// TODO: Currently, we default to 1 thread because historically, some servers
+//       assumed that all fibrils run on one thread. This should be fixed and
+//       the thread count should eventually be set according to the environment
 //       (i.e. #cpus and/or environment variables).
 
 /*
  * Number of threads reserved for light fibrils, not including the main thread.
  */
-static int thread_count_light = 1;
+static int thread_count_light = 0;
 
 /*
  * Number of heavy fibrils running.
  * Each heavy fibril reserves an extra thread.
+ * Stays zero when separate pools are enabled.
  */
 static int thread_count_heavy = 0;
 
-/* Number of threads currently executing, not including the main thread. */
+/*
+ * Number of threads currently executing, not including the main thread.
+ * Doesn't include heavy pool when separate pools are enabled.
+ */
 static int thread_count_real = 0;
 
 /** Function that spans the whole life-cycle of a fibril.
@@ -159,6 +172,70 @@ void fibril_teardown(fibril_t *fibril, bool locked)
 	fibril_free(fibril);
 }
 
+#ifdef CONFIG_SEPARATE_THREAD_POOLS
+static int fibril_switch_heavy(fibril_switch_type_t stype)
+{
+	fibril_t *srcf = __tcb_get()->fibril_data;
+
+	// Manager fibrils run in light thread pool.
+	assert(stype != FIBRIL_FROM_MANAGER);
+
+	/* Preemption has no meaning for heavy fibril. */
+	if (stype == FIBRIL_PREEMPT)
+		return 0;
+
+	/* async_futex is locked, but we don't need it. */
+	assert((atomic_signed_t) async_futex.val.count <= 0);
+	futex_up(&async_futex);
+
+	/* Wait until a fibril is available. */
+	futex_down(&heavy_ready_list_sem);
+
+	futex_lock(&fibril_futex);
+	assert(!list_empty(&heavy_ready_list));
+
+	fibril_t *dstf = list_get_instance(list_first(&heavy_ready_list),
+	    fibril_t, link);
+	list_remove(&dstf->link);
+
+	if (stype == FIBRIL_FROM_DEAD) {
+		dstf->clean_after_me = srcf;
+		list_remove(&srcf->all_link);
+	}
+
+#ifdef FUTEX_UPGRADABLE
+	if (stype == FIBRIL_FROM_DEAD)
+		rcu_deregister_fibril();
+#endif
+
+	futex_give_to(&fibril_futex, dstf);
+
+	/* Swap to the next fibril. */
+	context_swap(&srcf->ctx, &dstf->ctx);
+
+	/* Restored by another fibril! */
+
+	/* Must be after context_swap()! */
+	futex_unlock(&fibril_futex);
+
+	if (srcf->clean_after_me) {
+		/*
+		 * Cleanup after the dead fibril from which we
+		 * restored context here.
+		 */
+		fibril_t *f = srcf->clean_after_me;
+		srcf->clean_after_me = NULL;
+
+		assert(f->stack);
+		as_area_destroy(f->stack);
+		fibril_teardown(f, true);
+		thread_remove(true);
+	}
+
+	return 1;
+}
+#endif
+
 /** Switch from the current fibril.
  *
  * The async_futex must be held when entering this function,
@@ -177,6 +254,14 @@ int fibril_switch(fibril_switch_type_t stype)
 	/* Make sure the async_futex is held. */
 	assert((atomic_signed_t) async_futex.val.count <= 0);
 
+	fibril_t *srcf = __tcb_get()->fibril_data;
+	fibril_t *dstf = NULL;
+
+#ifdef CONFIG_SEPARATE_THREAD_POOLS
+	if (srcf->is_heavy)
+		return fibril_switch_heavy(stype);
+#endif
+
 	futex_lock(&fibril_futex);
 
 	/*
@@ -184,9 +269,6 @@ int fibril_switch(fibril_switch_type_t stype)
 	 * fibrils, plus the implicit main thread.
 	 */
 	assert(thread_count_real >= thread_count_heavy);
-
-	fibril_t *srcf = __tcb_get()->fibril_data;
-	fibril_t *dstf = NULL;
 
 	/* Choose a new fibril to run */
 	if (list_empty(&ready_list)) {
@@ -226,6 +308,7 @@ int fibril_switch(fibril_switch_type_t stype)
 	case FIBRIL_FROM_DEAD:
 		if (srcf->is_heavy)
 			thread_count_heavy--;
+		list_remove(&srcf->all_link);
 		/* Not adding to any list. */
 		break;
 	case FIBRIL_FROM_BLOCKED:
@@ -233,7 +316,6 @@ int fibril_switch(fibril_switch_type_t stype)
 		break;
 	}
 
-#if 0
 	/* Check if we need to exit a thread. */
 	if (thread_count_heavy + thread_count_light + 4 < thread_count_real / 2) {
 		/* We keep up to twice the number of currently required threads,
@@ -249,8 +331,6 @@ int fibril_switch(fibril_switch_type_t stype)
 			dstf->stop_thread = true;
 		}
 	}
-
-#endif
 
 #ifdef FUTEX_UPGRADABLE
 	if (stype == FIBRIL_FROM_DEAD) {
@@ -274,7 +354,7 @@ int fibril_switch(fibril_switch_type_t stype)
 	 */
 	if (srcf->stop_thread) {
 		srcf->stop_thread = false;
-		thread_remove();
+		thread_remove(false);
 	}
 
 	if (srcf->clean_after_me) {
@@ -285,7 +365,6 @@ int fibril_switch(fibril_switch_type_t stype)
 		fibril_t *f = srcf->clean_after_me;
 		srcf->clean_after_me = NULL;
 
-		list_remove(&f->all_link);
 		assert(f->stack);
 		as_area_destroy(f->stack);
 		fibril_teardown(f, true);
@@ -318,19 +397,29 @@ errno_t fibril_make_heavy(fid_t fid)
 		return EOK;
 	}
 
-	/* Check whether we need to spawn an additional thread. */
-	if (thread_count_real < thread_count_heavy + 1) {
+	if (separate_pools) {
+		/* Always spawn a new thread. */
 		futex_unlock(&fibril_futex);
-
-		errno_t rc = thread_add();
+		errno_t rc = thread_add(true);
 		if (rc != EOK)
 			return rc;
-
 		futex_lock(&fibril_futex);
-		thread_count_real++;
+	} else {
+		/* Check whether we need to spawn an additional thread. */
+		if (thread_count_real < thread_count_heavy + 1) {
+			futex_unlock(&fibril_futex);
+
+			errno_t rc = thread_add(true);
+			if (rc != EOK)
+				return rc;
+
+			futex_lock(&fibril_futex);
+			thread_count_real++;
+		}
+
+		thread_count_heavy++;
 	}
 
-	thread_count_heavy++;
 	fibril->is_heavy = true;
 	futex_unlock(&fibril_futex);
 	return EOK;
@@ -388,9 +477,13 @@ void fibril_destroy(fid_t fid)
 	fibril_t *fibril = (fibril_t *) fid;
 
 	if (fibril->is_heavy) {
-		futex_lock(&fibril_futex);
-		thread_count_heavy--;
-		futex_unlock(&fibril_futex);
+		if (separate_pools) {
+			thread_remove(true);
+		} else {
+			futex_lock(&fibril_futex);
+			thread_count_heavy--;
+			futex_unlock(&fibril_futex);
+		}
 	}
 
 	as_area_destroy(fibril->stack);
@@ -412,12 +505,21 @@ void fibril_add_ready(fid_t fid)
 		fibril->is_running = true;
 		list_append(&fibril->all_link, &fibril_list);
 	}
+
+#ifdef CONFIG_SEPARATE_THREAD_POOLS
+	if (fibril->is_heavy) {
+		list_append(&fibril->link, &heavy_ready_list);
+		futex_unlock(&fibril_futex);
+		futex_up(&heavy_ready_list_sem);
+		return;
+	}
+#endif
 	list_append(&fibril->link, &ready_list);
 
 	/* Check whether we should spawn an additional thread. */
 	if (thread_count_real < thread_count_heavy + thread_count_light) {
 		futex_unlock(&fibril_futex);
-		errno_t rc = thread_add();
+		errno_t rc = thread_add(false);
 		futex_lock(&fibril_futex);
 
 		if (rc == EOK)
@@ -504,7 +606,7 @@ errno_t fibril_force_thread_count(int count)
 
 	while (thread_count_real < thread_count_heavy + thread_count_light) {
 		futex_unlock(&fibril_futex);
-		errno_t rc = thread_add();
+		errno_t rc = thread_add(false);
 		if (rc != EOK)
 			return rc;
 		futex_lock(&fibril_futex);
