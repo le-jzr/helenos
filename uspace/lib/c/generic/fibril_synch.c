@@ -703,7 +703,22 @@ void fibril_semaphore_down(fibril_semaphore_t *sem)
 	list_append(&wdata.wu_event.link, &sem->waiters);
 
 	fibril_switch(FIBRIL_FROM_BLOCKED);
-	futex_up(&async_futex);
+	futex_unlock(&async_futex);
+}
+
+void fibril_semaphore_down_internal(fibril_semaphore_t *sem)
+{
+	sem->count--;
+
+	if (sem->count >= 0)
+		return;
+
+	awaiter_t wdata;
+	awaiter_initialize(&wdata);
+
+	wdata.fid = fibril_get_id();
+	list_append(&wdata.wu_event.link, &sem->waiters);
+	fibril_switch(FIBRIL_TO_MANAGER);
 }
 
 /** @}

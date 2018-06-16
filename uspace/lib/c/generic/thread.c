@@ -187,6 +187,18 @@ errno_t thread_add(bool heavy)
 	return rc;
 }
 
+void thread_remove_internal(bool heavy)
+{
+#ifdef CONFIG_SEPARATE_THREAD_POOLS
+	if (heavy)
+		fibril_semaphore_up_internal(&heavy_exit_semaphore);
+	else
+		fibril_semaphore_up_internal(&light_exit_semaphore);
+#else
+	fibril_semaphore_up_internal(&thread_exit_semaphore);
+#endif
+}
+
 /**
  * Remove one thread from the fibril thread pool.
  *
@@ -200,14 +212,11 @@ errno_t thread_add(bool heavy)
  */
 void thread_remove(bool heavy)
 {
-#ifdef CONFIG_SEPARATE_THREAD_POOLS
-	if (heavy)
-		fibril_semaphore_up(&heavy_exit_semaphore);
-	else
-		fibril_semaphore_up(&light_exit_semaphore);
-#else
-	fibril_semaphore_up(&thread_exit_semaphore);
-#endif
+	futex_lock(&fibril_futex);
+	futex_lock(&async_futex);
+	thread_remove_internal(heavy);
+	futex_unlock(&fibril_futex);
+	futex_unlock(&async_futex);
 }
 
 /**

@@ -111,7 +111,7 @@ static void fibril_main(void)
 
 	/* fibril_futex and async_futex are locked when a fibril is started. */
 	futex_unlock(&fibril_futex);
-	futex_up(&async_futex);
+	futex_unlock(&async_futex);
 
 	fibril_t *fibril = __tcb_get()->fibril_data;
 
@@ -189,8 +189,11 @@ static int fibril_switch_heavy(fibril_switch_type_t stype)
 	futex_up(&async_futex);
 
 	/* Wait until a fibril is available. */
+	futex_unlock(&fibril_futex);
+
 	futex_down(&heavy_ready_list_sem);
 
+	futex_lock(&async_futex);
 	futex_lock(&fibril_futex);
 	assert(!list_empty(&heavy_ready_list));
 
@@ -217,6 +220,7 @@ static int fibril_switch_heavy(fibril_switch_type_t stype)
 
 	/* Must be after context_swap()! */
 	futex_unlock(&fibril_futex);
+	futex_unlock(&async_futex);
 
 	if (srcf->clean_after_me) {
 		/*
@@ -249,10 +253,9 @@ static int fibril_switch_heavy(fibril_switch_type_t stype)
  * @return 1 otherwise.
  *
  */
-int fibril_switch(fibril_switch_type_t stype)
+int fibril_switch_internal(fibril_switch_type_t stype)
 {
-	/* Make sure the async_futex is held. */
-	assert((atomic_signed_t) async_futex.val.count <= 0);
+	futex_assert_is_locked(&async_futex);
 
 	fibril_t *srcf = __tcb_get()->fibril_data;
 	fibril_t *dstf = NULL;
@@ -325,11 +328,8 @@ int fibril_switch(fibril_switch_type_t stype)
 
 		assert(thread_count_real > 0);
 
-		// FIXME: We can't signal the semaphore with async_futex locked.
-		if (stype == FIBRIL_FROM_MANAGER || stype == FIBRIL_PREEMPT) {
-			thread_count_real--;
-			dstf->stop_thread = true;
-		}
+		thread_count_real--;
+		thread_remove_internal(false);
 	}
 
 #ifdef FUTEX_UPGRADABLE
@@ -343,19 +343,10 @@ int fibril_switch(fibril_switch_type_t stype)
 	/* Swap to the next fibril. */
 	context_swap(&srcf->ctx, &dstf->ctx);
 
+	futex_assert_is_locked(&fibril_futex);
+	futex_assert_is_locked(&async_futex);
+
 	/* Restored by another fibril! */
-
-	/* Must be after context_swap()! */
-	futex_unlock(&fibril_futex);
-
-	/* thread_remove() is internally semaphore up, which locks async_futex
-	 * and potentially calls fibril_add_ready(), so neither fibril_futex,
-	 * nor async_futex may be locked during the call.
-	 */
-	if (srcf->stop_thread) {
-		srcf->stop_thread = false;
-		thread_remove(false);
-	}
 
 	if (srcf->clean_after_me) {
 		/*
@@ -635,6 +626,12 @@ fid_t fibril_run_heavy(errno_t (*func)(void *), void *arg)
 
 	fibril_add_ready(f);
 	return f;
+}
+
+int fibril_yield(void)
+{
+	futex_lock(&async_futex);
+	return fibril_switch(FIBRIL_PREEMPT);
 }
 
 /** @}
