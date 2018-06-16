@@ -995,13 +995,8 @@ cap_call_handle_t async_get_call_timeout(ipc_call_t *call, suseconds_t usecs)
 		 * former case, handle_expired_timeouts() and, in the latter
 		 * case, route_call() will perform the wakeup.
 		 */
-		fibril_switch(FIBRIL_TO_MANAGER);
+		fibril_switch(FIBRIL_FROM_BLOCKED);
 
-		/*
-		 * Futex is up after getting back from async_manager.
-		 * Get it again.
-		 */
-		futex_down(&async_futex);
 		if ((usecs) && (conn->wdata.to_event.occurred) &&
 		    (list_empty(&conn->msg_queue))) {
 			/* If we timed out -> exit */
@@ -1141,16 +1136,13 @@ static void handle_expired_timeouts(void)
 static errno_t async_manager_worker(void)
 {
 	while (true) {
-		if (fibril_switch(FIBRIL_FROM_MANAGER)) {
-			futex_up(&async_futex);
-			/*
-			 * async_futex is always held when entering a manager
-			 * fibril.
-			 */
-			continue;
-		}
-
 		futex_down(&async_futex);
+		fibril_switch(FIBRIL_FROM_MANAGER);
+
+		/*
+		 * The switch only returns when there is no non-manager fibril
+		 * it can run.
+		 */
 
 		suseconds_t timeout;
 		unsigned int flags = SYNCH_FLAGS_NONE;
@@ -1224,13 +1216,7 @@ static errno_t async_manager_worker(void)
  */
 static errno_t async_manager_fibril(void *arg)
 {
-	futex_up(&async_futex);
-
-	/*
-	 * async_futex is always locked when entering manager
-	 */
 	async_manager_worker();
-
 	return 0;
 }
 

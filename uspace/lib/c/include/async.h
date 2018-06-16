@@ -110,7 +110,8 @@ typedef struct async_exch async_exch_t;
 #define async_manager() \
 	do { \
 		futex_down(&async_futex); \
-		fibril_switch(FIBRIL_FROM_DEAD); \
+		fibril_switch(FIBRIL_FROM_BLOCKED); \
+		__builtin_unreachable(); \
 	} while (0)
 
 #define async_get_call(data) \

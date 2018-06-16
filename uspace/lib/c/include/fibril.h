@@ -50,7 +50,7 @@ typedef struct {
 
 typedef enum {
 	FIBRIL_PREEMPT,
-	FIBRIL_TO_MANAGER,
+	FIBRIL_FROM_BLOCKED,
 	FIBRIL_FROM_MANAGER,
 	FIBRIL_FROM_DEAD
 } fibril_switch_type_t;
@@ -87,15 +87,11 @@ extern void fibril_add_ready(fid_t fid);
 extern void fibril_add_manager(fid_t fid);
 extern void fibril_remove_manager(void);
 extern fid_t fibril_get_id(void);
+extern int fibril_yield(void);
 
 static inline fid_t fibril_create(errno_t (*func)(void *), void *arg)
 {
 	return fibril_create_generic(func, arg, FIBRIL_DFLT_STK_SIZE);
-}
-
-static inline int fibril_yield(void)
-{
-	return fibril_switch(FIBRIL_PREEMPT);
 }
 
 #endif
