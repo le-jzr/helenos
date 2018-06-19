@@ -1149,6 +1149,22 @@ static suseconds_t handle_expired_timeouts(unsigned int *flags)
 	return SYNCH_NO_TIMEOUT;
 }
 
+static atomic_t async_manager_fibrils = {0};
+static atomic_t async_kill = {0};
+
+// FIXME: This is a hack introduced to make independent manager fibrils work
+//        with the loader. The proper solution would be turn loader into a
+//        shared library instead of a separate application.
+void async_kill_managers()
+{
+	atomic_set(&async_kill, 1);
+
+	while (atomic_get(&async_manager_fibrils) > 0) {
+		async_poke();
+		fibril_thread_usleep(10);
+	}
+}
+
 /** Endless loop dispatching incoming calls and answers.
  *
  * @return Never returns.
@@ -1197,18 +1213,17 @@ static errno_t async_manager_fibril(void *arg)
 	return 0;
 }
 
-/** Add one manager to manager list. */
-void async_create_manager(void)
+/** Add one manager. */
+errno_t async_create_manager(void)
 {
-	fid_t fid = fibril_create_generic(async_manager_fibril, NULL, PAGE_SIZE);
-	if (fid != 0)
-		fibril_add_manager(fid);
-}
+	atomic_inc(&async_manager_fibrils);
 
-/** Remove one manager from manager list */
-void async_destroy_manager(void)
-{
-	fibril_remove_manager();
+	fid_t fid = fibril_run_heavy(async_manager_fibril, NULL);
+	if (fid == 0) {
+		atomic_dec(&async_manager_fibrils);
+		return ENOMEM;
+	}
+	return EOK;
 }
 
 /** Initialize the async framework.
@@ -1224,6 +1239,10 @@ void __async_server_init(void)
 
 	if (!hash_table_create(&notification_hash_table, 0, 0,
 	    &notification_hash_table_ops))
+		abort();
+
+	// TODO: Only spawn async manager when needed.
+	if (async_create_manager() != EOK)
 		abort();
 }
 

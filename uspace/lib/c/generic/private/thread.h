@@ -47,7 +47,6 @@ extern void thread_remove(bool);
 typedef enum {
 	FIBRIL_PREEMPT,
 	FIBRIL_TO_MANAGER,
-	FIBRIL_FROM_MANAGER,
 	FIBRIL_FROM_DEAD
 } fibril_switch_type_t;
 
@@ -56,9 +55,6 @@ extern void fibril_free(fibril_t *);
 extern void fibril_setup(fibril_t *);
 extern void fibril_teardown(fibril_t *f, bool locked);
 extern int fibril_switch(fibril_switch_type_t stype);
-
-extern void fibril_add_manager(fid_t fid);
-extern void fibril_remove_manager(void);
 
 #endif
 

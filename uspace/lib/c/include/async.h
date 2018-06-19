@@ -146,8 +146,8 @@ extern void async_forget(aid_t);
 extern void async_usleep(suseconds_t);
 extern void async_sleep(unsigned int);
 
-extern void async_create_manager(void);
-extern void async_destroy_manager(void);
+extern errno_t async_create_manager(void);
+extern void async_kill_managers(void);
 
 extern void async_set_client_data_constructor(async_client_data_ctor_t);
 extern void async_set_client_data_destructor(async_client_data_dtor_t);

@@ -61,8 +61,8 @@
  */
 static futex_t fibril_futex = FUTEX_INITIALIZER;
 
+static futex_t ready_list_sem = FUTEX_INITIALIZE(0);
 static LIST_INITIALIZE(ready_list);
-static LIST_INITIALIZE(manager_list);
 static LIST_INITIALIZE(fibril_list);
 
 #ifdef CONFIG_SEPARATE_THREAD_POOLS
@@ -177,12 +177,11 @@ static int fibril_switch_heavy(fibril_switch_type_t stype)
 {
 	fibril_t *srcf = __tcb_get()->fibril_data;
 
-	// Manager fibrils run in light thread pool.
-	assert(stype != FIBRIL_FROM_MANAGER);
-
 	/* Preemption has no meaning for heavy fibril. */
-	if (stype == FIBRIL_PREEMPT)
+	if (stype == FIBRIL_PREEMPT) {
+		futex_unlock(&async_futex);
 		return 0;
+	}
 
 	/* async_futex is locked, but we don't need it. */
 	assert((atomic_signed_t) async_futex.val.count <= 0);
@@ -255,6 +254,7 @@ static int fibril_switch_heavy(fibril_switch_type_t stype)
  */
 int fibril_switch_internal(fibril_switch_type_t stype)
 {
+	futex_assert_is_locked(&fibril_futex);
 	futex_assert_is_locked(&async_futex);
 
 	fibril_t *srcf = __tcb_get()->fibril_data;
@@ -300,13 +300,16 @@ int fibril_switch_internal(fibril_switch_type_t stype)
 	if (stype == FIBRIL_FROM_DEAD)
 		dstf->clean_after_me = srcf;
 
+	/*
+	 * There is always at least enough threads to run each of the heavy
+	 * fibrils, plus the implicit main thread.
+	 */
+	assert(thread_count_real >= thread_count_heavy);
+
 	/* Put the current fibril into the correct run list */
 	switch (stype) {
 	case FIBRIL_PREEMPT:
 		list_append(&srcf->link, &ready_list);
-		break;
-	case FIBRIL_FROM_MANAGER:
-		list_append(&srcf->link, &manager_list);
 		break;
 	case FIBRIL_FROM_DEAD:
 		if (srcf->is_heavy)
@@ -329,7 +332,7 @@ int fibril_switch_internal(fibril_switch_type_t stype)
 		assert(thread_count_real > 0);
 
 		thread_count_real--;
-		thread_remove_internal(false);
+		dstf->stop_thread = true;
 	}
 
 #ifdef FUTEX_UPGRADABLE
@@ -339,9 +342,12 @@ int fibril_switch_internal(fibril_switch_type_t stype)
 #endif
 
 	futex_give_to(&fibril_futex, dstf);
+	futex_give_to(&async_futex, dstf);
 
 	/* Swap to the next fibril. */
 	context_swap(&srcf->ctx, &dstf->ctx);
+
+	/* Restored by another fibril! */
 
 	futex_assert_is_locked(&fibril_futex);
 	futex_assert_is_locked(&async_futex);
@@ -500,12 +506,13 @@ void fibril_add_ready(fid_t fid)
 #ifdef CONFIG_SEPARATE_THREAD_POOLS
 	if (fibril->is_heavy) {
 		list_append(&fibril->link, &heavy_ready_list);
-		futex_unlock(&fibril_futex);
 		futex_up(&heavy_ready_list_sem);
+		futex_unlock(&fibril_futex);
 		return;
 	}
 #endif
 	list_append(&fibril->link, &ready_list);
+	futex_up(&ready_list_sem);
 
 	/* Check whether we should spawn an additional thread. */
 	if (thread_count_real < thread_count_heavy + thread_count_light) {
@@ -517,30 +524,6 @@ void fibril_add_ready(fid_t fid)
 			thread_count_real++;
 	}
 
-	futex_unlock(&fibril_futex);
-}
-
-/** Add a fibril to the manager list.
- *
- * @param fid Pointer to the fibril structure of the fibril to be
- *            added.
- *
- */
-void fibril_add_manager(fid_t fid)
-{
-	fibril_t *fibril = (fibril_t *) fid;
-
-	futex_lock(&fibril_futex);
-	list_append(&fibril->link, &manager_list);
-	futex_unlock(&fibril_futex);
-}
-
-/** Remove one manager from the manager list. */
-void fibril_remove_manager(void)
-{
-	futex_lock(&fibril_futex);
-	if (!list_empty(&manager_list))
-		list_remove(list_first(&manager_list));
 	futex_unlock(&fibril_futex);
 }
 
