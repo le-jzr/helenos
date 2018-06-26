@@ -121,6 +121,8 @@
 #include "../private/libc.h"
 #include "../private/fibril.h"
 
+static FIBRIL_MUTEX_INITIALIZE(message_mutex);
+
 /** Naming service session */
 async_sess_t session_ns;
 
@@ -201,7 +203,7 @@ static void reply_received(void *arg, errno_t retval, ipc_call_t *data)
 {
 	assert(arg);
 
-	futex_lock(&async_futex);
+	fibril_mutex_lock(&message_mutex);
 
 	amsg_t *msg = (amsg_t *) arg;
 	msg->retval = retval;
@@ -218,7 +220,7 @@ static void reply_received(void *arg, errno_t retval, ipc_call_t *data)
 		fibril_notify(&msg->received);
 	}
 
-	futex_unlock(&async_futex);
+	fibril_mutex_unlock(&message_mutex);
 }
 
 /** Send message and return id of the sent message.
@@ -370,7 +372,7 @@ void async_forget(aid_t amsgid)
 	assert(msg);
 	assert(!msg->forget);
 
-	futex_lock(&async_futex);
+	fibril_mutex_lock(&message_mutex);
 
 	if (msg->done) {
 		amsg_destroy(msg);
@@ -379,7 +381,7 @@ void async_forget(aid_t amsgid)
 		msg->forget = true;
 	}
 
-	futex_unlock(&async_futex);
+	fibril_mutex_unlock(&message_mutex);
 }
 
 /** Wait for specified time.
