@@ -320,6 +320,10 @@ static __attribute__((noreturn)) void ldr_run(cap_call_handle_t req_handle,
 	/* Run program */
 	DPRINTF("Reply OK\n");
 	async_answer_0(req_handle, EOK);
+
+	DPRINTF("Killing async managers\n");
+	async_kill_managers();
+
 	DPRINTF("Jump to entry point at %p\n", pcb.entry);
 	entry_point_jmp(prog_info.finfo.entry, &pcb);
 

@@ -86,7 +86,6 @@ GENERIC_SOURCES = \
 	generic/pcb.c \
 	generic/smc.c \
 	generic/smp_memory_barrier.c \
-	generic/thread.c \
 	generic/tls.c \
 	generic/task.c \
 	generic/futex.c \

@@ -114,7 +114,7 @@ static inline bool futex_trydown(futex_t *futex)
  * @return Error code from <errno.h> otherwise.
  *
  */
-static inline errno_t futex_down_composable(futex_t *futex, struct timeval *expires)
+static inline errno_t futex_down_composable(futex_t *futex, const struct timeval *expires)
 {
 	// TODO: Add tests for this.
 

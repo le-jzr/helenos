@@ -35,12 +35,12 @@
 #include "posix/pthread.h"
 #include "errno.h"
 #include "posix/stdlib.h"
-#include "libc/thread.h"
 #include "../internal/common.h"
 
 pthread_t pthread_self(void)
 {
-	return thread_get_id();
+	not_implemented();
+	return NULL;
 }
 
 int pthread_equal(pthread_t thread1, pthread_t thread2)

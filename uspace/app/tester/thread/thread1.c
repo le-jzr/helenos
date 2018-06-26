@@ -32,7 +32,8 @@
 
 #include <atomic.h>
 #include <errno.h>
-#include <thread.h>
+#include <async.h>
+#include <fibril.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <inttypes.h>
@@ -41,14 +42,16 @@
 static atomic_t finish;
 static atomic_t threads_finished;
 
-static void threadtest(void *data)
+static errno_t threadtest(void *data)
 {
-	thread_detach(thread_get_id());
+	fibril_detach(fibril_get_id());
 
 	while (atomic_get(&finish))
-		thread_usleep(100000);
+		async_usleep(100000);
 
 	atomic_inc(&threads_finished);
+
+	return EOK;
 }
 
 const char *test_thread1(void)
@@ -61,7 +64,7 @@ const char *test_thread1(void)
 
 	TPRINTF("Creating threads");
 	for (i = 0; i < THREADS; i++) {
-		if (thread_create(threadtest, NULL, "threadtest", NULL) != EOK) {
+		if (!fibril_run_heavy(threadtest, NULL, "threadtest", FIBRIL_DFLT_STK_SIZE)) {
 			TPRINTF("\nCould not create thread %u\n", i);
 			break;
 		}
@@ -70,14 +73,14 @@ const char *test_thread1(void)
 	}
 
 	TPRINTF("\nRunning threads for %u seconds...", DELAY);
-	thread_sleep(DELAY);
+	async_sleep(DELAY);
 	TPRINTF("\n");
 
 	atomic_set(&finish, 0);
 	while (atomic_get(&threads_finished) < total) {
 		TPRINTF("Threads left: %" PRIua "\n",
 		    total - atomic_get(&threads_finished));
-		thread_sleep(1);
+		async_sleep(1);
 	}
 
 	return NULL;
