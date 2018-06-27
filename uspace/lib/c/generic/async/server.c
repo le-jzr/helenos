@@ -240,7 +240,7 @@ static FIBRIL_MUTEX_INITIALIZE(client_mutex);
 static hash_table_t client_hash_table;
 
 // TODO: lockfree notification_queue?
-static futex_t notification_futex = FUTEX_INITIALIZER;
+static FIBRIL_MUTEX_INITIALIZE(notification_mutex);
 static hash_table_t notification_hash_table;
 static LIST_INITIALIZE(notification_queue);
 static FIBRIL_SEMAPHORE_INITIALIZE(notification_semaphore, 0);
@@ -659,7 +659,7 @@ static errno_t notification_fibril_func(void *arg)
 	while (true) {
 		fibril_semaphore_down(&notification_semaphore);
 
-		futex_lock(&notification_futex);
+		fibril_mutex_lock(&notification_mutex);
 
 		/*
 		 * The semaphore ensures that if we get this far,
@@ -693,7 +693,7 @@ static errno_t notification_fibril_func(void *arg)
 		if (list_empty(&notification->msg_list))
 			list_remove(&notification->qlink);
 
-		futex_unlock(&notification_futex);
+		fibril_mutex_unlock(&notification_mutex);
 
 		if (handler)
 			handler(&calldata, arg);
@@ -732,20 +732,20 @@ static void queue_notification(ipc_call_t *call)
 {
 	assert(call);
 
-	futex_lock(&notification_futex);
+	fibril_mutex_lock(&notification_mutex);
 
 	notification_msg_t *m = list_pop(&notification_freelist,
 	    notification_msg_t, link);
 
 	if (!m) {
-		futex_unlock(&notification_futex);
+		fibril_mutex_unlock(&notification_mutex);
 		m = malloc(sizeof(notification_msg_t));
 		if (!m) {
 			DPRINTF("Out of memory.\n");
 			abort();
 		}
 
-		futex_lock(&notification_futex);
+		fibril_mutex_lock(&notification_mutex);
 		notification_freelist_total++;
 	}
 
@@ -755,7 +755,7 @@ static void queue_notification(ipc_call_t *call)
 		/* Invalid notification. */
 		// TODO: Make sure this can't happen and turn it into assert.
 		notification_freelist_total--;
-		futex_unlock(&notification_futex);
+		fibril_mutex_unlock(&notification_mutex);
 		free(m);
 		return;
 	}
@@ -770,7 +770,7 @@ static void queue_notification(ipc_call_t *call)
 	if (!link_in_use(&notification->qlink))
 		list_append(&notification->qlink, &notification_queue);
 
-	futex_unlock(&notification_futex);
+	fibril_mutex_unlock(&notification_mutex);
 
 	fibril_semaphore_up(&notification_semaphore);
 }
@@ -795,13 +795,13 @@ static notification_t *notification_create(async_notification_handler_t handler,
 
 	fid_t fib = 0;
 
-	futex_lock(&notification_futex);
+	fibril_mutex_lock(&notification_mutex);
 
 	if (notification_avail == 0) {
 		/* Attempt to create the first handler fibril. */
 		fib = fibril_create(notification_fibril_func, NULL);
 		if (fib == 0) {
-			futex_unlock(&notification_futex);
+			fibril_mutex_unlock(&notification_mutex);
 			free(notification);
 			return NULL;
 		}
@@ -813,7 +813,7 @@ static notification_t *notification_create(async_notification_handler_t handler,
 	notification->imethod = imethod;
 	hash_table_insert(&notification_hash_table, &notification->htlink);
 
-	futex_unlock(&notification_futex);
+	fibril_mutex_unlock(&notification_mutex);
 
 	if (imethod == 0) {
 		assert(fib);
