@@ -236,7 +236,7 @@ void async_set_client_data_destructor(async_client_data_dtor_t dtor)
 	async_client_data_destroy = dtor;
 }
 
-static futex_t client_futex = FUTEX_INITIALIZER;
+static FIBRIL_MUTEX_INITIALIZE(client_mutex);
 static hash_table_t client_hash_table;
 
 // TODO: lockfree notification_queue?
@@ -340,7 +340,7 @@ static client_t *async_client_get(task_id_t client_id, bool create)
 {
 	client_t *client = NULL;
 
-	futex_lock(&client_futex);
+	fibril_mutex_lock(&client_mutex);
 	ht_link_t *link = hash_table_find(&client_hash_table, &client_id);
 	if (link) {
 		client = hash_table_get_inst(link, client_t, link);
@@ -357,7 +357,7 @@ static client_t *async_client_get(task_id_t client_id, bool create)
 		}
 	}
 
-	futex_unlock(&client_futex);
+	fibril_mutex_unlock(&client_mutex);
 	return client;
 }
 
@@ -365,7 +365,7 @@ static void async_client_put(client_t *client)
 {
 	bool destroy;
 
-	futex_lock(&client_futex);
+	fibril_mutex_lock(&client_mutex);
 
 	if (atomic_predec(&client->refcnt) == 0) {
 		hash_table_remove(&client_hash_table, &client->in_task_id);
@@ -373,7 +373,7 @@ static void async_client_put(client_t *client)
 	} else
 		destroy = false;
 
-	futex_unlock(&client_futex);
+	fibril_mutex_unlock(&client_mutex);
 
 	if (destroy) {
 		if (client->data)
