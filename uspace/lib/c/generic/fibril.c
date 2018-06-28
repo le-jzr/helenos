@@ -469,7 +469,7 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 		}
 	}
 
-	_timeout_t timeout = {0};
+	_timeout_t timeout = { 0 };
 	if (expires) {
 		timeout.expires = *expires;
 		timeout.event = event;
