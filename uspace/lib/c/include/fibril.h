@@ -80,6 +80,8 @@ extern fid_t fibril_run_heavy(errno_t (*func)(void *), void *arg, const char *na
 
 extern void fibril_detach(fid_t);
 
+extern void fibril_enable_multithreaded(void);
+
 #endif
 
 /** @}

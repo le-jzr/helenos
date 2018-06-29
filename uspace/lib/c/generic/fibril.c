@@ -76,6 +76,29 @@ static fibril_t _fibril_event_timed_out;
 #define _EVENT_TRIGGERED (&_fibril_event_triggered)
 #define _EVENT_TIMED_OUT (&_fibril_event_timed_out)
 
+/**
+ * How many threads are allowed in the lightweight fibril thread pool.
+ * Whenever a fibril is ready and there is no thread available, a new thread
+ * is spawned as long as the total number of threads does not exceed
+ * `thread_pool_requested`.
+ * By default, only one thread is used, because of servers that
+ * depend on it. This will be fixed in the future. Ideally, this value should
+ * be set based on the number of available CPUs.
+ */
+#ifdef CONFIG_UNLIMITED_THREADS
+static int thread_pool_requested = INT_MAX;
+#else
+static int thread_pool_requested = 1;
+#endif
+
+/*
+ * For keeping track of how many threads are running in the lightweight
+ * fibril thread pool.
+ */
+static int thread_pool_total = 1;
+
+static int fibrils_active = 1;
+
 /** Function that spans the whole life-cycle of a lightweight fibril.
  *
  * Each begins execution in this function. Then the function implementing
@@ -150,18 +173,47 @@ void fibril_teardown(fibril_t *fibril)
 	free(fibril);
 }
 
-static void _restore_fibril(fibril_t *f)
+static errno_t _helper_fibril_fn(void *arg);
+
+static void _add_thread_to_lightweight_pool(void)
+{
+	fid_t f = fibril_run_heavy(_helper_fibril_fn, NULL,
+	    "lightweight_runner", PAGE_SIZE);
+
+	if (!f) {
+		futex_lock(&fibril_futex);
+		thread_pool_total--;
+		futex_unlock(&fibril_futex);
+	}
+}
+
+/**
+ * @return If true, the caller must call `_add_thread_to_lightweight_pool()`
+ *         after unlocking `fibril_futex`.
+ */
+static bool _restore_fibril(fibril_t *f)
 {
 	assert(f);
 	futex_assert_is_locked(&fibril_futex);
+	bool spawn_thread = false;
 
 	if (f->is_heavy) {
 		futex_up(&f->heavy_blocking_sem);
 	} else {
+		fibrils_active++;
+
+		if (fibrils_active > thread_pool_total &&
+		    thread_pool_requested > thread_pool_total) {
+			thread_pool_total++;
+			spawn_thread = true;
+		}
+
 		/* Enqueue in ready_list. */
 		list_append(&f->link, &ready_list);
 		futex_up(&ready_semaphore);
 	}
+
+	return spawn_thread;
 }
 
 /**
@@ -169,8 +221,11 @@ static void _restore_fibril(fibril_t *f)
  *
  * @param reason  Reason of the notification.
  *                Can be either _EVENT_TRIGGERED or _EVENT_TIMED_OUT.
+ *
+ * @return If true, the caller must call `_add_thread_to_lightweight_pool()`
+ *         after unlocking fibril_futex.
  */
-static void _fibril_notify_internal(fibril_event_t *event, fibril_t *reason)
+static bool _fibril_notify_internal(fibril_event_t *event, fibril_t *reason)
 {
 	assert(reason != _EVENT_INITIAL);
 	assert(reason == _EVENT_TIMED_OUT || reason == _EVENT_TRIGGERED);
@@ -179,18 +234,18 @@ static void _fibril_notify_internal(fibril_event_t *event, fibril_t *reason)
 
 	if (event->fibril == _EVENT_INITIAL) {
 		event->fibril = reason;
-		return;
+		return false;
 	}
 
 	if (event->fibril == _EVENT_TIMED_OUT) {
 		assert(reason == _EVENT_TRIGGERED);
 		event->fibril = reason;
-		return;
+		return false;
 	}
 
 	if (event->fibril == _EVENT_TRIGGERED) {
 		/* Already triggered. Nothing to do. */
-		return;
+		return false;
 	}
 
 	fibril_t *f = event->fibril;
@@ -199,7 +254,7 @@ static void _fibril_notify_internal(fibril_event_t *event, fibril_t *reason)
 	assert(f->sleep_event == event);
 
 	/* Must be after the assignment (implicit write barrier). */
-	_restore_fibril(f);
+	return _restore_fibril(f);
 }
 
 /** Fire all timeouts that expired. */
@@ -207,6 +262,8 @@ static struct timeval *_handle_expired_timeouts(struct timeval *next_timeout)
 {
 	struct timeval tv;
 	getuptime(&tv);
+	struct timeval *ret = NULL;
+	int spawn_threads = 0;
 
 	futex_lock(&fibril_futex);
 
@@ -216,16 +273,21 @@ static struct timeval *_handle_expired_timeouts(struct timeval *next_timeout)
 
 		if (tv_gt(&to->expires, &tv)) {
 			*next_timeout = to->expires;
-			futex_unlock(&fibril_futex);
-			return next_timeout;
+			ret = next_timeout;
+			break;
 		}
 
 		list_remove(&to->link);
-		_fibril_notify_internal(to->event, _EVENT_TIMED_OUT);
+		if (_fibril_notify_internal(to->event, _EVENT_TIMED_OUT))
+			spawn_threads++;
 	}
 
 	futex_unlock(&fibril_futex);
-	return NULL;
+
+	for (int i = 0; i < spawn_threads; i++)
+		_add_thread_to_lightweight_pool();
+
+	return ret;
 }
 
 /**
@@ -480,6 +542,8 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 
 	srcf->sleep_event = event;
 
+	fibrils_active--;
+
 	/* Bookkeeping. */
 	futex_give_to(&fibril_futex, dstf);
 
@@ -508,8 +572,11 @@ void fibril_wait_for(fibril_event_t *event)
 void fibril_notify(fibril_event_t *event)
 {
 	futex_lock(&fibril_futex);
-	_fibril_notify_internal(event, _EVENT_TRIGGERED);
+	bool spawn_thread = _fibril_notify_internal(event, _EVENT_TRIGGERED);
 	futex_unlock(&fibril_futex);
+
+	if (spawn_thread)
+		_add_thread_to_lightweight_pool();
 }
 
 /** Start a fibril that has not been running yet. */
@@ -522,9 +589,12 @@ void fibril_start(fibril_t *fibril)
 	if (!link_in_use(&fibril->all_link))
 		list_append(&fibril->all_link, &fibril_list);
 
-	_restore_fibril(fibril);
+	bool spawn_thread = _restore_fibril(fibril);
 
 	futex_unlock(&fibril_futex);
+
+	if (spawn_thread)
+		_add_thread_to_lightweight_pool();
 }
 
 /** Start a fibril that has not been running yet. (obsolete) */
@@ -598,6 +668,10 @@ _Noreturn void fibril_exit(long retval)
 		_sys_thread_exit(0);
 		/* Not reached. */
 	}
+
+	futex_lock(&fibril_futex);
+	fibrils_active--;
+	futex_unlock(&fibril_futex);
 
 	/* Wait for a fibril to become ready. */
 	// FIXME: When fibril_join() is implemented, we won't be able to block here.
@@ -695,6 +769,21 @@ unsigned int sys_thread_sleep(unsigned int sec)
 }
 
 #endif
+
+/*
+ * Opt-in to multithreaded lightweight fibrils.
+ * Currently breaks some servers. Eventually, should be the default.
+ */
+void fibril_enable_multithreaded(void)
+{
+	/* CONFIG_UNLIMITED_THREADS removes the limit unconditionally. */
+#ifndef CONFIG_UNLIMITED_THREADS
+	futex_lock(&fibril_futex);
+	// TODO: Base the choice on the number of CPUs instead of a fixed value.
+	thread_pool_requested = 4;
+	futex_unlock(&fibril_futex);
+#endif
+}
 
 /** @}
  */
