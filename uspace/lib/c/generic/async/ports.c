@@ -100,7 +100,7 @@ static async_port_handler_t fallback_port_handler =
 static void *fallback_port_data = NULL;
 
 /** Mutex guarding the interface hash table. */
-static FIBRIL_MUTEX_INITIALIZE(interface_mutex);
+static FIBRIL_RMUTEX_INITIALIZE(interface_mutex);
 static hash_table_t interface_hash_table;
 
 static size_t interface_key_hash(void *key)
@@ -206,7 +206,7 @@ errno_t async_create_port_internal(iface_t iface, async_port_handler_t handler,
 {
 	interface_t *interface;
 
-	fibril_mutex_lock(&interface_mutex);
+	fibril_rmutex_lock(&interface_mutex);
 
 	ht_link_t *link = hash_table_find(&interface_hash_table, &iface);
 	if (link)
@@ -215,19 +215,19 @@ errno_t async_create_port_internal(iface_t iface, async_port_handler_t handler,
 		interface = async_new_interface(iface);
 
 	if (!interface) {
-		fibril_mutex_unlock(&interface_mutex);
+		fibril_rmutex_unlock(&interface_mutex);
 		return ENOMEM;
 	}
 
 	port_t *port = async_new_port(interface, handler, data);
 	if (!port) {
-		fibril_mutex_unlock(&interface_mutex);
+		fibril_rmutex_unlock(&interface_mutex);
 		return ENOMEM;
 	}
 
 	*port_id = port->id;
 
-	fibril_mutex_unlock(&interface_mutex);
+	fibril_rmutex_unlock(&interface_mutex);
 
 	return EOK;
 }
@@ -253,7 +253,7 @@ static port_t *async_find_port(iface_t iface, port_id_t port_id)
 {
 	port_t *port = NULL;
 
-	fibril_mutex_lock(&interface_mutex);
+	fibril_rmutex_lock(&interface_mutex);
 
 	ht_link_t *link = hash_table_find(&interface_hash_table, &iface);
 	if (link) {
@@ -265,7 +265,7 @@ static port_t *async_find_port(iface_t iface, port_id_t port_id)
 			port = hash_table_get_inst(link, port_t, link);
 	}
 
-	fibril_mutex_unlock(&interface_mutex);
+	fibril_rmutex_unlock(&interface_mutex);
 
 	return port;
 }

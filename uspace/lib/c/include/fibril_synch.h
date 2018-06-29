@@ -64,6 +64,29 @@ typedef struct {
 #define FIBRIL_MUTEX_INITIALIZE(name) \
 	fibril_mutex_t name = FIBRIL_MUTEX_INITIALIZER(name)
 
+#ifdef CONFIG_RMUTEX_IS_FUTEX
+#include <futex.h>
+
+/** "Restricted" mutex. See `fibril_rmutex_lock()`. */
+typedef struct {
+	futex_t futex;
+} fibril_rmutex_t;
+
+#define FIBRIL_RMUTEX_INITIALIZE(name) \
+	fibril_rmutex_t name = { .futex = FUTEX_INITIALIZE(1) }
+
+#else
+
+/** "Restricted" mutex. See `fibril_rmutex_lock()`. */
+typedef struct {
+	fibril_mutex_t mutex;
+} fibril_rmutex_t;
+
+#define FIBRIL_RMUTEX_INITIALIZE(name) \
+	fibril_rmutex_t name = { FIBRIL_MUTEX_INITIALIZER(name.mutex) }
+
+#endif
+
 typedef struct {
 	fibril_owner_info_t oi;  /**< Keep this the first thing. */
 	unsigned int writers;
@@ -161,6 +184,13 @@ typedef struct {
 
 #define FIBRIL_SEMAPHORE_INITIALIZE(name, cnt) \
 	fibril_semaphore_t name = FIBRIL_SEMAPHORE_INITIALIZER(name, cnt)
+
+
+extern void fibril_rmutex_initialize(fibril_rmutex_t *);
+extern void fibril_rmutex_lock(fibril_rmutex_t *);
+extern bool fibril_rmutex_trylock(fibril_rmutex_t *);
+extern void fibril_rmutex_unlock(fibril_rmutex_t *);
+
 
 extern void fibril_mutex_initialize(fibril_mutex_t *);
 extern void fibril_mutex_lock(fibril_mutex_t *);

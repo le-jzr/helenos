@@ -47,6 +47,7 @@
 #include <str.h>
 #include <abi/proc/thread.h>
 #include <libarch/faddr.h>
+#include <macros.h>
 #include "private/fibril.h"
 #include "private/thread.h"
 #include "private/fibril.h"
@@ -176,10 +177,14 @@ static errno_t _helper_fibril_fn(void *arg);
 
 static void _spawn_threads_on_unlock(futex_t *futex)
 {
+	if (fibril_self()->rmutex_locks > 0) {
+		/* Can't spawn threads now. */
+		futex_unlock(futex);
+		return;
+	}
+
 	/* We need to check whether to spawn new threads. */
-	#define _min(a, b) (((a) < (b)) ? (a) : (b))
-	#define _max(a, b) (((a) > (b)) ? (a) : (b))
-	int new_threads = _min(_max(fibrils_active, thread_pool_total), thread_pool_requested);
+	int new_threads = min(max(fibrils_active, thread_pool_total), thread_pool_requested);
 	int current_threads = thread_pool_total;
 	thread_pool_total = new_threads;
 
@@ -310,6 +315,8 @@ static void _fibril_cleanup_dead(void)
  */
 static void _fibril_switch_nonblocking(list_t *list)
 {
+	assert(fibril_self()->rmutex_locks == 0);
+
 	futex_lock(&fibril_futex);
 	fibril_t *srcf = fibril_self();
 	fibril_t *dstf = list_pop(&ready_list, fibril_t, link);
@@ -472,6 +479,8 @@ static fibril_t *_create_helper(void)
  */
 errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires)
 {
+	assert(fibril_self()->rmutex_locks == 0);
+
 	futex_lock(&fibril_futex);
 
 	if (event->fibril == _EVENT_TRIGGERED) {
@@ -557,6 +566,8 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 
 void fibril_wait_for(fibril_event_t *event)
 {
+	assert(fibril_self()->rmutex_locks == 0);
+
 	(void) fibril_wait_timeout(event, NULL);
 }
 
@@ -594,6 +605,9 @@ void fibril_add_ready(fibril_t *fibril)
  */
 void fibril_yield(void)
 {
+	if (fibril_self()->rmutex_locks > 0)
+		return;
+
 	if (fibril_self()->is_heavy)
 		// TODO: thread yield?
 		return;
@@ -703,6 +717,8 @@ static errno_t _thread_create(fibril_t *f, const char *name)
 
 fid_t fibril_run_heavy(errno_t (*func)(void *), void *arg, const char *name, size_t stack_size)
 {
+	assert(fibril_self()->rmutex_locks == 0);
+
 	fid_t f = fibril_create_generic(func, arg, stack_size);
 	if (!f)
 		return f;

@@ -50,7 +50,70 @@
 #include "private/async.h"
 #include "private/fibril.h"
 
-static fibril_local bool deadlocked = false;
+#ifdef CONFIG_RMUTEX_IS_FUTEX
+
+void fibril_rmutex_initialize(fibril_rmutex_t *m)
+{
+	futex_initialize(&m->futex, 1);
+}
+
+/**
+ * Lock restricted mutex.
+ * When a restricted mutex is locked, the fibril may not sleep or create new
+ * threads. Any attempt to do so will abort the program.
+ */
+void fibril_rmutex_lock(fibril_rmutex_t *m)
+{
+	futex_lock(&m->futex);
+	fibril_self()->rmutex_locks++;
+}
+
+bool fibril_rmutex_trylock(fibril_rmutex_t *m)
+{
+	if (futex_trylock(&m->futex)) {
+		fibril_self()->rmutex_locks++;
+		return true;
+	} else {
+		return false;
+	}
+}
+
+void fibril_rmutex_unlock(fibril_rmutex_t *m)
+{
+	fibril_self()->rmutex_locks--;
+	futex_unlock(&m->futex);
+}
+
+#else
+
+void fibril_rmutex_initialize(fibril_rmutex_t *m)
+{
+	fibril_mutex_initialize(&m->mutex);
+}
+
+void fibril_rmutex_lock(fibril_rmutex_t *m)
+{
+	fibril_mutex_lock(&m->mutex);
+	fibril_self()->rmutex_locks++;
+}
+
+bool fibril_rmutex_trylock(fibril_rmutex_t *m)
+{
+	if (fibril_mutex_trylock(&m->mutex)) {
+		fibril_self()->rmutex_locks++;
+		return true;
+	} else {
+		return false;
+	}
+}
+
+void fibril_rmutex_unlock(fibril_rmutex_t *m)
+{
+	fibril_self()->rmutex_locks--;
+	fibril_mutex_unlock(&m->mutex);
+}
+
+#endif
 
 static futex_t fibril_synch_futex = FUTEX_INITIALIZER;
 
@@ -66,6 +129,7 @@ typedef struct {
 static void print_deadlock(fibril_owner_info_t *oi)
 {
 	// FIXME: Print to stderr.
+	static fibril_local bool deadlocked = false;
 
 	fibril_t *f = (fibril_t *) fibril_get_id();
 

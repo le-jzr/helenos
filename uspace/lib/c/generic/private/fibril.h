@@ -59,6 +59,7 @@ struct fibril {
 	bool is_heavy : 1;
 
 	/* Debugging stuff. */
+	int rmutex_locks;
 	atomic_t futex_locks;
 	fibril_owner_info_t *waits_for;
 	fibril_event_t *sleep_event;

@@ -232,11 +232,11 @@ void async_set_client_data_destructor(async_client_data_dtor_t dtor)
 	async_client_data_destroy = dtor;
 }
 
-static FIBRIL_MUTEX_INITIALIZE(client_mutex);
+static FIBRIL_RMUTEX_INITIALIZE(client_mutex);
 static hash_table_t client_hash_table;
 
 // TODO: lockfree notification_queue?
-static FIBRIL_MUTEX_INITIALIZE(notification_mutex);
+static FIBRIL_RMUTEX_INITIALIZE(notification_mutex);
 static hash_table_t notification_hash_table;
 static LIST_INITIALIZE(notification_queue);
 static FIBRIL_SEMAPHORE_INITIALIZE(notification_semaphore, 0);
@@ -336,7 +336,7 @@ static client_t *async_client_get(task_id_t client_id, bool create)
 {
 	client_t *client = NULL;
 
-	fibril_mutex_lock(&client_mutex);
+	fibril_rmutex_lock(&client_mutex);
 	ht_link_t *link = hash_table_find(&client_hash_table, &client_id);
 	if (link) {
 		client = hash_table_get_inst(link, client_t, link);
@@ -353,7 +353,7 @@ static client_t *async_client_get(task_id_t client_id, bool create)
 		}
 	}
 
-	fibril_mutex_unlock(&client_mutex);
+	fibril_rmutex_unlock(&client_mutex);
 	return client;
 }
 
@@ -361,7 +361,7 @@ static void async_client_put(client_t *client)
 {
 	bool destroy;
 
-	fibril_mutex_lock(&client_mutex);
+	fibril_rmutex_lock(&client_mutex);
 
 	if (atomic_predec(&client->refcnt) == 0) {
 		hash_table_remove(&client_hash_table, &client->in_task_id);
@@ -369,7 +369,7 @@ static void async_client_put(client_t *client)
 	} else
 		destroy = false;
 
-	fibril_mutex_unlock(&client_mutex);
+	fibril_rmutex_unlock(&client_mutex);
 
 	if (destroy) {
 		if (client->data)
@@ -655,7 +655,7 @@ static errno_t notification_fibril_func(void *arg)
 	while (true) {
 		fibril_semaphore_down(&notification_semaphore);
 
-		fibril_mutex_lock(&notification_mutex);
+		fibril_rmutex_lock(&notification_mutex);
 
 		/*
 		 * The semaphore ensures that if we get this far,
@@ -689,7 +689,7 @@ static errno_t notification_fibril_func(void *arg)
 		if (list_empty(&notification->msg_list))
 			list_remove(&notification->qlink);
 
-		fibril_mutex_unlock(&notification_mutex);
+		fibril_rmutex_unlock(&notification_mutex);
 
 		if (handler)
 			handler(&calldata, arg);
@@ -728,20 +728,20 @@ static void queue_notification(ipc_call_t *call)
 {
 	assert(call);
 
-	fibril_mutex_lock(&notification_mutex);
+	fibril_rmutex_lock(&notification_mutex);
 
 	notification_msg_t *m = list_pop(&notification_freelist,
 	    notification_msg_t, link);
 
 	if (!m) {
-		fibril_mutex_unlock(&notification_mutex);
+		fibril_rmutex_unlock(&notification_mutex);
 		m = malloc(sizeof(notification_msg_t));
 		if (!m) {
 			DPRINTF("Out of memory.\n");
 			abort();
 		}
 
-		fibril_mutex_lock(&notification_mutex);
+		fibril_rmutex_lock(&notification_mutex);
 		notification_freelist_total++;
 	}
 
@@ -751,7 +751,7 @@ static void queue_notification(ipc_call_t *call)
 		/* Invalid notification. */
 		// TODO: Make sure this can't happen and turn it into assert.
 		notification_freelist_total--;
-		fibril_mutex_unlock(&notification_mutex);
+		fibril_rmutex_unlock(&notification_mutex);
 		free(m);
 		return;
 	}
@@ -766,7 +766,7 @@ static void queue_notification(ipc_call_t *call)
 	if (!link_in_use(&notification->qlink))
 		list_append(&notification->qlink, &notification_queue);
 
-	fibril_mutex_unlock(&notification_mutex);
+	fibril_rmutex_unlock(&notification_mutex);
 
 	fibril_semaphore_up(&notification_semaphore);
 }
@@ -791,13 +791,13 @@ static notification_t *notification_create(async_notification_handler_t handler,
 
 	fid_t fib = 0;
 
-	fibril_mutex_lock(&notification_mutex);
+	fibril_rmutex_lock(&notification_mutex);
 
 	if (notification_avail == 0) {
 		/* Attempt to create the first handler fibril. */
 		fib = fibril_create(notification_fibril_func, NULL);
 		if (fib == 0) {
-			fibril_mutex_unlock(&notification_mutex);
+			fibril_rmutex_unlock(&notification_mutex);
 			free(notification);
 			return NULL;
 		}
@@ -809,7 +809,7 @@ static notification_t *notification_create(async_notification_handler_t handler,
 	notification->imethod = imethod;
 	hash_table_insert(&notification_hash_table, &notification->htlink);
 
-	fibril_mutex_unlock(&notification_mutex);
+	fibril_rmutex_unlock(&notification_mutex);
 
 	if (imethod == 0) {
 		assert(fib);
