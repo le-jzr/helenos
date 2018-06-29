@@ -157,8 +157,8 @@ typedef struct {
 	/** Link to the client tracking structure. */
 	client_t *client;
 
-	/** Condition variable for msg_queue. */
-	fibril_condvar_t msg_cvar;
+	/** Semaphore for msg_queue. */
+	fibril_semaphore_t msg_semaphore;
 
 	/** Messages that should be delivered to this fibril. */
 	list_t msg_queue;
@@ -247,7 +247,7 @@ static long notification_freelist_used = 0;
 
 static sysarg_t notification_avail = 0;
 
-static FIBRIL_MUTEX_INITIALIZE(conn_mutex);
+static FIBRIL_RMUTEX_INITIALIZE(conn_mutex);
 static hash_table_t conn_hash_table;
 
 static size_t client_key_hash(void *key)
@@ -426,12 +426,12 @@ static errno_t connection_fibril(void *arg)
 	/*
 	 * Remove myself from the connection hash table.
 	 */
-	fibril_mutex_lock(&conn_mutex);
+	fibril_rmutex_lock(&conn_mutex);
 	hash_table_remove(&conn_hash_table, &(conn_key_t){
 		.task_id = fibril_connection->in_task_id,
 		.phone_hash = fibril_connection->in_phone_hash
 	});
-	fibril_mutex_unlock(&conn_mutex);
+	fibril_rmutex_unlock(&conn_mutex);
 
 	/*
 	 * Answer all remaining messages with EHANGUP.
@@ -488,7 +488,7 @@ static fid_t async_new_connection(task_id_t in_task_id, sysarg_t in_phone_hash,
 
 	conn->in_task_id = in_task_id;
 	conn->in_phone_hash = in_phone_hash;
-	fibril_condvar_initialize(&conn->msg_cvar);
+	fibril_semaphore_initialize(&conn->msg_semaphore, 0);
 	list_initialize(&conn->msg_queue);
 	conn->close_chandle = CAP_NIL;
 	conn->handler = handler;
@@ -513,9 +513,9 @@ static fid_t async_new_connection(task_id_t in_task_id, sysarg_t in_phone_hash,
 
 	/* Add connection to the connection hash table */
 
-	fibril_mutex_lock(&conn_mutex);
+	fibril_rmutex_lock(&conn_mutex);
 	hash_table_insert(&conn_hash_table, &conn->link);
-	fibril_mutex_unlock(&conn_mutex);
+	fibril_rmutex_unlock(&conn_mutex);
 
 	fibril_start(conn->fid);
 
@@ -614,14 +614,14 @@ static bool route_call(ipc_call_t *call)
 {
 	assert(call);
 
-	fibril_mutex_lock(&conn_mutex);
+	fibril_rmutex_lock(&conn_mutex);
 
 	ht_link_t *link = hash_table_find(&conn_hash_table, &(conn_key_t){
 		.task_id = call->in_task_id,
 		.phone_hash = call->in_phone_hash
 	});
 	if (!link) {
-		fibril_mutex_unlock(&conn_mutex);
+		fibril_rmutex_unlock(&conn_mutex);
 		return false;
 	}
 
@@ -630,20 +630,21 @@ static bool route_call(ipc_call_t *call)
 	// FIXME: malloc in critical section
 	msg_t *msg = malloc(sizeof(*msg));
 	if (!msg) {
-		fibril_mutex_unlock(&conn_mutex);
+		fibril_rmutex_unlock(&conn_mutex);
 		return false;
 	}
 
 	msg->call = *call;
 	list_append(&msg->link, &conn->msg_queue);
 
-	if (IPC_GET_IMETHOD(*call) == IPC_M_PHONE_HUNGUP)
+	if (IPC_GET_IMETHOD(*call) == IPC_M_PHONE_HUNGUP) {
 		conn->close_chandle = call->cap_handle;
+		fibril_semaphore_close(&conn->msg_semaphore);
+	}
 
-	/* If the connection fibril is waiting for an event, activate it */
-	fibril_condvar_signal(&conn->msg_cvar);
+	fibril_rmutex_unlock(&conn_mutex);
 
-	fibril_mutex_unlock(&conn_mutex);
+	fibril_semaphore_up(&conn->msg_semaphore);
 	return true;
 }
 
@@ -948,42 +949,35 @@ cap_call_handle_t async_get_call_timeout(ipc_call_t *call, suseconds_t usecs)
 	 */
 	connection_t *conn = fibril_connection;
 
-	fibril_mutex_lock(&conn_mutex);
+	errno_t rc = fibril_semaphore_down_timeout(&conn->msg_semaphore, usecs);
+	if (rc != EOK)
+		return CAP_NIL;
 
-	/* If nothing in queue, wait until something arrives */
-	while (list_empty(&conn->msg_queue)) {
-		if (conn->close_chandle) {
-			/*
-			 * Handle the case when the connection was already
-			 * closed by the client but the server did not notice
-			 * the first IPC_M_PHONE_HUNGUP call and continues to
-			 * call async_get_call_timeout(). Repeat
-			 * IPC_M_PHONE_HUNGUP until the caller notices.
-			 */
-			memset(call, 0, sizeof(ipc_call_t));
-			IPC_SET_IMETHOD(*call, IPC_M_PHONE_HUNGUP);
-			fibril_mutex_unlock(&conn_mutex);
-			return conn->close_chandle;
-		}
+	fibril_rmutex_lock(&conn_mutex);
 
-		// FIXME: Using duration for timeout means that the function can potentially never timeout.
-
-		errno_t rc = fibril_condvar_wait_timeout(&conn->msg_cvar, &conn_mutex, usecs);
-		if (rc == ETIMEOUT) {
-			fibril_mutex_unlock(&conn_mutex);
-			return CAP_NIL;
-		}
+	if (conn->close_chandle) {
+		/*
+		 * Handle the case when the connection was already
+		 * closed by the client but the server did not notice
+		 * the first IPC_M_PHONE_HUNGUP call and continues to
+		 * call async_get_call_timeout(). Repeat
+		 * IPC_M_PHONE_HUNGUP until the caller notices.
+		 */
+		memset(call, 0, sizeof(ipc_call_t));
+		IPC_SET_IMETHOD(*call, IPC_M_PHONE_HUNGUP);
+		fibril_rmutex_unlock(&conn_mutex);
+		return conn->close_chandle;
 	}
 
-	msg_t *msg = list_get_instance(list_first(&conn->msg_queue),
-	    msg_t, link);
-	list_remove(&msg->link);
+	assert(!list_empty(&conn->msg_queue));
+
+	msg_t *msg = list_pop(&conn->msg_queue, msg_t, link);
 
 	cap_call_handle_t chandle = msg->call.cap_handle;
 	*call = msg->call;
 	free(msg);
 
-	fibril_mutex_unlock(&conn_mutex);
+	fibril_rmutex_unlock(&conn_mutex);
 	return chandle;
 }
 

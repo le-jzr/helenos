@@ -169,6 +169,7 @@ typedef struct {
 typedef struct {
 	long int count;
 	list_t waiters;
+	bool closed;
 } fibril_semaphore_t;
 
 #define FIBRIL_SEMAPHORE_INITIALIZER(name, cnt) \
@@ -226,6 +227,8 @@ extern fibril_timer_state_t fibril_timer_clear_locked(fibril_timer_t *);
 extern void fibril_semaphore_initialize(fibril_semaphore_t *, long);
 extern void fibril_semaphore_up(fibril_semaphore_t *);
 extern void fibril_semaphore_down(fibril_semaphore_t *);
+extern errno_t fibril_semaphore_down_timeout(fibril_semaphore_t *, suseconds_t);
+extern void fibril_semaphore_close(fibril_semaphore_t *);
 
 #endif
 
