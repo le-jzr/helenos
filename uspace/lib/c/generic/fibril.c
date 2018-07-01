@@ -82,12 +82,12 @@ static fibril_t _fibril_event_timed_out;
 #define _EVENT_TIMED_OUT (&_fibril_event_timed_out)
 
 #ifdef CONFIG_UNLIMITED_THREADS
-static _Atomic int threads_balance = { INT_MIN };
+static _Atomic int threads_balance = INT_MIN;
 #else
-static _Atomic int threads_balance = { 0 };
+static _Atomic int threads_balance = 0;
 #endif
 
-static _Atomic int fibrils_balance = { 0 };
+static _Atomic int fibrils_balance = 0;
 
 static inline int atomic_int_get(_Atomic int *a)
 {
@@ -212,29 +212,13 @@ static void _spawn_threads_if_needed(void)
 	}
 }
 
-static void _restore_fibril(fibril_t *f)
-{
-	assert(f);
-	futex_assert_is_locked(&fibril_futex);
-
-	if (f->is_heavy) {
-		futex_up(&f->heavy_blocking_sem);
-	} else {
-		atomic_int_add(&fibrils_balance, -1);
-
-		/* Enqueue in ready_list. */
-		list_append(&f->link, &ready_list);
-		futex_up(&ready_semaphore);
-	}
-}
-
 /**
  * Event notification with a given reason.
  *
  * @param reason  Reason of the notification.
  *                Can be either _EVENT_TRIGGERED or _EVENT_TIMED_OUT.
  */
-static void _fibril_notify_internal(fibril_event_t *event, fibril_t *reason)
+static fibril_t *_fibril_trigger_internal(fibril_event_t *event, fibril_t *reason)
 {
 	assert(reason != _EVENT_INITIAL);
 	assert(reason == _EVENT_TIMED_OUT || reason == _EVENT_TRIGGERED);
@@ -243,27 +227,76 @@ static void _fibril_notify_internal(fibril_event_t *event, fibril_t *reason)
 
 	if (event->fibril == _EVENT_INITIAL) {
 		event->fibril = reason;
-		return;
+		return NULL;
 	}
 
 	if (event->fibril == _EVENT_TIMED_OUT) {
 		assert(reason == _EVENT_TRIGGERED);
 		event->fibril = reason;
-		return;
+		return NULL;
 	}
 
 	if (event->fibril == _EVENT_TRIGGERED) {
 		/* Already triggered. Nothing to do. */
-		return;
+		return NULL;
 	}
 
 	fibril_t *f = event->fibril;
 	event->fibril = reason;
 
 	assert(f->sleep_event == event);
+	return f;
+}
 
-	/* Must be after the assignment (implicit write barrier). */
-	_restore_fibril(f);
+static fibril_t *_ready_list_pop(const struct timeval *expires, bool locked)
+{
+	if (locked)
+		futex_assert_is_locked(&fibril_futex);
+	else
+		futex_assert_is_not_locked(&fibril_futex);
+
+	errno_t rc = futex_down_timeout(&ready_semaphore, expires);
+
+	if (rc != EOK)
+		return NULL;
+
+	if (!locked)
+		futex_lock(&fibril_futex);
+	fibril_t *f = list_pop(&ready_list, fibril_t, link);
+	if (!locked)
+		futex_unlock(&fibril_futex);
+	assert(f);
+	return f;
+}
+
+static fibril_t *_ready_list_pop_nonblocking(bool locked)
+{
+	struct timeval tv = {0};
+	return _ready_list_pop(&tv, locked);
+}
+
+static void _ready_list_push(fibril_t *f)
+{
+	futex_assert_is_locked(&fibril_futex);
+
+	atomic_int_add(&fibrils_balance, -1);
+
+	/* Enqueue in ready_list. */
+	list_append(&f->link, &ready_list);
+	futex_up(&ready_semaphore);
+}
+
+static void _restore_fibril(fibril_t *f)
+{
+	if (!f)
+		return;
+
+	futex_assert_is_locked(&fibril_futex);
+
+	if (f->is_heavy)
+		futex_up(&f->heavy_blocking_sem);
+	else
+		_ready_list_push(f);
 }
 
 /** Fire all timeouts that expired. */
@@ -286,7 +319,9 @@ static struct timeval *_handle_expired_timeouts(struct timeval *next_timeout)
 		}
 
 		list_remove(&to->link);
-		_fibril_notify_internal(to->event, _EVENT_TIMED_OUT);
+
+		_restore_fibril(_fibril_trigger_internal(
+		    to->event, _EVENT_TIMED_OUT));
 	}
 
 	futex_unlock(&fibril_futex);
@@ -311,26 +346,23 @@ static void _fibril_cleanup_dead(void)
 	srcf->clean_after_me = NULL;
 }
 
-/**
- * Switch to the first fibril in the ready_list.
- * We know there is at least one because we successfully acquired token
- * from ready_semaphore.
- *
- */
-static void _fibril_switch_nonblocking(_switch_type_t type)
+/** Switch to a fibril. */
+static void _fibril_switch_to(_switch_type_t type, fibril_t *dstf, bool locked)
 {
 	assert(fibril_self()->rmutex_locks == 0);
 
-	futex_lock(&fibril_futex);
-	fibril_t *srcf = fibril_self();
-	fibril_t *dstf = list_pop(&ready_list, fibril_t, link);
+	if (!locked)
+		futex_lock(&fibril_futex);
+	else
+		futex_assert_is_locked(&fibril_futex);
 
+	fibril_t *srcf = fibril_self();
 	assert(srcf);
 	assert(dstf);
 
 	switch (type) {
 	case SWITCH_FROM_YIELD:
-		_restore_fibril(srcf);
+		_ready_list_push(srcf);
 		break;
 	case SWITCH_FROM_DEAD:
 		dstf->clean_after_me = srcf;
@@ -338,6 +370,8 @@ static void _fibril_switch_nonblocking(_switch_type_t type)
 	case SWITCH_FROM_HELPER:
 		break;
 	}
+
+	atomic_int_add(&fibrils_balance, +1);
 
 	dstf->thread_ctx = srcf->thread_ctx;
 	srcf->thread_ctx = NULL;
@@ -348,12 +382,14 @@ static void _fibril_switch_nonblocking(_switch_type_t type)
 	/* Swap to the next fibril. */
 	context_swap(&srcf->ctx, &dstf->ctx);
 
+	assert(srcf == fibril_self());
 	assert(srcf->thread_ctx);
 
-	/* Must be after context_swap()! */
-	futex_unlock(&fibril_futex);
-
-	_fibril_cleanup_dead();
+	if (!locked) {
+		/* Must be after context_swap()! */
+		futex_unlock(&fibril_futex);
+		_fibril_cleanup_dead();
+	}
 }
 
 /**
@@ -375,10 +411,9 @@ static errno_t _helper_fibril_fn(void *arg)
 	struct timeval next_timeout;
 	while (true) {
 		struct timeval *to = _handle_expired_timeouts(&next_timeout);
-		/* Wait for a fibril to become ready, or timeout to expire. */
-		errno_t rc = futex_down_timeout(&ready_semaphore, to);
-		if (rc == EOK)
-			_fibril_switch_nonblocking(SWITCH_FROM_HELPER);
+		fibril_t *f = _ready_list_pop(to, false);
+		if (f)
+			_fibril_switch_to(SWITCH_FROM_HELPER, f, false);
 	}
 
 	return EOK;
@@ -522,16 +557,15 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 	 * the source fibril before this thread finished switching.
 	 *
 	 * Instead, we switch to an internal "helper" fibril whose only
-	 * job is to block on ready_semaphore, freeing the source fibril for
+	 * job is to wait for an event, freeing the source fibril for
 	 * wakeups. There is always one for each running thread.
 	 */
-	if (futex_trydown(&ready_semaphore)) {
-		dstf = list_pop(&ready_list, fibril_t, link);
-	} else {
-		dstf = srcf->thread_ctx;
-	}
 
-	assert(dstf);
+	dstf = _ready_list_pop_nonblocking(true);
+	if (!dstf) {
+		dstf = srcf->thread_ctx;
+		assert(dstf);
+	}
 
 	_timeout_t timeout = { 0 };
 	if (expires) {
@@ -542,17 +576,8 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 
 	event->fibril = srcf;
 	srcf->sleep_event = event;
-	atomic_int_add(&fibrils_balance, +1);
-	dstf->thread_ctx = srcf->thread_ctx;
-	srcf->thread_ctx = NULL;
 
-	/* Bookkeeping. */
-	futex_give_to(&fibril_futex, dstf);
-
-	context_swap(&srcf->ctx, &dstf->ctx);
-
-	assert(srcf == fibril_self());
-	assert(srcf->thread_ctx);
+	_fibril_switch_to(SWITCH_FROM_HELPER, dstf, true);
 
 	assert(event->fibril != srcf);
 	assert(event->fibril != _EVENT_INITIAL);
@@ -577,7 +602,7 @@ void fibril_wait_for(fibril_event_t *event)
 void fibril_notify(fibril_event_t *event)
 {
 	futex_lock(&fibril_futex);
-	_fibril_notify_internal(event, _EVENT_TRIGGERED);
+	_restore_fibril(_fibril_trigger_internal(event, _EVENT_TRIGGERED));
 	futex_unlock(&fibril_futex);
 	_spawn_threads_if_needed();
 }
@@ -617,10 +642,9 @@ void fibril_yield(void)
 		// TODO: thread yield?
 		return;
 
-	if (futex_trydown(&ready_semaphore)) {
-		atomic_int_add(&fibrils_balance, -1);
-		_fibril_switch_nonblocking(SWITCH_FROM_YIELD);
-	}
+	fibril_t *f = _ready_list_pop_nonblocking(false);
+	if (f)
+		_fibril_switch_to(SWITCH_FROM_YIELD, f, false);
 }
 
 /**
@@ -675,12 +699,11 @@ _Noreturn void fibril_exit(long retval)
 		/* Not reached. */
 	}
 
-	atomic_int_add(&fibrils_balance, +1);
+	fibril_t *f = _ready_list_pop_nonblocking(false);
+	if (!f)
+		f = fibril_self()->thread_ctx;
 
-	/* Wait for a fibril to become ready. */
-	// FIXME: When fibril_join() is implemented, we won't be able to block here.
-	futex_down(&ready_semaphore);
-	_fibril_switch_nonblocking(SWITCH_FROM_DEAD);
+	_fibril_switch_to(SWITCH_FROM_DEAD, f, false);
 	__builtin_unreachable();
 }
 
@@ -776,7 +799,27 @@ unsigned int sys_thread_sleep(unsigned int sec)
 
 #endif
 
-/*
+/**
+ * Spawn a given number of threads for the thread pool, immediately, and
+ * unconditionally. This is meant to be used for tests and debugging.
+ * Normal operation should just use `fibril_enable_multithreaded()`.
+ *
+ * @param threads  Number of threads to spawn.
+ */
+void fibril_force_add_threads(int threads)
+{
+	assert(fibril_self()->rmutex_locks == 0);
+
+	for (int i = 0; i < threads; i++) {
+		if (!fibril_run_heavy(_helper_fibril_fn, NULL,
+		    "lightweight_runner", PAGE_SIZE))
+			break;
+
+		atomic_int_add(&fibrils_balance, +1);
+	}
+}
+
+/**
  * Opt-in to multithreaded lightweight fibrils.
  * Currently breaks some servers. Eventually, should be the default.
  */
@@ -787,6 +830,11 @@ void fibril_enable_multithreaded(void)
 	// TODO: Base the choice on the number of CPUs instead of a fixed value.
 	atomic_int_add(&threads_balance, -4);
 #endif
+}
+
+void __fibrils_init(void)
+{
+	/* Empty for now. */
 }
 
 /** @}

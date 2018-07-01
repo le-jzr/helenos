@@ -80,6 +80,8 @@ void __libc_main(void *pcb_ptr)
 	}
 #endif
 
+	__fibrils_init();
+
 	fibril_t *fibril = fibril_setup(fibril_alloc());
 	if (!fibril)
 		abort();

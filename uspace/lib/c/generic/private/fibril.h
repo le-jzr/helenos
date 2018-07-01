@@ -72,4 +72,6 @@ extern fibril_t *fibril_setup(fibril_t *);
 extern void fibril_teardown(fibril_t *f);
 extern fibril_t *fibril_self(void);
 
+extern void __fibrils_init(void);
+
 #endif
