@@ -52,6 +52,8 @@ struct fibril {
 	fibril_t *clean_after_me;
 	errno_t retval;
 
+	fibril_t *thread_ctx;
+
 	futex_t heavy_blocking_sem;
 
 	bool is_running : 1;

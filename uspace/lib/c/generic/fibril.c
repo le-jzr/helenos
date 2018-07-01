@@ -59,13 +59,18 @@ typedef struct {
 	fibril_event_t *event;
 } _timeout_t;
 
+typedef enum {
+	SWITCH_FROM_DEAD,
+	SWITCH_FROM_HELPER,
+	SWITCH_FROM_YIELD,
+} _switch_type_t;
+
 /* This futex serializes access to global data. */
 static futex_t fibril_futex = FUTEX_INITIALIZER;
 
 static futex_t ready_semaphore = FUTEX_INITIALIZE(0);
 
 static LIST_INITIALIZE(ready_list);
-static LIST_INITIALIZE(helper_list);
 static LIST_INITIALIZE(fibril_list);
 static LIST_INITIALIZE(timeout_list);
 
@@ -311,12 +316,8 @@ static void _fibril_cleanup_dead(void)
  * We know there is at least one because we successfully acquired token
  * from ready_semaphore.
  *
- * @param list  Put the fibril we are switching from into this list.
- *              May be &ready_list if switching from a normal fibril,
- *              &helper_list if switching from a helper fibril, or NULL
- *              if switching from a dead fibril.
  */
-static void _fibril_switch_nonblocking(list_t *list)
+static void _fibril_switch_nonblocking(_switch_type_t type)
 {
 	assert(fibril_self()->rmutex_locks == 0);
 
@@ -327,18 +328,27 @@ static void _fibril_switch_nonblocking(list_t *list)
 	assert(srcf);
 	assert(dstf);
 
-	if (list) {
-		list_append(&srcf->link, list);
-	} else {
-		/* Switch from dead fibril. */
+	switch (type) {
+	case SWITCH_FROM_YIELD:
+		_restore_fibril(srcf);
+		break;
+	case SWITCH_FROM_DEAD:
 		dstf->clean_after_me = srcf;
+		break;
+	case SWITCH_FROM_HELPER:
+		break;
 	}
+
+	dstf->thread_ctx = srcf->thread_ctx;
+	srcf->thread_ctx = NULL;
 
 	/* Just some bookkeeping to allow better debugging of futex locks. */
 	futex_give_to(&fibril_futex, dstf);
 
 	/* Swap to the next fibril. */
 	context_swap(&srcf->ctx, &dstf->ctx);
+
+	assert(srcf->thread_ctx);
 
 	/* Must be after context_swap()! */
 	futex_unlock(&fibril_futex);
@@ -357,6 +367,9 @@ static void _fibril_switch_nonblocking(list_t *list)
  */
 static errno_t _helper_fibril_fn(void *arg)
 {
+	/* Set itself as the thread's own context. */
+	fibril_self()->thread_ctx = fibril_self();
+
 	(void) arg;
 
 	struct timeval next_timeout;
@@ -365,7 +378,7 @@ static errno_t _helper_fibril_fn(void *arg)
 		/* Wait for a fibril to become ready, or timeout to expire. */
 		errno_t rc = futex_down_timeout(&ready_semaphore, to);
 		if (rc == EOK)
-			_fibril_switch_nonblocking(&helper_list);
+			_fibril_switch_nonblocking(SWITCH_FROM_HELPER);
 	}
 
 	return EOK;
@@ -465,11 +478,6 @@ static errno_t _wait_timeout_heavy(fibril_event_t *event, const struct timeval *
 	return rc;
 }
 
-static fibril_t *_create_helper(void)
-{
-	return fibril_create_generic(_helper_fibril_fn, NULL, PAGE_SIZE);
-}
-
 /**
  * Same as `fibril_wait_for()`, except with a timeout.
  *
@@ -483,6 +491,13 @@ static fibril_t *_create_helper(void)
 errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires)
 {
 	assert(fibril_self()->rmutex_locks == 0);
+
+	if (!fibril_self()->thread_ctx) {
+		fibril_self()->thread_ctx =
+		    fibril_create_generic(_helper_fibril_fn, NULL, PAGE_SIZE);
+		if (!fibril_self()->thread_ctx)
+			return ENOMEM;
+	}
 
 	futex_lock(&fibril_futex);
 
@@ -513,26 +528,10 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 	if (futex_trydown(&ready_semaphore)) {
 		dstf = list_pop(&ready_list, fibril_t, link);
 	} else {
-		dstf = list_pop(&helper_list, fibril_t, link);
-
-		/*
-		 * The helper fibril for the first thread may not exist yet
-		 * (we don't allocate it until it is needed).
-		 */
-		if (dstf == NULL) {
-			futex_unlock(&fibril_futex);
-			dstf = _create_helper();
-			futex_lock(&fibril_futex);
-
-			/* Could have been triggered while we were allocating. */
-			if (event->fibril == _EVENT_TRIGGERED) {
-				event->fibril = _EVENT_INITIAL;
-				list_append(&dstf->link, &helper_list);
-				futex_unlock(&fibril_futex);
-				return EOK;
-			}
-		}
+		dstf = srcf->thread_ctx;
 	}
+
+	assert(dstf);
 
 	_timeout_t timeout = { 0 };
 	if (expires) {
@@ -542,10 +541,10 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 	}
 
 	event->fibril = srcf;
-
 	srcf->sleep_event = event;
-
 	atomic_int_add(&fibrils_balance, +1);
+	dstf->thread_ctx = srcf->thread_ctx;
+	srcf->thread_ctx = NULL;
 
 	/* Bookkeeping. */
 	futex_give_to(&fibril_futex, dstf);
@@ -553,6 +552,7 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 	context_swap(&srcf->ctx, &dstf->ctx);
 
 	assert(srcf == fibril_self());
+	assert(srcf->thread_ctx);
 
 	assert(event->fibril != srcf);
 	assert(event->fibril != _EVENT_INITIAL);
@@ -617,8 +617,10 @@ void fibril_yield(void)
 		// TODO: thread yield?
 		return;
 
-	if (futex_trydown(&ready_semaphore))
-		_fibril_switch_nonblocking(&ready_list);
+	if (futex_trydown(&ready_semaphore)) {
+		atomic_int_add(&fibrils_balance, -1);
+		_fibril_switch_nonblocking(SWITCH_FROM_YIELD);
+	}
 }
 
 /**
@@ -678,7 +680,7 @@ _Noreturn void fibril_exit(long retval)
 	/* Wait for a fibril to become ready. */
 	// FIXME: When fibril_join() is implemented, we won't be able to block here.
 	futex_down(&ready_semaphore);
-	_fibril_switch_nonblocking(NULL);
+	_fibril_switch_nonblocking(SWITCH_FROM_DEAD);
 	__builtin_unreachable();
 }
 
