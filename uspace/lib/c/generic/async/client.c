@@ -384,27 +384,6 @@ void async_forget(aid_t amsgid)
 	fibril_rmutex_unlock(&message_mutex);
 }
 
-/** Wait for specified time.
- *
- * The current fibril is suspended but the thread continues to execute.
- *
- * @param timeout Duration of the wait in microseconds.
- *
- */
-void async_usleep(suseconds_t timeout)
-{
-	fibril_usleep(timeout);
-}
-
-/** Delay execution for the specified number of seconds
- *
- * @param sec Number of seconds to sleep
- */
-void async_sleep(unsigned int sec)
-{
-	fibril_sleep(sec);
-}
-
 /** Pseudo-synchronous message sending - fast version.
  *
  * Send message asynchronously and return only after the reply arrives.
