@@ -85,19 +85,6 @@ void __futex_give_to(futex_t *, void *, const char *);
 
 #endif
 
-/** Try to down the futex.
- *
- * @param futex Futex.
- *
- * @return true if the futex was acquired.
- * @return false if the futex was not acquired.
- *
- */
-static inline bool futex_trydown(futex_t *futex)
-{
-	return cas(&futex->val, 1, 0);
-}
-
 /** Down the futex with timeout, composably.
  *
  * This means that when the operation fails due to a timeout or being
@@ -118,26 +105,29 @@ static inline errno_t futex_down_composable(futex_t *futex, const struct timeval
 {
 	// TODO: Add tests for this.
 
-	/* No timeout by default. */
-	suseconds_t timeout = 0;
+	if ((atomic_signed_t) atomic_predec(&futex->val) >= 0)
+		return EOK;
 
-	if (expires) {
-		struct timeval tv;
-		getuptime(&tv);
-		if (tv_gteq(&tv, expires)) {
+	suseconds_t timeout;
+
+	if (!expires) {
+		/* No timeout. */
+		timeout = 0;
+	} else {
+		if (expires->tv_sec == 0) {
 			/* We can't just return ETIMEOUT. That wouldn't be composable. */
 			timeout = 1;
 		} else {
-			timeout = tv_sub_diff(expires, &tv);
+			struct timeval tv;
+			getuptime(&tv);
+			timeout = tv_gteq(&tv, expires) ? 1 :
+			    tv_sub_diff(expires, &tv);
 		}
 
 		assert(timeout > 0);
 	}
 
-	if ((atomic_signed_t) atomic_predec(&futex->val) < 0)
-		return (errno_t) __SYSCALL2(SYS_FUTEX_SLEEP, (sysarg_t) &futex->val.count, (sysarg_t) timeout);
-
-	return EOK;
+	return (errno_t) __SYSCALL2(SYS_FUTEX_SLEEP, (sysarg_t) &futex->val.count, (sysarg_t) timeout);
 }
 
 /** Up the futex.
@@ -157,8 +147,22 @@ static inline errno_t futex_up(futex_t *futex)
 	return EOK;
 }
 
-static inline errno_t futex_down_timeout(futex_t *futex, struct timeval *expires)
+static inline errno_t futex_down_timeout(futex_t *futex, const struct timeval *expires)
 {
+	if (expires && expires->tv_sec == 0 && expires->tv_usec == 0) {
+		/* Try good old CAS a few times. */
+		for (int i = 0; i < 8; i++) {
+			atomic_signed_t old = atomic_get(&futex->val);
+			if (old <= 0)
+				return ETIMEOUT;
+
+			if (cas(&futex->val, old, old - 1))
+				return EOK;
+		}
+
+		/* Other threads are starving us. Fall back. */
+	}
+
 	/*
 	 * This combination of a "composable" sleep followed by futex_up() on
 	 * failure is necessary to prevent breakage due to certain race
@@ -168,6 +172,20 @@ static inline errno_t futex_down_timeout(futex_t *futex, struct timeval *expires
 	if (rc != EOK)
 		futex_up(futex);
 	return rc;
+}
+
+/** Try to down the futex.
+ *
+ * @param futex Futex.
+ *
+ * @return true if the futex was acquired.
+ * @return false if the futex was not acquired.
+ *
+ */
+static inline bool futex_trydown(futex_t *futex)
+{
+	struct timeval tv = { 0 };
+	return futex_down_timeout(futex, &tv) == EOK;
 }
 
 /** Down the futex.
