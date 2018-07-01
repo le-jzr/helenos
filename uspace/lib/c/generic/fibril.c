@@ -76,28 +76,23 @@ static fibril_t _fibril_event_timed_out;
 #define _EVENT_TRIGGERED (&_fibril_event_triggered)
 #define _EVENT_TIMED_OUT (&_fibril_event_timed_out)
 
-/**
- * How many threads are allowed in the lightweight fibril thread pool.
- * Whenever a fibril is ready and there is no thread available, a new thread
- * is spawned as long as the total number of threads does not exceed
- * `thread_pool_requested`.
- * By default, only one thread is used, because of servers that
- * depend on it. This will be fixed in the future. Ideally, this value should
- * be set based on the number of available CPUs.
- */
 #ifdef CONFIG_UNLIMITED_THREADS
-static int thread_pool_requested = INT_MAX;
+static _Atomic int threads_balance = { INT_MIN };
 #else
-static int thread_pool_requested = 1;
+static _Atomic int threads_balance = { 0 };
 #endif
 
-/*
- * For keeping track of how many threads are running in the lightweight
- * fibril thread pool.
- */
-static int thread_pool_total = 1;
+static _Atomic int fibrils_balance = { 0 };
 
-static int fibrils_active = 1;
+static inline int atomic_int_get(_Atomic int *a)
+{
+	return __atomic_load_n(a, __ATOMIC_RELAXED);
+}
+
+static inline void atomic_int_add(_Atomic int *a, int b)
+{
+	(void) __atomic_add_fetch(a, b, __ATOMIC_RELAXED);
+}
 
 /** Function that spans the whole life-cycle of a lightweight fibril.
  *
@@ -175,34 +170,40 @@ void fibril_teardown(fibril_t *fibril)
 
 static errno_t _helper_fibril_fn(void *arg);
 
-static void _spawn_threads_on_unlock(futex_t *futex)
+static void _spawn_threads_if_needed(void)
 {
 	if (fibril_self()->rmutex_locks > 0) {
 		/* Can't spawn threads now. */
-		futex_unlock(futex);
 		return;
 	}
 
-	/* We need to check whether to spawn new threads. */
-	int new_threads = min(max(fibrils_active, thread_pool_total), thread_pool_requested);
-	int current_threads = thread_pool_total;
-	thread_pool_total = new_threads;
+	while (true) {
+		if (atomic_int_get(&fibrils_balance) >= 0)
+			return;
 
-	futex_unlock(futex);
+		if (atomic_int_get(&threads_balance) >= 0)
+			return;
 
-	while (current_threads < new_threads) {
+		/*
+		 * `fibrils_balance < 0` means there are more active fibrils than
+		 * threads. `threads_balance < 0` means there are fewer active threads
+		 * than the maximum set.
+		 */
+
+		// FIXME: Bit of a race condition here.
+		//        We might accidentally spawn more threads than the set maximum.
+		//        It doesn't actually hurt anything though. We can fix it later with CAS.
+		atomic_int_add(&fibrils_balance, +1);
+		atomic_int_add(&threads_balance, +1);
+
 		if (!fibril_run_heavy(_helper_fibril_fn, NULL,
-		    "lightweight_runner", PAGE_SIZE))
-			break;
+		    "lightweight_runner", PAGE_SIZE)) {
 
-		current_threads++;
-	}
-
-	if (current_threads < new_threads) {
-		/* If we failed to create some threads, adjust the total to match reality. */
-		futex_lock(futex);
-		thread_pool_total -= (new_threads - current_threads);
-		futex_unlock(futex);
+			/* Failed to create. */
+			atomic_int_add(&fibrils_balance, -1);
+			atomic_int_add(&threads_balance, -1);
+			return;
+		}
 	}
 }
 
@@ -214,7 +215,7 @@ static void _restore_fibril(fibril_t *f)
 	if (f->is_heavy) {
 		futex_up(&f->heavy_blocking_sem);
 	} else {
-		fibrils_active++;
+		atomic_int_add(&fibrils_balance, -1);
 
 		/* Enqueue in ready_list. */
 		list_append(&f->link, &ready_list);
@@ -274,7 +275,8 @@ static struct timeval *_handle_expired_timeouts(struct timeval *next_timeout)
 
 		if (tv_gt(&to->expires, &tv)) {
 			*next_timeout = to->expires;
-			_spawn_threads_on_unlock(&fibril_futex);
+			futex_unlock(&fibril_futex);
+			_spawn_threads_if_needed();
 			return next_timeout;
 		}
 
@@ -282,7 +284,8 @@ static struct timeval *_handle_expired_timeouts(struct timeval *next_timeout)
 		_fibril_notify_internal(to->event, _EVENT_TIMED_OUT);
 	}
 
-	_spawn_threads_on_unlock(&fibril_futex);
+	futex_unlock(&fibril_futex);
+	_spawn_threads_if_needed();
 	return NULL;
 }
 
@@ -542,7 +545,7 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 
 	srcf->sleep_event = event;
 
-	fibrils_active--;
+	atomic_int_add(&fibrils_balance, +1);
 
 	/* Bookkeeping. */
 	futex_give_to(&fibril_futex, dstf);
@@ -575,7 +578,8 @@ void fibril_notify(fibril_event_t *event)
 {
 	futex_lock(&fibril_futex);
 	_fibril_notify_internal(event, _EVENT_TRIGGERED);
-	_spawn_threads_on_unlock(&fibril_futex);
+	futex_unlock(&fibril_futex);
+	_spawn_threads_if_needed();
 }
 
 /** Start a fibril that has not been running yet. */
@@ -590,7 +594,8 @@ void fibril_start(fibril_t *fibril)
 
 	_restore_fibril(fibril);
 
-	_spawn_threads_on_unlock(&fibril_futex);
+	futex_unlock(&fibril_futex);
+	_spawn_threads_if_needed();
 }
 
 /** Start a fibril that has not been running yet. (obsolete) */
@@ -668,9 +673,7 @@ _Noreturn void fibril_exit(long retval)
 		/* Not reached. */
 	}
 
-	futex_lock(&fibril_futex);
-	fibrils_active--;
-	futex_unlock(&fibril_futex);
+	atomic_int_add(&fibrils_balance, +1);
 
 	/* Wait for a fibril to become ready. */
 	// FIXME: When fibril_join() is implemented, we won't be able to block here.
@@ -779,10 +782,8 @@ void fibril_enable_multithreaded(void)
 {
 	/* CONFIG_UNLIMITED_THREADS removes the limit unconditionally. */
 #ifndef CONFIG_UNLIMITED_THREADS
-	futex_lock(&fibril_futex);
 	// TODO: Base the choice on the number of CPUs instead of a fixed value.
-	thread_pool_requested = 4;
-	futex_unlock(&fibril_futex);
+	atomic_int_add(&threads_balance, -4);
 #endif
 }
 
