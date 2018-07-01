@@ -58,9 +58,7 @@ typedef struct bench {
 	void (*func)(struct bench *);
 	size_t iters;
 	size_t nthreads;
-	futex_t done_threads;
-
-	futex_t bench_fut;
+	fibril_semaphore_t done_threads;
 } bench_t;
 
 
@@ -110,7 +108,7 @@ static errno_t thread_func(void *arg)
 	bench->func(bench);
 
 	/* Signal another thread completed. */
-	futex_up(&bench->done_threads);
+	fibril_semaphore_up(&bench->done_threads);
 
 	return EOK;
 }
@@ -123,13 +121,16 @@ static void run_threads_and_wait(bench_t *bench)
 		printf("Creating %zu additional threads...\n", bench->nthreads - 1);
 	}
 
+	fibril_force_add_threads(bench->nthreads - 1);
+
 	/* Create and run the first nthreads - 1 threads.*/
 	for (size_t k = 1; k < bench->nthreads; ++k) {
-		fid_t f = fibril_run_heavy(thread_func, bench, "rcubench-t", FIBRIL_DFLT_STK_SIZE);
+		fid_t f = fibril_create_generic(thread_func, bench, FIBRIL_DFLT_STK_SIZE);
 		if (!f) {
 			printf("Error: Failed to create benchmark thread.\n");
 			abort();
 		}
+		fibril_start(f);
 		fibril_detach(f);
 	}
 
@@ -144,7 +145,7 @@ static void run_threads_and_wait(bench_t *bench)
 
 	/* Wait for threads to complete. */
 	for (size_t k = 0; k < bench->nthreads; ++k) {
-		futex_down(&bench->done_threads);
+		fibril_semaphore_down(&bench->done_threads);
 	}
 }
 
@@ -199,8 +200,6 @@ static bool parse_cmd_line(int argc, char **argv, bench_t *bench,
 		return false;
 	}
 
-	futex_initialize(&bench->bench_fut, 1);
-
 	if (0 == str_cmp(argv[1], "sys-futex")) {
 		bench->func = kernel_futex_bench;
 	} else if (0 == str_cmp(argv[1], "lock")) {
@@ -244,7 +243,7 @@ int main(int argc, char **argv)
 	const char *err = "(error)";
 	bench_t bench;
 
-	futex_initialize(&bench.done_threads, 0);
+	fibril_semaphore_initialize(&bench.done_threads, 0);
 
 	if (!parse_cmd_line(argc, argv, &bench, &err)) {
 		printf("%s\n", err);

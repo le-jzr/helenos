@@ -32,7 +32,6 @@
 
 #include <atomic.h>
 #include <errno.h>
-#include <async.h>
 #include <fibril.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -47,7 +46,7 @@ static errno_t threadtest(void *data)
 	fibril_detach(fibril_get_id());
 
 	while (atomic_get(&finish))
-		async_usleep(100000);
+		fibril_usleep(100000);
 
 	atomic_inc(&threads_finished);
 
@@ -63,24 +62,28 @@ const char *test_thread1(void)
 	atomic_set(&threads_finished, 0);
 
 	TPRINTF("Creating threads");
+	fibril_force_add_threads(THREADS);
+
 	for (i = 0; i < THREADS; i++) {
-		if (!fibril_run_heavy(threadtest, NULL, "threadtest", FIBRIL_DFLT_STK_SIZE)) {
+		fibril_t *f = fibril_create(threadtest, NULL);
+		if (!f) {
 			TPRINTF("\nCould not create thread %u\n", i);
 			break;
 		}
+		fibril_start(f);
 		TPRINTF(".");
 		total++;
 	}
 
 	TPRINTF("\nRunning threads for %u seconds...", DELAY);
-	async_sleep(DELAY);
+	fibril_sleep(DELAY);
 	TPRINTF("\n");
 
 	atomic_set(&finish, 0);
 	while (atomic_get(&threads_finished) < total) {
 		TPRINTF("Threads left: %" PRIua "\n",
 		    total - atomic_get(&threads_finished));
-		async_sleep(1);
+		fibril_sleep(1);
 	}
 
 	return NULL;

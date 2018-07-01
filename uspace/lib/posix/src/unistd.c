@@ -68,7 +68,7 @@ char **environ = NULL;
  */
 unsigned int sleep(unsigned int seconds)
 {
-	async_sleep(seconds);
+	fibril_sleep(seconds);
 	return 0;
 }
 

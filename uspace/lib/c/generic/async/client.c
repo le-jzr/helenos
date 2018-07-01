@@ -393,12 +393,7 @@ void async_forget(aid_t amsgid)
  */
 void async_usleep(suseconds_t timeout)
 {
-	struct timeval expires;
-	getuptime(&expires);
-	tv_add_diff(&expires, timeout);
-
-	fibril_event_t event = FIBRIL_EVENT_INIT;
-	fibril_wait_timeout(&event, &expires);
+	fibril_usleep(timeout);
 }
 
 /** Delay execution for the specified number of seconds
@@ -407,17 +402,7 @@ void async_usleep(suseconds_t timeout)
  */
 void async_sleep(unsigned int sec)
 {
-	/*
-	 * Sleep in 1000 second steps to support
-	 * full argument range
-	 */
-
-	while (sec > 0) {
-		unsigned int period = (sec > 1000) ? 1000 : sec;
-
-		async_usleep(period * 1000000);
-		sec -= period;
-	}
+	fibril_sleep(sec);
 }
 
 /** Pseudo-synchronous message sending - fast version.

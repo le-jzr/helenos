@@ -83,6 +83,9 @@ extern void fibril_detach(fid_t);
 extern void fibril_enable_multithreaded(void);
 extern void fibril_force_add_threads(int);
 
+extern void fibril_usleep(suseconds_t);
+extern void fibril_sleep(unsigned int);
+
 #endif
 
 /** @}

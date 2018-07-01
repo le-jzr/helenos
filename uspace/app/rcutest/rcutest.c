@@ -759,13 +759,11 @@ static bool seq_test(test_info_t *test_info)
 
 static bool create_threads(size_t cnt)
 {
-
 	/* Sanity check. */
 	assert(cnt < 1024);
 
-	// FIXME
-	printf("Failed to create threads (not implemented)\n");
-	return false;
+	fibril_force_add_threads(cnt);
+	return true;
 }
 
 /*--------------------------------------------------------------------*/

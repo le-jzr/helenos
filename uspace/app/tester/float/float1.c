@@ -32,7 +32,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <atomic.h>
-#include <async.h>
 #include <fibril.h>
 #include <inttypes.h>
 #include "../tester.h"
@@ -75,11 +74,15 @@ const char *test_float1(void)
 	atomic_set(&threads_fault, 0);
 
 	TPRINTF("Creating threads");
+	fibril_force_add_threads(THREADS);
+
 	for (unsigned int i = 0; i < THREADS; i++) {
-		if (!fibril_run_heavy(e, NULL, "e", FIBRIL_DFLT_STK_SIZE)) {
+		fibril_t *f = fibril_create(e, NULL);
+		if (!f) {
 			TPRINTF("\nCould not create thread %u\n", i);
 			break;
 		}
+		fibril_start(f);
 
 		TPRINTF(".");
 		total++;
@@ -90,7 +93,7 @@ const char *test_float1(void)
 	while (atomic_get(&threads_finished) < total) {
 		TPRINTF("Threads left: %" PRIua "\n",
 		    total - atomic_get(&threads_finished));
-		async_sleep(1);
+		fibril_sleep(1);
 	}
 
 	if (atomic_get(&threads_fault) == 0)

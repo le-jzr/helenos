@@ -837,5 +837,25 @@ void __fibrils_init(void)
 	/* Empty for now. */
 }
 
+void fibril_usleep(suseconds_t timeout)
+{
+	struct timeval expires;
+	getuptime(&expires);
+	tv_add_diff(&expires, timeout);
+
+	fibril_event_t event = FIBRIL_EVENT_INIT;
+	fibril_wait_timeout(&event, &expires);
+}
+
+void fibril_sleep(unsigned int sec)
+{
+	struct timeval expires;
+	getuptime(&expires);
+	expires.tv_sec += sec;
+
+	fibril_event_t event = FIBRIL_EVENT_INIT;
+	fibril_wait_timeout(&event, &expires);
+}
+
 /** @}
  */

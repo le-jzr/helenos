@@ -29,7 +29,6 @@
 #include <pcut/pcut.h>
 
 #ifdef __helenos__
-#include <async.h>
 #include <fibril.h>
 #else
 #ifdef __unix
@@ -46,7 +45,7 @@
 static void my_sleep(int sec)
 {
 #ifdef __helenos__
-	async_sleep(sec);
+	fibril_sleep(sec);
 #else
 #ifdef __unix
 	sleep(sec);
