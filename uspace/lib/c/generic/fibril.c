@@ -485,6 +485,7 @@ static errno_t _wait_timeout_heavy(fibril_event_t *event, const struct timeval *
 {
 	fibril_t *srcf = fibril_self();
 	event->fibril = srcf;
+	srcf->sleep_event = event;
 
 	futex_unlock(&fibril_futex);
 
