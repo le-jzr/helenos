@@ -1076,8 +1076,8 @@ static errno_t async_manager_worker(void)
 
 	while (!atomic_get(&stop_managers)) {
 		rc = ipc_wait(&call, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE);
-		assert(rc == EOK);
-		handle_call(&call);
+		if (rc == EOK)
+			handle_call(&call);
 	}
 
 	atomic_dec(&running_managers);
