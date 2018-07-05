@@ -312,7 +312,11 @@ aid_t async_send_slow(async_exch_t *exch, sysarg_t imethod, sysarg_t arg1,
  */
 void async_wait_for(aid_t amsgid, errno_t *retval)
 {
-	assert(amsgid);
+	if (amsgid == 0) {
+		if (retval)
+			*retval = ENOMEM;
+		return;
+	}
 
 	amsg_t *msg = (amsg_t *) amsgid;
 	fibril_wait_for(&msg->received);
@@ -339,7 +343,11 @@ void async_wait_for(aid_t amsgid, errno_t *retval)
  */
 errno_t async_wait_timeout(aid_t amsgid, errno_t *retval, suseconds_t timeout)
 {
-	assert(amsgid);
+	if (amsgid == 0) {
+		if (retval)
+			*retval = ENOMEM;
+		return EOK;
+	}
 
 	amsg_t *msg = (amsg_t *) amsgid;
 
@@ -376,9 +384,11 @@ errno_t async_wait_timeout(aid_t amsgid, errno_t *retval, suseconds_t timeout)
  */
 void async_forget(aid_t amsgid)
 {
+	if (amsgid == 0)
+		return;
+
 	amsg_t *msg = (amsg_t *) amsgid;
 
-	assert(msg);
 	assert(!msg->forget);
 
 	fibril_rmutex_lock(&message_mutex);
