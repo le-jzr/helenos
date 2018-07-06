@@ -721,6 +721,13 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 
 	DPRINTF("### Fibril %p sleeping on event %p.\n", fibril_self(), event);
 
+	if (__atomic_load_n(&event->fibril, __ATOMIC_RELAXED) != _EVENT_INITIAL) {
+		/* Already triggered, return fast. */
+		fibril_t *reason = __atomic_exchange_n(&event->fibril, _EVENT_INITIAL, __ATOMIC_ACQUIRE);
+		assert(reason == _EVENT_TRIGGERED);
+		return EOK;
+	}
+
 	if (!fibril_self()->thread_ctx) {
 		fibril_self()->thread_ctx =
 		    fibril_create_generic(_helper_fibril_fn, NULL, PAGE_SIZE);
@@ -729,16 +736,6 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 	}
 
 	futex_lock(&fibril_futex);
-
-	if (__atomic_load_n(&event->fibril, __ATOMIC_RELAXED) != _EVENT_INITIAL) {
-		/* Already triggered, return fast. */
-		fibril_t *reason = __atomic_exchange_n(&event->fibril, _EVENT_INITIAL, __ATOMIC_ACQUIRE);
-		assert(reason == _EVENT_TRIGGERED);
-		futex_unlock(&fibril_futex);
-		return EOK;
-	}
-
-	assert(event->fibril == _EVENT_INITIAL);
 
 	fibril_t *srcf = fibril_self();
 	fibril_t *dstf = NULL;
