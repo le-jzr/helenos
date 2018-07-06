@@ -277,10 +277,52 @@ static fibril_t *_fibril_trigger_internal(fibril_event_t *event, fibril_t *reaso
 
 	fibril_t *f = event->fibril;
 	event->fibril = reason;
+	assert(f->sleep_event == event);
+	return f;
+}
+
+static fibril_t *_fibril_trigger(fibril_event_t *event)
+{
+	return _fibril_trigger_internal(event, _EVENT_TRIGGERED);
+}
+
+static fibril_t *_fibril_timeout(fibril_event_t *event)
+{
+	return _fibril_trigger_internal(event, _EVENT_TIMED_OUT);
+}
+
+#if 0
+
+static fibril_t *_fibril_trigger(fibril_event_t *event)
+{
+	futex_assert_is_locked(&fibril_futex);
+
+	fibril_t *f = __atomic_exchange_n(&event->fibril, _EVENT_TRIGGERED, __ATOMIC_RELEASE);
+	if (f == _EVENT_INITIAL || f == _EVENT_TRIGGERED || f == _EVENT_TIMED_OUT)
+		return NULL;
+
+	assert(f->sleep_event == event);
+	return old;
+}
+
+static fibril_t *_fibril_timeout(fibril_event_t *event)
+{
+	futex_assert_is_locked(&fibril_futex);
+
+	fibril_t *f = _EVENT_INITIAL;
+	if (__atomic_compare_exchange_n(&event->fibril, &f, _EVENT_TIMED_OUT, false, __ATOMIC_RELEASE, __ATOMIC_RELAXED))
+		return NULL;
+
+	assert(f != _EVENT_INITIAL);
+
+	if (f == _EVENT_TRIGGERED || f == _EVENT_TIMED_OUT)
+		return NULL;
 
 	assert(f->sleep_event == event);
 	return f;
 }
+
+#endif
 
 static errno_t _ipc_wait(ipc_call_t *call, const struct timeval *expires)
 {
@@ -389,7 +431,7 @@ static fibril_t *_ready_list_pop(const struct timeval *expires, bool locked)
 		*w->call = call;
 		w->rc = rc;
 		/* We switch to the woken up fibril immediately if possible. */
-		f = _fibril_trigger_internal(&w->event, _EVENT_TRIGGERED);
+		f = _fibril_trigger(&w->event);
 
 		/* Return token. */
 		futex_up(&ready_semaphore);
@@ -493,8 +535,7 @@ static struct timeval *_handle_expired_timeouts(struct timeval *next_timeout)
 
 		list_remove(&to->link);
 
-		_ready_list_push(_fibril_trigger_internal(
-		    to->event, _EVENT_TIMED_OUT));
+		_ready_list_push(_fibril_timeout(to->event));
 	}
 
 	futex_unlock(&fibril_futex);
@@ -509,14 +550,30 @@ static struct timeval *_handle_expired_timeouts(struct timeval *next_timeout)
 static void _fibril_cleanup_dead(void)
 {
 	fibril_t *srcf = fibril_self();
-	if (!srcf->clean_after_me)
+	assert(srcf->srcf_event == NULL);
+	if (!srcf->srcf)
 		return;
 
-	void *stack = srcf->clean_after_me->stack;
+	void *stack = srcf->srcf->stack;
 	assert(stack);
 	as_area_destroy(stack);
-	fibril_teardown(srcf->clean_after_me);
-	srcf->clean_after_me = NULL;
+	fibril_teardown(srcf->srcf);
+	srcf->srcf = NULL;
+}
+
+/* We need to call this from the fibril we switched to, because otherwise
+ * another thread could attempt to restore the fibril we are putting to sleep
+ * before it was switched away from.
+ */
+static void _fibril_set_event(fibril_event_t *event, fibril_t *f)
+{
+	fibril_t *expected = _EVENT_INITIAL;
+	if (!__atomic_compare_exchange_n(&event->fibril, &expected, f, false,
+	    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+		_ready_list_push(f);
+
+	assert(expected == _EVENT_INITIAL || expected == _EVENT_TRIGGERED ||
+	    expected == _EVENT_TIMED_OUT);
 }
 
 /** Switch to a fibril. */
@@ -538,7 +595,7 @@ static void _fibril_switch_to(_switch_type_t type, fibril_t *dstf, bool locked)
 		_ready_list_push(srcf);
 		break;
 	case SWITCH_FROM_DEAD:
-		dstf->clean_after_me = srcf;
+		dstf->srcf = srcf;
 		break;
 	case SWITCH_FROM_HELPER:
 	case SWITCH_FROM_BLOCKED:
@@ -558,6 +615,12 @@ static void _fibril_switch_to(_switch_type_t type, fibril_t *dstf, bool locked)
 
 	assert(srcf == fibril_self());
 	assert(srcf->thread_ctx);
+
+	if (srcf->srcf && srcf->srcf_event) {
+		_fibril_set_event(srcf->srcf_event, srcf->srcf);
+		srcf->srcf = NULL;
+		srcf->srcf_event = NULL;
+	}
 
 	if (!locked) {
 		/* Must be after context_swap()! */
@@ -586,9 +649,8 @@ static errno_t _helper_fibril_fn(void *arg)
 	while (true) {
 		struct timeval *to = _handle_expired_timeouts(&next_timeout);
 		fibril_t *f = _ready_list_pop(to, false);
-		if (f) {
+		if (f)
 			_fibril_switch_to(SWITCH_FROM_HELPER, f, false);
-		}
 	}
 
 	return EOK;
@@ -694,9 +756,10 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 
 	futex_lock(&fibril_futex);
 
-	if (event->fibril == _EVENT_TRIGGERED) {
-		DPRINTF("### Already triggered. Returning. \n");
-		event->fibril = _EVENT_INITIAL;
+	if (__atomic_load_n(&event->fibril, __ATOMIC_RELAXED) != _EVENT_INITIAL) {
+		/* Already triggered, return fast. */
+		fibril_t *reason = __atomic_exchange_n(&event->fibril, _EVENT_INITIAL, __ATOMIC_ACQUIRE);
+		assert(reason == _EVENT_TRIGGERED);
 		futex_unlock(&fibril_futex);
 		return EOK;
 	}
@@ -746,6 +809,9 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 
 	assert(event->fibril != _EVENT_INITIAL);
 
+//	dstf->srcf = srcf;
+//	dstf->srcf_event = event;
+
 	_fibril_switch_to(SWITCH_FROM_BLOCKED, dstf, true);
 
 	assert(event->fibril != srcf);
@@ -758,6 +824,20 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 
 	futex_unlock(&fibril_futex);
 	_fibril_cleanup_dead();
+
+#if 0
+	/*
+	 * Reset the event back to initial state.
+	 * The operation can be relaxed
+	 */
+
+	fibril_t *reason = __atomic_exchange_n(&event->fibril, _EVENT_INITIAL, __ATOMIC_RELAXED);
+	assert(reason != srcf);
+	assert(reason != _EVENT_INITIAL);
+	assert(reason == _EVENT_TIMED_OUT || reason == _EVENT_TRIGGERED);
+	return (reason == _EVENT_TIMED_OUT) ? ETIMEOUT : EOK;
+#endif
+
 	return rc;
 }
 
@@ -771,7 +851,7 @@ void fibril_wait_for(fibril_event_t *event)
 void fibril_notify(fibril_event_t *event)
 {
 	futex_lock(&fibril_futex);
-	_ready_list_push(_fibril_trigger_internal(event, _EVENT_TRIGGERED));
+	_ready_list_push(_fibril_trigger(event));
 	futex_unlock(&fibril_futex);
 	_spawn_threads_if_needed();
 }
