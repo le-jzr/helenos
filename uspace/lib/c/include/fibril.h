@@ -37,6 +37,7 @@
 
 #include <types/common.h>
 #include <time.h>
+#include <ipc/common.h>
 
 typedef struct fibril fibril_t;
 
@@ -85,6 +86,9 @@ extern void fibril_force_add_threads(int);
 
 extern void fibril_usleep(suseconds_t);
 extern void fibril_sleep(unsigned int);
+
+extern errno_t fibril_ipc_wait(ipc_call_t *, const struct timeval *);
+extern void fibril_ipc_poke(void);
 
 #endif
 

@@ -114,6 +114,7 @@
 #include <mem.h>
 #include <stdlib.h>
 #include <macros.h>
+#include <str_error.h>
 #include <as.h>
 #include <abi/mm/as.h>
 #include "../private/libc.h"
@@ -1075,7 +1076,7 @@ static errno_t async_manager_worker(void)
 	errno_t rc;
 
 	while (!atomic_get(&stop_managers)) {
-		rc = ipc_wait(&call, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE);
+		rc = fibril_ipc_wait(&call, NULL);
 		if (rc == EOK)
 			handle_call(&call);
 	}
@@ -1102,9 +1103,10 @@ static errno_t async_manager_fibril(void *arg)
 fid_t async_create_manager(void)
 {
 	atomic_inc(&running_managers);
-	fid_t fid = fibril_run_heavy(async_manager_fibril, NULL, "async manager", PAGE_SIZE);
+	fid_t fid = fibril_create_generic(async_manager_fibril, NULL, PAGE_SIZE);
 	if (fid == 0)
 		atomic_dec(&running_managers);
+	fibril_start(fid);
 	return fid;
 }
 
@@ -1113,7 +1115,7 @@ void async_kill_managers(void)
 	// TODO: fibril_join() would be better than this
 	atomic_set(&stop_managers, 1);
 	while (atomic_get(&running_managers) > 0) {
-		ipc_poke();
+		fibril_ipc_poke();
 		fibril_yield();
 	}
 }
