@@ -584,6 +584,8 @@ static errno_t _helper_fibril_fn(void *arg)
 	return EOK;
 }
 
+static void _fibril_main(void);
+
 /** Create a new fibril.
  *
  * @param func Implementing function of the new fibril.
@@ -645,6 +647,8 @@ void fibril_destroy(fid_t fid)
 
 static void _insert_timeout(_timeout_t *timeout)
 {
+	// TODO: replace with a sublinear algorithm.
+
 	futex_assert_is_locked(&fibril_futex);
 	assert(timeout);
 
@@ -735,14 +739,9 @@ errno_t fibril_wait_timeout(fibril_event_t *event,
 	}
 
 	assert(srcf);
-
-	event->fibril = srcf;
 	srcf->sleep_event = event;
-
-	assert(event->fibril != _EVENT_INITIAL);
-
-//	dstf->srcf = srcf;
-//	dstf->srcf_event = event;
+	dstf->srcf = srcf;
+	dstf->srcf_event = event;
 
 	_fibril_switch_to(SWITCH_FROM_BLOCKED, dstf, true);
 
@@ -750,7 +749,9 @@ errno_t fibril_wait_timeout(fibril_event_t *event,
 	assert(event->fibril != _EVENT_INITIAL);
 	assert(event->fibril == _EVENT_TIMED_OUT || event->fibril == _EVENT_TRIGGERED);
 
-	list_remove(&timeout.link);
+	if (expires && event->fibril != _EVENT_TIMED_OUT)
+		list_remove(&timeout.link);
+
 	errno_t rc = (event->fibril == _EVENT_TIMED_OUT) ? ETIMEOUT : EOK;
 	event->fibril = _EVENT_INITIAL;
 
@@ -976,6 +977,35 @@ void fibril_ipc_poke(void)
 errno_t fibril_ipc_wait(ipc_call_t *call, const struct timespec *expires)
 {
 	return _wait_ipc(call, expires);
+}
+
+/** Function that spans the whole life-cycle of a lightweight fibril.
+ *
+ * Each begins execution in this function. Then the function implementing
+ * the fibril logic is called.  After its return, the return value is saved.
+ * The fibril then switches to another fibril, which cleans up after it.
+ *
+ */
+static void _fibril_main(void)
+{
+	fibril_t *self = fibril_self();
+
+	if (self->srcf && self->srcf_event) {
+		_fibril_set_event(self->srcf_event, self->srcf);
+		self->srcf = NULL;
+		self->srcf_event = NULL;
+	}
+
+	/* fibril_futex is locked when a lightweight fibril is started. */
+	futex_unlock(&fibril_futex);
+	_fibril_cleanup_dead();
+
+	fibril_t *f = fibril_self();
+
+	/* Call the implementing function. */
+	fibril_exit(f->func(f->arg));
+
+	/* Not reached */
 }
 
 /** @}
