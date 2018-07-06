@@ -86,6 +86,8 @@ static void notification_handler(ipc_call_t *call, void *arg)
 
 int main(int argc, char **argv)
 {
+	fibril_enable_multithreaded();
+
 	printf("%s: HelenOS VFS server\n", NAME);
 
 	/*
