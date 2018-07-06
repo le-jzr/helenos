@@ -204,7 +204,7 @@ void fibril_teardown(fibril_t *fibril)
 }
 
 static errno_t _helper_fibril_fn(void *arg);
-static void _restore_fibril(fibril_t *);
+static errno_t _run_thread(errno_t (*)(void *), void *, const char *, size_t);
 
 static void _spawn_threads_if_needed(void)
 {
@@ -235,7 +235,7 @@ static void _spawn_threads_if_needed(void)
 		atomic_int_add(&fibrils_balance, +1);
 		atomic_int_add(&threads_balance, +1);
 
-		if (!fibril_run_heavy(_helper_fibril_fn, NULL,
+		if (!_run_thread(_helper_fibril_fn, NULL,
 		    "lightweight_runner", PAGE_SIZE)) {
 
 			/* Failed to create. */
@@ -393,11 +393,6 @@ static fibril_t *_ready_list_pop(const struct timeval *expires, bool locked)
 
 		/* Return token. */
 		futex_up(&ready_semaphore);
-
-		if (f && f->is_heavy) {
-			_restore_fibril(f);
-			f = NULL;
-		}
 	} else {
 		_ipc_buffer_t *buf = list_pop(&ipc_buffer_free_list, _ipc_buffer_t, link);
 		assert(buf);
@@ -421,6 +416,9 @@ static fibril_t *_ready_list_pop_nonblocking(bool locked)
 
 static void _ready_list_push(fibril_t *f)
 {
+	if (!f)
+		return;
+
 	futex_assert_is_locked(&fibril_futex);
 
 	atomic_int_add(&fibrils_balance, -1);
@@ -474,19 +472,6 @@ static errno_t _wait_ipc(ipc_call_t *call, const struct timeval *expires)
 	return rc;
 }
 
-static void _restore_fibril(fibril_t *f)
-{
-	if (!f)
-		return;
-
-	futex_assert_is_locked(&fibril_futex);
-
-	if (f->is_heavy)
-		futex_up(&f->heavy_blocking_sem);
-	else
-		_ready_list_push(f);
-}
-
 /** Fire all timeouts that expired. */
 static struct timeval *_handle_expired_timeouts(struct timeval *next_timeout)
 {
@@ -508,7 +493,7 @@ static struct timeval *_handle_expired_timeouts(struct timeval *next_timeout)
 
 		list_remove(&to->link);
 
-		_restore_fibril(_fibril_trigger_internal(
+		_ready_list_push(_fibril_trigger_internal(
 		    to->event, _EVENT_TIMED_OUT));
 	}
 
@@ -661,47 +646,9 @@ fid_t fibril_create_generic(errno_t (*func)(void *), void *arg, size_t stksz)
 void fibril_destroy(fibril_t *fibril)
 {
 	assert(!fibril->is_running);
-	assert(!fibril->is_heavy);
-
 	assert(fibril->stack);
 	as_area_destroy(fibril->stack);
 	fibril_teardown(fibril);
-}
-
-/**
- * fibril_wait_timeout() in a heavy fibril.
- */
-static errno_t _wait_timeout_heavy(fibril_event_t *event, const struct timeval *expires)
-{
-	fibril_t *srcf = fibril_self();
-	event->fibril = srcf;
-	srcf->sleep_event = event;
-
-	futex_unlock(&fibril_futex);
-
-	/* Block on the internal semaphore. */
-	errno_t rc = futex_down_composable(&srcf->heavy_blocking_sem, expires);
-
-	if (rc != EOK) {
-		/* On failure, we need to check the event again. */
-		futex_lock(&fibril_futex);
-
-		assert(event->fibril != _EVENT_INITIAL);
-		assert(event->fibril != _EVENT_TIMED_OUT);
-		assert(event->fibril == srcf || event->fibril == _EVENT_TRIGGERED);
-
-		bool triggered = (event->fibril == _EVENT_TRIGGERED);
-		event->fibril = _EVENT_INITIAL;
-		futex_unlock(&fibril_futex);
-
-		if (triggered)
-			return EOK;
-
-		/* No wakeup incoming (see futex_down_composable()). */
-		futex_up(&srcf->heavy_blocking_sem);
-	}
-
-	return rc;
 }
 
 /**
@@ -739,10 +686,6 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 	assert(event->fibril == _EVENT_INITIAL);
 
 	fibril_t *srcf = fibril_self();
-	assert(!srcf->is_heavy);
-	if (srcf->is_heavy)
-		return _wait_timeout_heavy(event, expires);
-
 	fibril_t *dstf = NULL;
 
 	/*
@@ -810,7 +753,7 @@ void fibril_wait_for(fibril_event_t *event)
 void fibril_notify(fibril_event_t *event)
 {
 	futex_lock(&fibril_futex);
-	_restore_fibril(_fibril_trigger_internal(event, _EVENT_TRIGGERED));
+	_ready_list_push(_fibril_trigger_internal(event, _EVENT_TRIGGERED));
 	futex_unlock(&fibril_futex);
 	_spawn_threads_if_needed();
 }
@@ -825,7 +768,7 @@ void fibril_start(fibril_t *fibril)
 	if (!link_in_use(&fibril->all_link))
 		list_append(&fibril->all_link, &fibril_list);
 
-	_restore_fibril(fibril);
+	_ready_list_push(fibril);
 
 	futex_unlock(&fibril_futex);
 	_spawn_threads_if_needed();
@@ -844,10 +787,6 @@ void fibril_add_ready(fibril_t *fibril)
 void fibril_yield(void)
 {
 	assert(fibril_self()->rmutex_locks == 0);
-
-	if (fibril_self()->is_heavy)
-		// TODO: thread yield?
-		return;
 
 	fibril_t *f = _ready_list_pop_nonblocking(false);
 	if (f)
@@ -877,6 +816,8 @@ fibril_t *fibril_self(void)
 	return self;
 }
 
+#if 0
+
 /** Terminate current thread.
  *
  * @param status Exit status. Currently not used.
@@ -888,6 +829,8 @@ static _Noreturn void _sys_thread_exit(int status)
 	__builtin_unreachable();
 }
 
+#endif
+
 /**
  * Exit a fibril. Never returns.
  *
@@ -897,14 +840,6 @@ _Noreturn void fibril_exit(long retval)
 {
 	// TODO: implement fibril_join() and remember retval
 	(void) retval;
-
-	if (fibril_self()->is_heavy) {
-		/* Thread exit. */
-		// FIXME: Proper cleanup of thread stack requires sys_thread_join().
-		fibril_teardown(fibril_self());
-		_sys_thread_exit(0);
-		/* Not reached. */
-	}
 
 	fibril_t *f = _ready_list_pop_nonblocking(false);
 	if (!f)
@@ -933,12 +868,9 @@ static errno_t _sys_thread_create(uspace_arg_t *uarg,
 static errno_t _thread_create(fibril_t *f, const char *name)
 {
 	assert(!f->is_running);
-	assert(!f->is_heavy);
 
 	/* Make heap thread safe. */
 	malloc_enable_multithreaded();
-
-	f->is_heavy = true;
 
 	f->uarg.uspace_entry = (void *) FADDR(__thread_entry);
 	f->uarg.uspace_stack = f->stack;
@@ -950,21 +882,21 @@ static errno_t _thread_create(fibril_t *f, const char *name)
 	return _sys_thread_create(&f->uarg, name);
 }
 
-fid_t fibril_run_heavy(errno_t (*func)(void *), void *arg, const char *name, size_t stack_size)
+static errno_t _run_thread(errno_t (*func)(void *), void *arg, const char *name, size_t stack_size)
 {
 	assert(fibril_self()->rmutex_locks == 0);
 
 	fid_t f = fibril_create_generic(func, arg, stack_size);
 	if (!f)
-		return f;
+		return ENOMEM;
 
 	errno_t rc = _thread_create(f, name);
 	if (rc != EOK) {
 		fibril_destroy(f);
-		return 0;
+		return rc;
 	}
 
-	return f;
+	return EOK;
 }
 
 void fibril_detach(fid_t f)
@@ -1021,7 +953,7 @@ void fibril_force_add_threads(int threads)
 	assert(fibril_self()->rmutex_locks == 0);
 
 	for (int i = 0; i < threads; i++) {
-		if (!fibril_run_heavy(_helper_fibril_fn, NULL,
+		if (!_run_thread(_helper_fibril_fn, NULL,
 		    "lightweight_runner", PAGE_SIZE))
 			break;
 

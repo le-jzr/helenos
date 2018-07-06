@@ -77,8 +77,6 @@ extern void fibril_wait_for(fibril_event_t *);
 extern errno_t fibril_wait_timeout(fibril_event_t *, const struct timeval *);
 extern void fibril_notify(fibril_event_t *);
 
-extern fid_t fibril_run_heavy(errno_t (*func)(void *), void *arg, const char *name, size_t stack_size);
-
 extern void fibril_detach(fid_t);
 
 extern void fibril_enable_multithreaded(void);

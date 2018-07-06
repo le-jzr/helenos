@@ -54,11 +54,8 @@ struct fibril {
 
 	fibril_t *thread_ctx;
 
-	futex_t heavy_blocking_sem;
-
 	bool is_running : 1;
 	bool is_writer : 1;
-	bool is_heavy : 1;
 
 	/* Debugging stuff. */
 	int rmutex_locks;
