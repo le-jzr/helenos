@@ -61,6 +61,7 @@ typedef struct {
 	link_t link;
 	struct timespec expires;
 	fibril_event_t *event;
+	fibril_t *fibril;
 } _timeout_t;
 
 typedef struct {
@@ -201,85 +202,74 @@ void fibril_teardown(fibril_t *fibril)
 	}
 }
 
-/**
- * Event notification with a given reason.
- *
- * @param reason  Reason of the notification.
- *                Can be either _EVENT_TRIGGERED or _EVENT_TIMED_OUT.
- */
-static fibril_t *_fibril_trigger_internal(fibril_event_t *event, fibril_t *reason)
-{
-	assert(reason != _EVENT_INITIAL);
-	assert(reason == _EVENT_TIMED_OUT || reason == _EVENT_TRIGGERED);
-
-	futex_assert_is_locked(&fibril_futex);
-
-	if (event->fibril == _EVENT_INITIAL) {
-		event->fibril = reason;
-		return NULL;
-	}
-
-	if (event->fibril == _EVENT_TIMED_OUT) {
-		assert(reason == _EVENT_TRIGGERED);
-		event->fibril = reason;
-		return NULL;
-	}
-
-	if (event->fibril == _EVENT_TRIGGERED) {
-		/* Already triggered. Nothing to do. */
-		return NULL;
-	}
-
-	fibril_t *f = event->fibril;
-	event->fibril = reason;
-	assert(f->sleep_event == event);
-	return f;
-}
-
 static fibril_t *_fibril_trigger(fibril_event_t *event)
 {
-	return _fibril_trigger_internal(event, _EVENT_TRIGGERED);
-}
-
-static fibril_t *_fibril_timeout(fibril_event_t *event)
-{
-	return _fibril_trigger_internal(event, _EVENT_TIMED_OUT);
-}
-
-#if 0
-
-static fibril_t *_fibril_trigger(fibril_event_t *event)
-{
-	futex_assert_is_locked(&fibril_futex);
-
+	/* We can always transition to a triggered state, so just swap. */
 	fibril_t *f = __atomic_exchange_n(&event->fibril, _EVENT_TRIGGERED, __ATOMIC_RELEASE);
 	if (f == _EVENT_INITIAL || f == _EVENT_TRIGGERED || f == _EVENT_TIMED_OUT)
 		return NULL;
 
 	assert(f->sleep_event == event);
-	return old;
+	return f;
 }
 
-static fibril_t *_fibril_timeout(fibril_event_t *event)
+static fibril_t *_fibril_timeout(fibril_event_t *event, fibril_t *fibril)
 {
-	futex_assert_is_locked(&fibril_futex);
+	fibril_t *f = fibril;
 
-	fibril_t *f = _EVENT_INITIAL;
-	if (__atomic_compare_exchange_n(&event->fibril, &f, _EVENT_TIMED_OUT, false, __ATOMIC_RELEASE, __ATOMIC_RELAXED))
+	/*
+	 * Timeout is more complicated than trigger because we may not
+	 * transition from a triggered state to a timed out state.
+	 */
+
+	/*
+	 * First exchange is optimistically expecting the fibril to be
+	 * waiting for the event (most likely state since we are timing out).
+	 */
+	bool success = __atomic_compare_exchange_n(&event->fibril, &f,
+	    _EVENT_TIMED_OUT, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+	if (success) {
+		assert(f->sleep_event == event);
+		return f;
+	}
+
+	if (f == _EVENT_TRIGGERED)
+		/* Event is already triggered. Return. */
 		return NULL;
 
-	assert(f != _EVENT_INITIAL);
+	/* We're the only one who can transition events to timed out state. */
+	assert(f != _EVENT_TIMED_OUT);
 
-	if (f == _EVENT_TRIGGERED || f == _EVENT_TIMED_OUT)
+	assert(f == _EVENT_INITIAL);
+	/* We were too fast. Event is still initial. Try again. */
+
+	success = __atomic_compare_exchange_n(&event->fibril, &f,
+	    _EVENT_TIMED_OUT, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+	if (success)
+		/* Successfully transitioned from initial to timed out. Return. */
 		return NULL;
 
+	if (f == _EVENT_TRIGGERED)
+		/* Event went from initial to triggered. Return. */
+		return NULL;
+
+	assert(f == fibril);
+	/* Event went from initial to waiting. Try again. */
+
+	success = __atomic_compare_exchange_n(&event->fibril, &f,
+	    _EVENT_TIMED_OUT, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+	if (!success) {
+		assert(f == _EVENT_TRIGGERED);
+		/* Event went from waiting to triggered. Return. */
+		return NULL;
+	}
+
+	/* Successfully transitioned from waiting to timed out. Return. */
 	assert(f->sleep_event == event);
 	return f;
 }
 
-#endif
-
-static errno_t _ipc_wait(ipc_call_t *call, const struct timespec *expires)
+static errno_t _ipc_wait(ipc_call_t *call, const struct timeval *expires)
 {
 	if (!expires)
 		return ipc_wait(call, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE);
@@ -476,7 +466,7 @@ static struct timespec *_handle_expired_timeouts(struct timespec *next_timeout)
 
 		list_remove(&to->link);
 
-		_ready_list_push(_fibril_timeout(to->event));
+		_ready_list_push(_fibril_timeout(to->event, to->fibril));
 	}
 
 	futex_unlock(&fibril_futex);
@@ -738,6 +728,7 @@ errno_t fibril_wait_timeout(fibril_event_t *event,
 
 	_timeout_t timeout = { 0 };
 	if (expires) {
+		timeout.fibril = srcf;
 		timeout.expires = *expires;
 		timeout.event = event;
 		_insert_timeout(&timeout);
