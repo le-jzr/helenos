@@ -56,7 +56,8 @@ struct fibril {
 	errno_t (*func)(void *);
 	tcb_t *tcb;
 
-	fibril_t *clean_after_me;
+	fibril_t *srcf;
+	fibril_event_t *srcf_event;
 	errno_t retval;
 
 	fibril_t *thread_ctx;
