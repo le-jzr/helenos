@@ -1039,7 +1039,7 @@ void fibril_enable_multithreaded(void)
 	if (!multithreaded) {
 		multithreaded = true;
 		// TODO: Base the choice on the number of CPUs instead of a fixed value.
-		atomic_int_add(&threads_balance, -4);
+		atomic_int_add(&threads_balance, -16);
 	}
 #endif
 }

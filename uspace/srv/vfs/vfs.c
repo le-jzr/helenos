@@ -89,6 +89,8 @@ int main(int argc, char **argv)
 {
 	errno_t rc;
 
+	fibril_enable_multithreaded();
+
 	printf("%s: HelenOS VFS server\n", NAME);
 
 	/*
