@@ -651,6 +651,24 @@ void fibril_destroy(fibril_t *fibril)
 	fibril_teardown(fibril);
 }
 
+static void _insert_timeout(_timeout_t *timeout)
+{
+	futex_assert_is_locked(&fibril_futex);
+	assert(timeout);
+
+	link_t *tmp = timeout_list.head.next;
+	while (tmp != &timeout_list.head) {
+		_timeout_t *cur = list_get_instance(tmp, _timeout_t, link);
+
+		if (tv_gteq(&cur->expires, &timeout->expires))
+			break;
+
+		tmp = tmp->next;
+	}
+
+	list_insert_before(&timeout->link, tmp);
+}
+
 /**
  * Same as `fibril_wait_for()`, except with a timeout.
  *
@@ -718,7 +736,7 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 	if (expires) {
 		timeout.expires = *expires;
 		timeout.event = event;
-		list_append(&timeout.link, &timeout_list);
+		_insert_timeout(&timeout);
 	}
 
 	assert(srcf);
