@@ -484,7 +484,6 @@ extern void *async_as_area_create(void *, size_t, unsigned int, async_sess_t *,
 
 errno_t async_spawn_notification_handler(void);
 fid_t async_create_manager(void);
-void async_kill_managers(void);
 
 #endif
 

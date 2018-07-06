@@ -122,9 +122,6 @@
 
 #define DPRINTF(...)  ((void) 0)
 
-atomic_t running_managers;
-atomic_t stop_managers;
-
 /** Call data */
 typedef struct {
 	link_t link;
@@ -1075,13 +1072,12 @@ static errno_t async_manager_worker(void)
 	ipc_call_t call;
 	errno_t rc;
 
-	while (!atomic_get(&stop_managers)) {
+	while (true) {
 		rc = fibril_ipc_wait(&call, NULL);
 		if (rc == EOK)
 			handle_call(&call);
 	}
 
-	atomic_dec(&running_managers);
 	return 0;
 }
 
@@ -1102,22 +1098,9 @@ static errno_t async_manager_fibril(void *arg)
 /** Add one manager to manager list. */
 fid_t async_create_manager(void)
 {
-	atomic_inc(&running_managers);
 	fid_t fid = fibril_create_generic(async_manager_fibril, NULL, PAGE_SIZE);
-	if (fid == 0)
-		atomic_dec(&running_managers);
 	fibril_start(fid);
 	return fid;
-}
-
-void async_kill_managers(void)
-{
-	// TODO: fibril_join() would be better than this
-	atomic_set(&stop_managers, 1);
-	while (atomic_get(&running_managers) > 0) {
-		fibril_ipc_poke();
-		fibril_yield();
-	}
 }
 
 /** Initialize the async framework.
