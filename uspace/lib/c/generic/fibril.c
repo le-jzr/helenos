@@ -753,6 +753,7 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 
 	dstf = _ready_list_pop_nonblocking(true);
 	if (!dstf) {
+		#if 0
 		// XXX: It is possible for the _ready_list_pop_nonblocking() to
 		//      check for IPC, find a pending message, and trigger the
 		//      event on which we are currently trying to sleep.
@@ -761,6 +762,7 @@ errno_t fibril_wait_timeout(fibril_event_t *event, const struct timeval *expires
 			futex_unlock(&fibril_futex);
 			return EOK;
 		}
+		#endif
 
 		dstf = srcf->thread_ctx;
 		assert(dstf);
