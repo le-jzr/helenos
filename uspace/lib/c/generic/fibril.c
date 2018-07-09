@@ -130,8 +130,10 @@ static inline void atomic_int_add(_Atomic int *a, int b)
 	(void) __atomic_add_fetch(a, b, __ATOMIC_RELAXED);
 }
 
-static inline long _ready_count() {
-	/* The number of available tokens is always equal to the number
+static inline long _ready_count(void)
+{
+	/*
+	 * The number of available tokens is always equal to the number
 	 * of fibrils in the ready list + the number of free IPC buffer
 	 * buckets.
 	 */
@@ -143,12 +145,14 @@ static inline long _ready_count() {
 		    (long) list_count(&ipc_buffer_free_list);
 }
 
-static inline void _ready_up() {
+static inline void _ready_up(void)
+{
 	if (multithreaded || READY_DEBUG)
 		futex_up(&ready_semaphore);
 }
 
-static inline errno_t _ready_down(const struct timeval *expires) {
+static inline errno_t _ready_down(const struct timeval *expires)
+{
 	if (multithreaded || READY_DEBUG)
 		return futex_down_timeout(&ready_semaphore, expires);
 	else
@@ -342,7 +346,8 @@ static fibril_t *_ready_list_pop(const struct timeval *expires, bool locked)
 	}
 
 	if (!multithreaded && READY_DEBUG) {
-		/* The number of available tokens is always equal to the number
+		/*
+		 * The number of available tokens is always equal to the number
 		 * of fibrils in the ready list + the number of free IPC buffer
 		 * buckets.
 		 */
@@ -435,7 +440,7 @@ static fibril_t *_ready_list_pop(const struct timeval *expires, bool locked)
 
 static fibril_t *_ready_list_pop_nonblocking(bool locked)
 {
-	struct timeval tv = {0};
+	struct timeval tv = { 0 };
 	return _ready_list_pop(&tv, locked);
 }
 
@@ -1031,7 +1036,7 @@ void __fibrils_init(void)
 	 * we can get from more threads reading messages.
 	 */
 
-	#define IPC_BUFFER_COUNT 1024
+#define IPC_BUFFER_COUNT 1024
 	static _ipc_buffer_t buffers[IPC_BUFFER_COUNT];
 
 	for (int i = 0; i < IPC_BUFFER_COUNT; i++) {

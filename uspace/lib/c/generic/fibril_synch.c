@@ -50,6 +50,8 @@
 #include "private/async.h"
 #include "private/fibril.h"
 
+static fibril_local bool deadlocked = false;
+
 #ifdef CONFIG_RMUTEX_IS_FUTEX
 
 void fibril_rmutex_initialize(fibril_rmutex_t *m)
@@ -129,7 +131,6 @@ typedef struct {
 static void print_deadlock(fibril_owner_info_t *oi)
 {
 	// FIXME: Print to stderr.
-	static fibril_local bool deadlocked = false;
 
 	fibril_t *f = (fibril_t *) fibril_get_id();
 
