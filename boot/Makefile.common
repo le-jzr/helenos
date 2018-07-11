@@ -55,17 +55,10 @@ MKFAT = $(TOOLS_PATH)/mkfat.py
 MKEXT4 = $(TOOLS_PATH)/mkext4.py
 MKUIMAGE = $(TOOLS_PATH)/mkuimage.py
 
-ifeq ($(PRECHECK),y)
-	JOBFILE = $(TOOLS_PATH)/jobfile.py
-	# XXX: Do not change the order of arguments.
-	CC_JOB = $(JOBFILE) $(JOB) $(CC) $< -o $@
-else
-	CC_JOB = $(CC) $< -o $@
-endif
-
 DISTROOT = distroot
 INITRD = initrd
 
+<<<<<<< Updated upstream
 INIT_TASKS = ns loader init locsrv rd vfs logger
 
 ifeq ($(RDFMT),tmpfs)
@@ -129,6 +122,8 @@ RD_DRVS_ESSENTIAL = \
 	root/virt \
 	fb/kfb
 
+=======
+>>>>>>> Stashed changes
 RD_DRVS_NON_ESSENTIAL = \
 	test/test1 \
 	test/test2 \
@@ -160,6 +155,7 @@ ifeq ($(CONFIG_BUILD_SHARED_LIBS), y)
 		$(USPACE_PATH)/lib/dltest/libdltest.so.0
 endif
 
+<<<<<<< Updated upstream
 RD_APPS_ESSENTIAL = \
 	$(USPACE_PATH)/app/bdsh/bdsh \
 	$(USPACE_PATH)/app/getterm/getterm \
@@ -228,6 +224,8 @@ RD_APPS_NON_ESSENTIAL = \
 	$(USPACE_PATH)/app/fontviewer/fontviewer \
 	$(USPACE_PATH)/app/wifi_supplicant/wifi_supplicant
 
+=======
+>>>>>>> Stashed changes
 ifeq ($(CONFIG_BUILD_SHARED_LIBS), y)
 	RD_APPS_NON_ESSENTIAL += \
 		$(USPACE_PATH)/app/dltest/dltest \
