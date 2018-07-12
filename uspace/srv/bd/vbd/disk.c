@@ -446,7 +446,7 @@ static errno_t vbds_disk_parts_remove(vbds_disk_t *disk, vbds_rem_flag_t flag)
 	return EOK;
 }
 
-static void vbds_disk_cat_change_cb(void)
+static void vbds_disk_cat_change_cb(void *arg)
 {
 	(void) vbds_disks_check_new();
 }
@@ -455,7 +455,7 @@ errno_t vbds_disk_discovery_start(void)
 {
 	errno_t rc;
 
-	rc = loc_register_cat_change_cb(vbds_disk_cat_change_cb);
+	rc = loc_register_cat_change_cb(vbds_disk_cat_change_cb, NULL);
 	if (rc != EOK) {
 		log_msg(LOG_DEFAULT, LVL_ERROR, "Failed registering callback "
 		    "for disk discovery: %s.", str_error(rc));
@@ -1069,7 +1069,7 @@ static errno_t vbds_bd_get_num_blocks(bd_srv_t *bd, aoff64_t *rnb)
 	return EOK;
 }
 
-void vbds_bd_conn(cap_call_handle_t icall_handle, ipc_call_t *icall, void *arg)
+void vbds_bd_conn(ipc_call_t *icall, void *arg)
 {
 	vbds_part_t *part;
 	errno_t rc;
@@ -1085,12 +1085,12 @@ void vbds_bd_conn(cap_call_handle_t icall_handle, ipc_call_t *icall, void *arg)
 	if (rc != EOK) {
 		log_msg(LOG_DEFAULT, LVL_DEBUG, "vbd_bd_conn() - partition "
 		    "not found.");
-		async_answer_0(icall_handle, EINVAL);
+		async_answer_0(icall, EINVAL);
 		return;
 	}
 
 	log_msg(LOG_DEFAULT, LVL_DEBUG, "vbds_bd_conn() - call bd_conn");
-	bd_conn(icall_handle, icall, &part->bds);
+	bd_conn(icall, &part->bds);
 	vbds_part_del_ref(part);
 }
 

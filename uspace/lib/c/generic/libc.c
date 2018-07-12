@@ -60,6 +60,7 @@
 #include <rtld/rtld.h>
 #endif
 
+progsymbols_t __progsymbols;
 
 static bool env_setup = false;
 
@@ -114,15 +115,38 @@ void __libc_main(void *pcb_ptr)
 	}
 
 	/*
+	 * C++ Static constructor calls.
+	 */
+
+	if (__progsymbols.preinit_array) {
+		for (int i = __progsymbols.preinit_array_len - 1; i >= 0; --i)
+			__progsymbols.preinit_array[i]();
+	}
+
+	if (__progsymbols.init_array) {
+		for (int i = __progsymbols.init_array_len - 1; i >= 0; --i)
+			__progsymbols.init_array[i]();
+	}
+
+	/*
 	 * Run main() and set task return value
 	 * according the result
 	 */
-	int retval = main(argc, argv);
+	int retval = __progsymbols.main(argc, argv);
 	exit(retval);
 }
 
 void __libc_exit(int status)
 {
+	/*
+	 * GCC extension __attribute__((destructor)),
+	 * C++ destructors are added to __cxa_finalize call
+	 * when the respective constructor is called.
+	 */
+
+	for (int i = 0; i < __progsymbols.fini_array_len; ++i)
+		__progsymbols.fini_array[i]();
+
 	if (env_setup) {
 		__stdio_done();
 		task_retval(status);
@@ -130,19 +154,13 @@ void __libc_exit(int status)
 	}
 
 	__SYSCALL1(SYS_TASK_EXIT, false);
-
-	/* Unreachable */
-	while (true)
-		;
+	__builtin_unreachable();
 }
 
 void __libc_abort(void)
 {
 	__SYSCALL1(SYS_TASK_EXIT, true);
-
-	/* Unreachable */
-	while (true)
-		;
+	__builtin_unreachable();
 }
 
 /** @}

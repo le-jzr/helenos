@@ -197,6 +197,9 @@ static unsigned int elf_load_module(elf_ld_t *elf)
 	elf_segment_header_t phdr[phdr_cap];
 	size_t phdr_len = header->e_phnum * header->e_phentsize;
 
+	elf->info->interp = NULL;
+	elf->info->dynamic = NULL;
+
 	if (phdr_len > sizeof(phdr)) {
 		DPRINTF("more than %d program headers\n", phdr_cap);
 		return EE_UNSUPPORTED;
@@ -352,6 +355,10 @@ static int segment_header(elf_ld_t *elf, elf_segment_header_t *entry)
 		elf->info->interp =
 		    (void *)((uint8_t *)entry->p_vaddr + elf->bias);
 
+		if (entry->p_filesz == 0) {
+			DPRINTF("Zero-sized ELF interp string.\n");
+			return EE_INVALID;
+		}
 		if (elf->info->interp[entry->p_filesz - 1] != '\0') {
 			DPRINTF("Unterminated ELF interp string.\n");
 			return EE_INVALID;
