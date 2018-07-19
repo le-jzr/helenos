@@ -83,7 +83,11 @@ typedef enum {
 	SWITCH_FROM_BLOCKED,
 } _switch_type_t;
 
+#ifdef CONFIG_UNLIMITED_THREADS
+static bool multithreaded = true;
+#else
 static bool multithreaded = false;
+#endif
 
 /* This futex serializes access to global data. */
 static futex_t fibril_futex = FUTEX_INITIALIZER;
@@ -136,7 +140,23 @@ static inline errno_t _ready_down(const struct timespec *expires)
 	return EOK;
 }
 
-static atomic_int threads_in_ipc_wait;
+#ifdef CONFIG_UNLIMITED_THREADS
+static _Atomic int threads_balance = INT_MIN;
+#else
+static _Atomic int threads_balance = 0;
+#endif
+
+static _Atomic int fibrils_balance = 0;
+
+static inline int atomic_int_get(_Atomic int *a)
+{
+	return __atomic_load_n(a, __ATOMIC_RELAXED);
+}
+
+static inline void atomic_int_add(_Atomic int *a, int b)
+{
+	(void) __atomic_add_fetch(a, b, __ATOMIC_RELAXED);
+}
 
 /** Function that spans the whole life-cycle of a fibril.
  *
@@ -198,6 +218,44 @@ void fibril_teardown(fibril_t *fibril)
 	if (fibril->is_freeable) {
 		tls_free(fibril->tcb);
 		free(fibril);
+	}
+}
+
+static errno_t _helper_fibril_fn(void *arg);
+static errno_t _run_thread(errno_t (*)(void *), void *, const char *, size_t);
+
+static void _spawn_threads_if_needed(void)
+{
+	if (!multithreaded)
+		return;
+
+	while (true) {
+		if (atomic_int_get(&fibrils_balance) >= 0)
+			return;
+
+		if (atomic_int_get(&threads_balance) >= 0)
+			return;
+
+		/*
+		 * `fibrils_balance < 0` means there are more active fibrils than
+		 * threads. `threads_balance < 0` means there are fewer active threads
+		 * than the maximum set.
+		 */
+
+		// FIXME: Bit of a race condition here.
+		//        We might accidentally spawn more threads than the set maximum.
+		//        It doesn't actually hurt anything though. We can fix it later with CAS.
+		atomic_int_add(&fibrils_balance, +1);
+		atomic_int_add(&threads_balance, +1);
+
+		if (!_run_thread(_helper_fibril_fn, NULL,
+		    "lightweight_runner", PAGE_SIZE)) {
+
+			/* Failed to create. */
+			atomic_int_add(&fibrils_balance, -1);
+			atomic_int_add(&threads_balance, -1);
+			return;
+		}
 	}
 }
 
@@ -366,6 +424,8 @@ static void _ready_list_push(fibril_t *f)
 
 	futex_assert_is_locked(&fibril_futex);
 
+	atomic_int_add(&fibrils_balance, -1);
+
 	/* Enqueue in ready_list. */
 	list_append(&f->link, &ready_list);
 	_ready_up();
@@ -375,6 +435,7 @@ static void _ready_list_push(fibril_t *f)
 		/* Wakeup one thread sleeping in SYS_IPC_WAIT. */
 		ipc_poke();
 	}
+
 }
 
 /* Blocks the current fibril until an IPC call arrives. */
@@ -429,6 +490,7 @@ static struct timespec *_handle_expired_timeouts(struct timespec *next_timeout)
 		if (ts_gt(&to->expires, &ts)) {
 			*next_timeout = to->expires;
 			futex_unlock(&fibril_futex);
+			_spawn_threads_if_needed();
 			return next_timeout;
 		}
 
@@ -439,6 +501,7 @@ static struct timespec *_handle_expired_timeouts(struct timespec *next_timeout)
 	}
 
 	futex_unlock(&fibril_futex);
+	_spawn_threads_if_needed();
 	return NULL;
 }
 
@@ -484,6 +547,8 @@ static void _fibril_switch_to(_switch_type_t type, fibril_t *dstf, bool locked)
 	case SWITCH_FROM_BLOCKED:
 		break;
 	}
+
+	atomic_int_add(&fibrils_balance, +1);
 
 	dstf->thread_ctx = srcf->thread_ctx;
 	srcf->thread_ctx = NULL;
@@ -720,6 +785,7 @@ void fibril_notify(fibril_event_t *event)
 	futex_lock(&fibril_futex);
 	_ready_list_push(_fibril_trigger_internal(event, _EVENT_TRIGGERED));
 	futex_unlock(&fibril_futex);
+	_spawn_threads_if_needed();
 }
 
 /** Start a fibril that has not been running yet. */
@@ -735,6 +801,7 @@ void fibril_start(fibril_t *fibril)
 	_ready_list_push(fibril);
 
 	futex_unlock(&fibril_futex);
+	_spawn_threads_if_needed();
 }
 
 /** Start a fibril that has not been running yet. (obsolete) */
@@ -751,6 +818,7 @@ fibril_t *fibril_self(void)
 	assert(tcb->fibril_data);
 	return tcb->fibril_data;
 }
+
 
 /**
  * Obsolete, use fibril_self().
@@ -776,10 +844,6 @@ void fibril_yield(void)
 		_fibril_switch_to(SWITCH_FROM_YIELD, f, false);
 }
 
-static void _runner_fn(void *arg)
-{
-	_helper_fibril_fn(arg);
-}
 
 /**
  * Spawn a given number of runners (i.e. OS threads) immediately, and
@@ -799,14 +863,12 @@ int fibril_test_spawn_runners(int n)
 		multithreaded = true;
 	}
 
-	errno_t rc;
-
 	for (int i = 0; i < n; i++) {
-		thread_id_t tid;
-		rc = thread_create(_runner_fn, NULL, "fibril runner", &tid);
-		if (rc != EOK)
+		if (!_run_thread(_helper_fibril_fn, NULL,
+		    "fibril runner", PAGE_SIZE))
 			return i;
-		thread_detach(tid);
+
+		atomic_int_add(&fibrils_balance, +1);
 	}
 
 	return n;
@@ -823,11 +885,62 @@ int fibril_test_spawn_runners(int n)
  */
 void fibril_enable_multithreaded(void)
 {
-	// TODO: Implement better.
-	//       For now, 4 total runners is a sensible default.
+	/* CONFIG_UNLIMITED_THREADS removes the limit unconditionally. */
+#ifndef CONFIG_UNLIMITED_THREADS
 	if (!multithreaded) {
-		fibril_test_spawn_runners(3);
+		multithreaded = true;
+		// TODO: Base the choice on the number of CPUs instead of a fixed value.
+		atomic_int_add(&threads_balance, -4);
 	}
+#endif
+}
+
+void __thread_main(uspace_arg_t *uarg)
+{
+	assert(!__tcb_is_set());
+	fibril_t *f = uarg->uspace_thread_arg;
+	assert(f);
+	assert(f->tcb);
+	__tcb_set(f->tcb);
+
+	fibril_exit(f->func(f->arg));
+}
+
+static errno_t _sys_thread_create(uspace_arg_t *uarg,
+    const char *name)
+{
+	thread_id_t tid;
+	return __SYSCALL4(SYS_THREAD_CREATE, (sysarg_t) uarg,
+	    (sysarg_t) name, (sysarg_t) str_size(name), (sysarg_t) &tid);
+}
+
+static errno_t _thread_create(fibril_t *f, const char *name)
+{
+	assert(!f->is_running);
+
+	f->uarg.uspace_entry = (void *) FADDR(__thread_entry);
+	f->uarg.uspace_stack = f->stack;
+	f->uarg.uspace_stack_size = f->stack_size;
+	f->uarg.uspace_thread_function = NULL;
+	f->uarg.uspace_thread_arg = f;
+	f->uarg.uspace_uarg = &f->uarg;
+
+	return _sys_thread_create(&f->uarg, name);
+}
+
+static errno_t _run_thread(errno_t (*func)(void *), void *arg, const char *name, size_t stack_size)
+{
+	fid_t f = fibril_create_generic(func, arg, stack_size);
+	if (!f)
+		return ENOMEM;
+
+	errno_t rc = _thread_create(f, name);
+	if (rc != EOK) {
+		fibril_destroy(f);
+		return rc;
+	}
+
+	return EOK;
 }
 
 /**
@@ -857,6 +970,51 @@ _Noreturn void fibril_exit(long retval)
 	_fibril_switch_to(SWITCH_FROM_DEAD, f, false);
 	__builtin_unreachable();
 }
+
+#if 0
+
+/** Terminate current thread.
+ *
+ * @param status Exit status. Currently not used.
+ *
+ */
+static _Noreturn void _sys_thread_exit(int status)
+{
+	__SYSCALL1(SYS_THREAD_EXIT, (sysarg_t) status);
+	__builtin_unreachable();
+}
+
+/** Get current thread ID. */
+static void thread_id_t _sys_thread_get_id(void)
+{
+	thread_id_t thread_id;
+	(void) __SYSCALL1(SYS_THREAD_GET_ID, (sysarg_t) &thread_id);
+	return thread_id;
+}
+
+/** Wait unconditionally for specified number of microseconds. */
+int sys_thread_usleep(useconds_t usec)
+{
+	(void) __SYSCALL1(SYS_THREAD_USLEEP, usec);
+	return 0;
+}
+
+/** Wait unconditionally for specified number of seconds. */
+unsigned int sys_thread_sleep(unsigned int sec)
+{
+	/* Sleep in 1000 second steps to support full argument range. */
+
+	while (sec > 0) {
+		unsigned int period = (sec > 1000) ? 1000 : sec;
+
+		sys_thread_usleep(period * 1000000);
+		sec -= period;
+	}
+
+	return 0;
+}
+
+#endif
 
 void __fibrils_init(void)
 {
