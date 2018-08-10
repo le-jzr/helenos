@@ -37,7 +37,11 @@
 #include <arch/cpuid.h>
 #include <arch/cpu.h>
 
-#define START_STACK  (BOOT_OFFSET - BOOT_STACK_SIZE)
+.section .boot.stack, "aw", @nobits
+.align 16
+SYMBOL(_stack_bottom)
+.skip BOOT_STACK_SIZE
+SYMBOL(_stack_top)
 
 .section K_TEXT_START, "ax"
 
@@ -79,7 +83,7 @@ SYMBOL(multiboot_image_start)
 	cld
 
 	/* Initialize stack pointer */
-	movl $START_STACK, %esp
+	movl $_stack_top, %esp
 
 	/*
 	 * Initialize Global Descriptor Table and
@@ -418,7 +422,7 @@ start64:
 	 * Long mode.
 	 */
 
-	movq $(PA2KA(START_STACK)), %rsp
+	movq $(PA2KA(_stack_top)), %rsp
 
 	/* Create the first stack frame */
 	pushq $0

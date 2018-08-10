@@ -14,15 +14,16 @@
 SECTIONS {
 	kernel_load_address = PA2KA(BOOT_OFFSET);
 
-	.unmapped BOOT_OFFSET: AT (0) {
+	.unmapped BOOT_OFFSET: AT (BOOT_OFFSET) {
 		unmapped_start = .;
 		*(K_TEXT_START);
 		*(K_DATA_START);
 		*(K_INI_PTLS);
+		*(.boot.stack);
 		unmapped_end = .;
 	}
 
-	.mapped (PA2KA(BOOT_OFFSET)+SIZEOF(.unmapped)) : AT (SIZEOF(.unmapped)) {
+	.mapped (PA2KA(BOOT_OFFSET) + SIZEOF(.unmapped)) : AT (BOOT_OFFSET + SIZEOF(.unmapped)) {
 		ktext_start = .;
 		*(.text .text.*);
 		ktext_end = .;
