@@ -32,8 +32,6 @@
 #include <arch/cpuid.h>
 #include <genarch/multiboot/multiboot2.h>
 
-#define START_STACK  (BOOT_OFFSET - BOOT_STACK_SIZE)
-
 .section K_TEXT_START, "ax"
 
 .code32
@@ -125,7 +123,7 @@ SYMBOL(multiboot2_image_start)
 	cld
 
 	/* Initialize stack pointer */
-	movl $START_STACK, %esp
+	movl $_stack_top, %esp
 
 	/*
 	 * Initialize Global Descriptor Table and

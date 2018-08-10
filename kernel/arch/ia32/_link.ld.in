@@ -18,6 +18,7 @@ SECTIONS {
 		unmapped_start = .;
 		*(K_TEXT_START);
 		*(K_DATA_START);
+		*(.boot.stack);
 		unmapped_end = .;
 	}
 
@@ -29,8 +30,6 @@ SECTIONS {
 		kdata_start = .;
 		*(.data);               /* initialized data */
 		*(.rodata .rodata.*);   /* string literals */
-		*(COMMON);              /* global variables */
-
 		/* bss can't be omitted from the ELF image. */
 		*(.bss);                /* uninitialized static variables */
 
@@ -38,6 +37,7 @@ SECTIONS {
 		symbol_table = .;
 		*(symtab.*);            /* Symbol table, must be LAST symbol! */
 		kdata_end = .;
+		_end = .;
 	}
 
 #ifdef CONFIG_LINE_DEBUG

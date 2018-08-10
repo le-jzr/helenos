@@ -4,7 +4,7 @@ vesa_init_protected:
 	cld
 
 	/* Initialize stack pointer */
-	movl $START_STACK, %esp
+	movl $_stack_top, %esp
 
 	/* Kernel data + stack */
 	movw $GDT_SELECTOR(KDATA_DES), %cx
