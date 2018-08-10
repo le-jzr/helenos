@@ -137,6 +137,9 @@ context_t ctx;
 // NOTE: All kernel stacks must be aligned to STACK_SIZE, see get_stack_base().
 static _Alignas(STACK_SIZE) unsigned char main_stack[STACK_SIZE];
 
+/** End of the kernel binary. */
+extern unsigned char _end[];
+
 /*
  * These two functions prevent stack from underflowing during the
  * kernel boot phase when SP is set to the very top of the reserved
@@ -175,7 +178,7 @@ NO_TRACE void main_bsp(void)
 
 	context_save(&ctx);
 	context_set(&ctx, FADDR(main_bsp_separated_stack),
-	    config.stack_base, STACK_SIZE);
+	    main_stack, sizeof(main_stack));
 	context_restore(&ctx);
 	/* not reached */
 }

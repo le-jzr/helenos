@@ -41,6 +41,7 @@ SECTIONS {
 		*(symtab.*);    /* Symbol table, must be LAST symbol!*/
 
 		kdata_end = .;
+		_end = .;
 	}
 
 #ifdef CONFIG_LINE_DEBUG
