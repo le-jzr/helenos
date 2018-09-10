@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Martin Decky
+ * Copyright (c) 2018 CZ.NIC, z.s.p.o.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,21 +32,65 @@
 /** @file
  */
 
+#include <assert.h>
+#include <errno.h>
+#include <macros.h>
 #include <math.h>
+#include <stdint.h>
 
-/** Remainder function (32-bit floating point)
+#include "../test/testables.h"
+
+#define M_TAU (2 * M_PI)
+
+/**
+ * Calculates x modulo Tau.
  *
- * Calculate the modulo of dividend by divisor.
+ * For trigonometric functions to be accurate on large arguments, we first need
+ * to accurately compute the remainder of division by Tau.
+ * Unfortunately, fmod() cannot be used for this. fmod() is exact if the
+ * divisor is exact, but even the tiniest imprecision is amplified to the
+ * magnitude of the first argument. Since Tau is irrational, fmod(x, Tau) would
+ * give garbage for x significantly larger than Tau.
  *
- * @param dividend Dividend.
- * @param divisor  Divisor.
+ * Instead, we use a particular property of the modulo operation, which allows
+ * us to use precomputed values of the modulo for large powers of two, i.e.:
  *
- * @return Modulo.
+ *         (n * 2^k) % Tau = ((n % Tau) * (2^k % Tau)) % Tau
  *
+ * As long as n is an integer.
+ *
+ * In this formula, n is relatively small and (2^y mod Tau) is determined using
+ * precomputed tables, limiting the error to something bearable.
+ *
+ * @param x  Argument of the modulo.
+ * @return   A value in the interval (-Tau, Tau), which is the remainder of x / Tau.
  */
-float fmodf(float dividend, float divisor)
+double __fmod_tau(double x)
 {
-	return fmod(dividend, divisor);
+	if (isnan(x))
+		return __builtin_nan();
+
+	if (isinf(x)) {
+		errno = EDOM;
+		return __builtin_nan();
+	}
+
+	int e;
+	double y = frexp(x, &e);
+
+	if (e <= 2)
+		return x;
+
+	return x * __fmod_pow2_tau(e);
+}
+
+double __fmod_int_tau(uint64_t i)
+{
+}
+
+double __fmod_pow2_tau(int e)
+{
+	assert(e > 2);
 }
 
 /** @}

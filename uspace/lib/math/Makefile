@@ -49,6 +49,7 @@ SOURCES = \
 
 TEST_SOURCES = \
 	test/rounding.c \
+	test/fmod.c \
 	test/main.c
 
 include $(USPACE_PREFIX)/Makefile.common

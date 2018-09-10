@@ -37,6 +37,7 @@
 #define PCUT_ASSERTS_H_GUARD
 
 #include <errno.h>
+#include <stdint.h>
 
 /** @def PCUT_CURRENT_FILENAME
  * Overwrite contents of __FILE__ when printing assertion errors.
@@ -194,6 +195,22 @@ void pcut_str_error(int error, char *buffer, int size);
 		} \
 	} while (0)
 
+/** Assertion for checking that two integers are equal.
+ *
+ * @param expected Expected (correct) value.
+ * @param actual Actually obtained (computed) value we wish to test.
+ */
+#define PCUT_ASSERT_UINT64_EQUALS(expected, actual) \
+	do {\
+		uint64_t pcut_expected_eval = (expected); \
+		uint64_t pcut_actual_eval = (actual); \
+		if (pcut_expected_eval != pcut_actual_eval) { \
+			PCUT_ASSERTION_FAILED("Expected <%" PRIx64 "> but got <%" PRIx64 "> (%s != %s)", \
+				pcut_expected_eval, pcut_actual_eval, \
+				#expected, #actual); \
+		} \
+	} while (0)
+
 /** Assertion for checking that two doubles are close enough.
  *
  * @param expected Expected (correct) value.
@@ -213,10 +230,27 @@ void pcut_str_error(int error, char *buffer, int size);
 		} \
 	} while (0)
 
-/** Assertion for checking that two strings (`const char *`) are equal.
+/** Assertion for checking that two doubles are close enough.
  *
  * @param expected Expected (correct) value.
  * @param actual Actually obtained (computed) value we wish to test.
+ * @param epsilon How much the actual value can differ from the expected one.
+ */
+#define PCUT_ASSERT_DOUBLE_IDENTICAL(expected, actual) \
+	do {\
+		union { double f; uint64_t i; } pcut_u1 = { expected }; \
+		union { double f; uint64_t i; } pcut_u2 = { actual }; \
+		if (pcut_u1.i != pcut_u2.i) { \
+			PCUT_ASSERTION_FAILED("Expected <%f (0x%016" PRIx64 "> but got <%f (0x%016" PRIx64 "> (%s != %s)", \
+				pcut_u1.f, pcut_u1.i, pcut_u2.f, pcut_u2.i, \
+				#expected, #actual); \
+		} \
+	} while (0)
+
+/** Assertion for checking that two strings (`const char *`) are equal.
+ *
+ * @param expected Expected (correct) value.
+ * @param actual Actually obtained (computed) value we wish to testz.
  */
 #define PCUT_ASSERT_STR_EQUALS(expected, actual) \
 	do {\
