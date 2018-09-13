@@ -20,9 +20,9 @@ two = Fraction(2, 1)
 
 dividend = Fraction(1, 1)
 i = 0
-print("dividend:", dividend)
 
 while i < 1024:
+    #print("dividend:", dividend)
     while ((dividend / last_lbound).__floor__() != (dividend / last_ubound).__floor__()):
         last_ubound = last_lbound + two * q * (Fraction(1, 1 + 2*k) + Fraction(2, 1 + 4*k) + Fraction(1, 3 + 4*k))
         q *= quarter

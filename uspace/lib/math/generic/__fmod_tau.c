@@ -48,14 +48,14 @@
  * For trigonometric functions to be accurate on large arguments, we first need
  * to accurately compute the remainder of division by Tau.
  * Unfortunately, fmod() cannot be used for this. fmod() is exact if the
- * divisor is exact, but even the tiniest imprecision is amplified to the
+ * divisor is exact, but even the tiniest input imprecision is amplified to the
  * magnitude of the first argument. Since Tau is irrational, fmod(x, Tau) would
  * give garbage for x significantly larger than Tau.
  *
  * Instead, we use a particular property of the modulo operation, which allows
  * us to use precomputed values of the modulo for large powers of two, i.e.:
  *
- *         (n * 2^k) % Tau = ((n % Tau) * (2^k % Tau)) % Tau
+ *         (n * 2^k) % Tau = (n  * (2^k % Tau)) % Tau
  *
  * As long as n is an integer.
  *
