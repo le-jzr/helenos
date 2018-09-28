@@ -72,6 +72,9 @@ static int program_fd = -1;
 /** The Program control block */
 static pcb_t pcb;
 
+/** Executable path for debugging */
+static char *path = NULL;
+
 /** Current working directory */
 static char *cwd = NULL;
 
@@ -145,9 +148,32 @@ static void ldr_set_program(ipc_call_t *req)
 	}
 
 	char *name = malloc(namesize);
-	// FIXME: check return value
+	if (!name) {
+		async_answer_0(req, ENOMEM);
+		return;
+	}
 
 	errno_t rc = async_data_write_finalize(&call, name, namesize);
+	if (rc != EOK) {
+		async_answer_0(req, EINVAL);
+		return;
+	}
+
+	size_t pathsize;
+	if (!async_data_write_receive(&call, &pathsize)) {
+		async_answer_0(req, EINVAL);
+		return;
+	}
+
+	if (pathsize > 0) {
+		path = malloc(pathsize);
+		if (!path) {
+			async_answer_0(req, ENOMEM);
+			return;
+		}
+	}
+
+	rc = async_data_write_finalize(&call, path, pathsize);
 	if (rc != EOK) {
 		async_answer_0(req, EINVAL);
 		return;
@@ -311,6 +337,7 @@ static int ldr_load(ipc_call_t *req)
 
 	DPRINTF("PCB set.\n");
 
+	pcb.exepath = path;
 	pcb.cwd = cwd;
 
 	pcb.argc = argc;

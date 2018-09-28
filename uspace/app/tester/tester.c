@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <str.h>
 #include <io/log.h>
+#include <loader/pcb.h>
 #include "tester.h"
 
 bool test_quiet;
@@ -160,6 +161,8 @@ int main(int argc, char *argv[])
 		printf("Usage:\n\n");
 		printf("%s <test> [args ...]\n\n", argv[0]);
 		list_tests();
+
+		printf("Executable path: %s\n", __pcb->exepath);
 		return 0;
 	}
 

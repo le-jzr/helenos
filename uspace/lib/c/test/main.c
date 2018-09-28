@@ -31,6 +31,8 @@
 
 PCUT_INIT;
 
+PCUT_IMPORT(backtrace);
+/*
 PCUT_IMPORT(circ_buf);
 PCUT_IMPORT(fibril_timer);
 PCUT_IMPORT(inttypes);
@@ -44,5 +46,5 @@ PCUT_IMPORT(stdlib);
 PCUT_IMPORT(str);
 PCUT_IMPORT(string);
 PCUT_IMPORT(table);
-
+*/
 PCUT_MAIN();

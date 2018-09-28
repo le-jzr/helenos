@@ -148,25 +148,44 @@ errno_t loader_set_cwd(loader_t *ldr)
  *
  * @param ldr  Loader connection structure.
  * @param name Name to set for the spawned program.
+ * @param path Path to the executable in the child task's namespace
+ *             (optional, used for debug info).
  * @param file Program file.
  *
  * @return Zero on success or an error code.
  *
  */
-errno_t loader_set_program(loader_t *ldr, const char *name, int file)
+errno_t loader_set_program(loader_t *ldr, const char *name,
+    const char *path, int file)
 {
 	async_exch_t *exch = async_exchange_begin(ldr->sess);
+
+	if (!name)
+		name = "";
+
+	if (!path)
+		path = "";
 
 	ipc_call_t answer;
 	aid_t req = async_send_0(exch, LOADER_SET_PROGRAM, &answer);
 
 	errno_t rc = async_data_write_start(exch, name, str_size(name) + 1);
-	if (rc == EOK) {
-		async_exch_t *vfs_exch = vfs_exchange_begin();
-		rc = vfs_pass_handle(vfs_exch, file, exch);
-		vfs_exchange_end(vfs_exch);
+	if (rc != EOK) {
+		async_exchange_end(exch);
+		async_forget(req);
+		return rc;
 	}
 
+	rc = async_data_write_start(exch, path, str_size(path) + 1);
+	if (rc != EOK) {
+		async_exchange_end(exch);
+		async_forget(req);
+		return rc;
+	}
+
+	async_exch_t *vfs_exch = vfs_exchange_begin();
+	rc = vfs_pass_handle(vfs_exch, file, exch);
+	vfs_exchange_end(vfs_exch);
 	async_exchange_end(exch);
 
 	if (rc != EOK) {
@@ -201,7 +220,7 @@ errno_t loader_set_program_path(loader_t *ldr, const char *path)
 		return rc;
 	}
 
-	rc = loader_set_program(ldr, name, fd);
+	rc = loader_set_program(ldr, name, path, fd);
 	vfs_put(fd);
 	return rc;
 }

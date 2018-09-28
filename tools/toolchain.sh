@@ -282,6 +282,17 @@ build_target() {
 			${SRCDIR}/../uspace/lib/c/arch/${PLATFORM}/include/* \
 			${SRCDIR}/../uspace/lib/c/include/*
 		check_error $? "Failed to create build sysroot."
+
+		# Dummy <sys/types.h>
+		mkdir -p "${WORKDIR}/sysroot/include/sys"
+		echo "#pragma once              " > "${WORKDIR}/sysroot/include/sys/types.h.new"
+		echo "#include <inttypes.h>     " >> "${WORKDIR}/sysroot/include/sys/types.h.new"
+		echo "#include <types/common.h> " >> "${WORKDIR}/sysroot/include/sys/types.h.new"
+		echo "#include <stddef.h>       " >> "${WORKDIR}/sysroot/include/sys/types.h.new"
+		echo "typedef off64_t off_t;    " >> "${WORKDIR}/sysroot/include/sys/types.h.new"
+		mv "${WORKDIR}/sysroot/include/sys/types.h.new" "${WORKDIR}/sysroot/include/sys/types.h"
+
+		check_error $? "Failed to create build sysroot."
 	fi
 
 	echo ">>> Processing binutils (${PLATFORM})"
@@ -342,8 +353,11 @@ build_target() {
 	check_error $? "Error compiling GCC."
 
 	if $USE_HELENOS_TARGET ; then
-		PATH="${PATH}:${PREFIX}/bin:${INSTALL_DIR}/${PREFIX}/bin" make all-target-libgcc -j$JOBS
+		# --with-build-sysroot argument doesn't seem to affect configure stage. We use TFLAGS to fix that.
+		PATH="${PATH}:${PREFIX}/bin:${INSTALL_DIR}/${PREFIX}/bin" make all-target-libgcc -j$JOBS "TFLAGS=-isystem ${WORKDIR}/sysroot/include"
 		check_error $? "Error compiling libgcc."
+		PATH="${PATH}:${PREFIX}/bin:${INSTALL_DIR}/${PREFIX}/bin" make all-target-libbacktrace -j$JOBS "TFLAGS=-isystem ${WORKDIR}/sysroot/include"
+		check_error $? "Error compiling libbacktrace."
 		# TODO: needs some extra care
 		#PATH="${PATH}:${PREFIX}/bin:${INSTALL_DIR}/${PREFIX}/bin" make all-target-libatomic -j$JOBS
 		#check_error $? "Error compiling libatomic."
@@ -355,6 +369,7 @@ build_target() {
 	PATH="${PATH}:${INSTALL_DIR}/${PREFIX}/bin" make install-gcc "DESTDIR=${INSTALL_DIR}"
 	if $USE_HELENOS_TARGET ; then
 		PATH="${PATH}:${INSTALL_DIR}/${PREFIX}/bin" make install-target-libgcc "DESTDIR=${INSTALL_DIR}"
+		PATH="${PATH}:${INSTALL_DIR}/${PREFIX}/bin" make install-target-libbacktrace "DESTDIR=${INSTALL_DIR}"
 		#PATH="${PATH}:${INSTALL_DIR}/${PREFIX}/bin" make install-target-libatomic "DESTDIR=${INSTALL_DIR}"
 		#PATH="${PATH}:${INSTALL_DIR}/${PREFIX}/bin" make install-target-libstdc++-v3 "DESTDIR=${INSTALL_DIR}"
 	fi

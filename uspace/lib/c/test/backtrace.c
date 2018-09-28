@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008 Jiri Svoboda
+ * Copyright (c) 2018 CZ.NIC, z.s.p.o.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,33 +29,50 @@
 /** @addtogroup libc
  * @{
  */
-/** @file
- * @brief Program loader interface.
- */
-
-#ifndef LIBC_LOADER_H_
-#define LIBC_LOADER_H_
-
-#include <abi/proc/task.h>
-
-/** Forward declararion */
-struct loader;
-typedef struct loader loader_t;
-
-extern errno_t loader_spawn(const char *);
-extern loader_t *loader_connect(void);
-extern errno_t loader_get_task_id(loader_t *, task_id_t *);
-extern errno_t loader_set_cwd(loader_t *);
-extern errno_t loader_set_program(loader_t *, const char *, const char *, int);
-extern errno_t loader_set_program_path(loader_t *, const char *);
-extern errno_t loader_set_args(loader_t *, const char *const[]);
-extern errno_t loader_add_inbox(loader_t *, const char *, int);
-extern errno_t loader_load_program(loader_t *);
-extern errno_t loader_run(loader_t *);
-extern void loader_abort(loader_t *);
-
-#endif
-
 /**
- * @}
+ * @file
+ * @brief Test backtrace printout
  */
+
+#include <pcut/pcut.h>
+#include <stacktrace.h>
+#include <backtrace.h>
+
+PCUT_INIT;
+
+PCUT_TEST_SUITE(backtrace);
+
+PCUT_TEST(stacktrace_kio_print)
+{
+	kio_printf("Testing stacktrace_kio_print():\n");
+	stacktrace_kio_print();
+}
+
+PCUT_TEST(stacktrace_print)
+{
+	printf("Testing stacktrace_print():\n");
+	stacktrace_print();
+}
+
+static void _error_callback) (void *data, const char *msg, int rc)
+{
+	if (errnum < 0) {
+		fprintf(stderr,
+		    "libbacktrace error: %s (no debuginfo)\n", msg);
+	} else {
+		fprintf(stderr,
+		    "libbacktrace error: %s (%s)\n", msg, str_error_name(rc));
+	}
+}
+
+PCUT_TEST(libbacktrace)
+{
+	printf("Testing libbacktrace:\n");
+
+	struct backtrace_state *s = backtrace_create_state(__pcb.exepath, 0,
+	    _error_callback, NULL);
+
+	backtrace_print(s, 0, stdout);
+}
+
+PCUT_EXPORT(backtrace);

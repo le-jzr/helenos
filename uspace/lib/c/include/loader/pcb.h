@@ -56,6 +56,9 @@ typedef struct {
 	/** Program entry point. */
 	entry_point_t entry;
 
+	/** Path to the program executable. */
+	char *exepath;
+
 	/** Current working directory. */
 	char *cwd;
 

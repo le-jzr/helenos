@@ -188,6 +188,7 @@ SOURCES = \
 
 TEST_SOURCES = \
 	test/adt/circ_buf.c \
+	test/backtrace.c \
 	test/fibril/timer.c \
 	test/main.c \
 	test/mem.c \
