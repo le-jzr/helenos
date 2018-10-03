@@ -1,0 +1,1 @@
+include arm32_beagle.mk

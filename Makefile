@@ -47,12 +47,17 @@ CONFIG_HEADER = config.h
 ERRNO_HEADER = abi/include/abi/errno.h
 ERRNO_INPUT = abi/include/abi/errno.in
 
-.PHONY: all precheck cscope cscope_parts autotool config_auto config_default config distclean clean check releasefile release common boot kernel uspace export-posix space
+.PHONY: all precheck cscope cscope_parts autotool config_auto config_default config distclean clean check releasefile release common boot kernel uspace image export-posix space
 
-all: kernel uspace
-	$(MAKE) -r -C boot PRECHECK=$(PRECHECK)
+all: image
 
 common: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER)
+
+image: boot kernel uspace
+	$(MAKE) -r -C image PRECHECK=$(PRECHECK)
+
+boot: common
+	$(MAKE) -r -C boot PRECHECK=$(PRECHECK)
 
 kernel: common
 	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK)
@@ -153,6 +158,7 @@ clean:
 	$(MAKE) -r -C kernel clean
 	$(MAKE) -r -C uspace clean
 	$(MAKE) -r -C boot clean
+	$(MAKE) -r -C image clean
 	$(MAKE) -r -C doxygen clean
 
 $(ERRNO_HEADER): $(ERRNO_INPUT)

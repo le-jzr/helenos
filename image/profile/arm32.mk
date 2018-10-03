@@ -26,29 +26,12 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-BFD_NAME = elf32-littlearm
-BFD_OUTPUT = $(BFD_NAME)
-BFD_ARCH = arm
-
-BITS = 32
-ENDIANESS = LE
-EXTRA_CFLAGS = -march=$(subst _,-,$(PROCESSOR_ARCH)) -mno-unaligned-access
-
-SOURCES = \
-	arch/$(BARCH)/src/asm.S \
-	arch/$(BARCH)/src/eabi.S \
-	arch/$(BARCH)/src/main.c \
-	arch/$(BARCH)/src/mm.c \
-	arch/$(BARCH)/src/putchar.c \
-	$(COMPS).s \
-	$(COMPS)_desc.c \
-	genarch/src/division.c \
-	generic/src/memstr.c \
-	generic/src/printf_core.c \
-	generic/src/vprintf.c \
-	generic/src/printf.c \
-	generic/src/str.c \
-	generic/src/version.c \
-	generic/src/inflate.c
-
-PRE_DEPEND = $(COMPS).s $(COMPS).h $(COMPS)_desc.c $(COMPONENTS_DEFLATE)
+RD_DRVS_ESSENTIAL += \
+	bus/usb/ehci \
+	bus/usb/ohci \
+	bus/usb/usbdiag \
+	bus/usb/usbflbk \
+	bus/usb/usbhub \
+	bus/usb/usbmid \
+	block/usbmast \
+	hid/usbhid

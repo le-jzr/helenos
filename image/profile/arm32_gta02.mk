@@ -26,29 +26,15 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-BFD_NAME = elf32-littlearm
-BFD_OUTPUT = $(BFD_NAME)
-BFD_ARCH = arm
+include arm32.mk
 
-BITS = 32
-ENDIANESS = LE
-EXTRA_CFLAGS = -march=$(subst _,-,$(PROCESSOR_ARCH)) -mno-unaligned-access
+BOOT_OUTPUT = image.boot
+POST_OUTPUT = $(ROOT_PATH)/uImage.bin
+LADDR = 0x30008000
+SADDR = 0x30008000
+POSTBUILD = Makefile.uboot
 
-SOURCES = \
-	arch/$(BARCH)/src/asm.S \
-	arch/$(BARCH)/src/eabi.S \
-	arch/$(BARCH)/src/main.c \
-	arch/$(BARCH)/src/mm.c \
-	arch/$(BARCH)/src/putchar.c \
-	$(COMPS).s \
-	$(COMPS)_desc.c \
-	genarch/src/division.c \
-	generic/src/memstr.c \
-	generic/src/printf_core.c \
-	generic/src/vprintf.c \
-	generic/src/printf.c \
-	generic/src/str.c \
-	generic/src/version.c \
-	generic/src/inflate.c
+RD_SRVS_ESSENTIAL += \
+	$(USPACE_PATH)/srv/hid/s3c24xx_ts/s3c24xx_ts \
+	$(USPACE_PATH)/srv/hw/char/s3c24xx_uart/s3c24ser
 
-PRE_DEPEND = $(COMPS).s $(COMPS).h $(COMPS)_desc.c $(COMPONENTS_DEFLATE)

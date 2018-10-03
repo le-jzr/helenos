@@ -26,118 +26,93 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-.PHONY: all build_dist clean_dist clean
+.PHONY: all clean depend
 
 include Makefile.common
 
-all: $(VERSION_DEF) $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(PREBUILD) build_dist
-	$(MAKE) -r -f $(BUILD) PRECHECK=$(PRECHECK)
-ifneq ($(POSTBUILD),)
-	$(MAKE) -r -f $(POSTBUILD) PRECHECK=$(PRECHECK)
+INCLUDES = -Igeneric/include -Iarch/$(KARCH)/include -Igenarch/include -I$(ROOT_PATH)/abi/include
+OPTIMIZATION = 3
+
+DEFS = -DBOOT -DRELEASE=$(RELEASE) "-DCOPYRIGHT=$(COPYRIGHT)" "-DNAME=$(NAME)" -D__$(BITS)_BITS__ -D__$(ENDIANESS)__
+
+AFLAGS = --fatal-warnings
+LDFLAGS = -Wl,--fatal-warnings,--warn-common
+
+COMMON_CFLAGS = $(INCLUDES) -O$(OPTIMIZATION) -imacros $(CONFIG_HEADER) \
+	-ffreestanding -nostdlib \
+	-fexec-charset=UTF-8 -finput-charset=UTF-8 -fno-common \
+	-fdebug-prefix-map=$(realpath $(ROOT_PATH))=.
+
+GCC_CFLAGS = -Wall -Wextra -Wno-unused-parameter -Wmissing-prototypes \
+	-std=gnu99 -Werror-implicit-function-declaration -Wwrite-strings \
+	-pipe
+
+CLANG_CFLAGS = -Wall -Wextra -Wno-unused-parameter -Wmissing-prototypes \
+	-Werror-implicit-function-declaration -Wwrite-strings \
+	-pipe  -fno-stack-protector -fno-PIC
+
+ifeq ($(CONFIG_DEBUG),y)
+	COMMON_CFLAGS += -Werror
 endif
 
-build_dist: clean_dist
-	mkdir -p "$(DIST_PATH)/app/"
-	mkdir -p "$(DIST_PATH)/cfg/net/"
-	mkdir -p "$(DIST_PATH)/data/cfg/"
-	mkdir -p "$(DIST_PATH)/lib/"
-	mkdir -p "$(DIST_PATH)/loc/"
-	mkdir -p "$(DIST_PATH)/log/"
-	mkdir -p "$(DIST_PATH)/srv/"
-	mkdir -p "$(DIST_PATH)/test/"
-	mkdir -p "$(DIST_PATH)/tmp/"
-	mkdir -p "$(DIST_PATH)/vol/"
-	for file in $(RD_SRVS) ; do \
-		cp "$$file" "$(DIST_PATH)/srv/" ; \
-	done
-	for file in $(RD_LIBS) ; do \
-		cp "$$file" "$(DIST_PATH)/lib/" ; \
-	done
-ifeq ($(CONFIG_DEVEL_FILES), y)
-	mkdir -p "$(DIST_PATH)/inc/c/"
-	cp -r -L "$(USPACE_PATH)/lib/c/include/." "$(DIST_PATH)/inc/c/"
-	cp -r -L "$(ROOT_PATH)/abi/include/." "$(DIST_PATH)/inc/c/"
-	cp -r -L "$(USPACE_PATH)/lib/c/arch/$(UARCH)/include/." "$(DIST_PATH)/inc/c/"
-	cat "$(USPACE_PATH)/lib/c/arch/$(UARCH)/_link.ld" | sed 's/^STARTUP(.*)$$//g' > "$(DIST_PATH)/inc/_link.ld"
-endif
-	for file in $(RD_APPS) ; do \
-		cp "$$file" "$(DIST_PATH)/app/" ; \
-	done
-	for file in $(RD_DATA) ; do \
-		cp "$$file" "$(DIST_PATH)/" ; \
-	done
-ifeq ($(CONFIG_PCUT_TESTS),y)
-	echo "echo Running all tests..." >"$(DIST_PATH)/test/run_all"
-	echo "<html><head><title>HelenOS test results</title></head><body>" >"$(DIST_PATH)/test/test.html"
-	echo "<h1>HelenOS test results</h1><ul>" >>"$(DIST_PATH)/test/test.html"
-	for file in $(RD_TESTS) ; do \
-		file2=`basename $$file`; \
-		cp "$$file" "$(DIST_PATH)/test/" ; \
-		echo "echo ' ->' $$file2" >>"$(DIST_PATH)/test/run_all"; \
-		echo "/test/$$file2 | to /test/$$file2.out" >>"$(DIST_PATH)/test/run_all"; \
-		echo "cat /test/$$file2.out" >>"$(DIST_PATH)/test/run_all"; \
-		echo "cp -f /test/$$file2.out /data/web/result-$$file2.txt" >>"$(DIST_PATH)/test/run_all"; \
-		echo "<li><a href=\"result-$$file2.txt\">$$file2</a></li>" >>"$(DIST_PATH)/test/test.html"; \
-	done
-	echo "cp -f /test/test.html /data/web/test.html" >>"$(DIST_PATH)/test/run_all"
-	echo "</ul></body></html>" >>"$(DIST_PATH)/test/test.html"
+ifeq ($(CONFIG_LINE_DEBUG),y)
+	COMMON_CFLAGS += -g
 endif
 
-ifeq ($(CONFIG_PCUT_SELF_TESTS),y)
-	echo "echo Running all PCUT self-tests..." >"$(DIST_PATH)/test/run_pcut"
-	echo "<html><head><title>Results of PCUT self-tests on HelenOS</title></head><body>" >"$(DIST_PATH)/test/pcut.html"
-	echo "<h1>Results of PCUT self-tests on HelenOS</h1><ul>" >>"$(DIST_PATH)/test/pcut.html"
-	for file in $(USPACE_PATH)/lib/pcut/test-libpcut-*; do \
-		file2=`basename $$file`; \
-		name=`echo "$$file2" | sed 's/test-libpcut-//'`; \
-		cp "$$file" "$(DIST_PATH)/test/" ; \
-		echo "echo ' ->' $$name" >>"$(DIST_PATH)/test/run_pcut"; \
-		echo "/test/$$file2 | to /test/$$file2.out" >>"$(DIST_PATH)/test/run_pcut"; \
-		echo "cat /test/$$file2.out" >>"$(DIST_PATH)/test/run_pcut"; \
-		echo "cp -f /test/$$file2.out /data/web/result-$$file2.txt" >>"$(DIST_PATH)/test/run_pcut"; \
-		echo "<li><a href=\"result-$$file2.txt\">$$name</a></li>" >>"$(DIST_PATH)/test/pcut.html"; \
-	done
-	echo "cp -f /test/pcut.html /data/web/pcut.html" >>"$(DIST_PATH)/test/run_pcut"
-	echo "</ul></body></html>" >>"$(DIST_PATH)/test/pcut.html"
+ifeq ($(COMPILER),clang)
+	CFLAGS = $(COMMON_CFLAGS) $(CLANG_CFLAGS) $(EXTRA_CFLAGS)
+else
+	CFLAGS = $(COMMON_CFLAGS) $(GCC_CFLAGS) $(EXTRA_CFLAGS)
 endif
 
-	for drv in $(RD_DRVS) ; do \
-		drv_dir="`dirname "$$drv"`" ; \
-		drv_name="`basename "$$drv"`" ; \
-		mkdir -p "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$drv_dir/$$drv_name/$$drv_name" "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name/" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$drv_dir/$$drv_name/$$drv_name.ma" "$(DIST_PATH)/$(DRVS_PATH)/$$drv_name/" ; \
-	done
-	for file in $(RD_DRV_CFG) ; do \
-		file_dir="`dirname "$$file"`" ; \
-		file_name="`basename "$$file"`" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$file_dir/$$file_name/"*".dev" "$(DIST_PATH)/$(DRVS_PATH)/$$file_name/" ; \
-	done
-	for file in $(RD_DRVS_FW) ; do \
-		file_dir="`dirname "$$file"`" ; \
-		file_name="`basename "$$file"`" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$file_dir/$$file_name/$$file_name.fw" "$(DIST_PATH)/$(DRVS_PATH)/$$file_name/" ; \
-	done
-	if ls $(DIST_OVERLAY_PATH)/* >/dev/null 2>/dev/null; then \
-		cp -r -L $(DIST_OVERLAY_PATH)/* "$(DIST_PATH)"; \
-	fi
+OBJECTS := $(addsuffix .o,$(basename $(SOURCES)))
+DEPENDS := $(addsuffix .d,$(basename $(SOURCES)))
 
-clean: clean_dist
-	$(MAKE) -r -f $(BUILD) clean PRECHECK=$(PRECHECK)
-ifneq ($(POSTBUILD),)
-	$(MAKE) -r -f $(POSTBUILD) clean PRECHECK=$(PRECHECK)
-endif
-	rm -f $(POST_OUTPUT) $(BOOT_OUTPUT) arch/*/include/common.h
+all: $(VERSION_DEF) $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(BOOT_OUTPUT)
+
+clean:
+	rm -f $(RAW) $(MAP)
 	find generic/src/ arch/*/src/ genarch/src/ -name '*.o' -follow -exec rm \{\} \;
 	find . -name '*.d' -follow -exec rm \{\} \;
 
-clean_dist:
-	rm -f $(INITRD).img $(COMPS).s $(COMPS).h $(COMPS)_desc.c $(COMPONENTS_DEFLATE) $(COMPS).o $(COMPS)_desc.o $(COMPS).zip $(LINK)
-	find $(USPACE_PATH)/dist -mindepth 1 -maxdepth 1 -type f -exec rm \{\} \;
-	rm -f $(USPACE_PATH)/dist/srv/*
-	rm -rf $(USPACE_PATH)/dist/drv/*
-	rm -rf $(USPACE_PATH)/dist/lib/*
-	rm -rf $(USPACE_PATH)/dist/inc/*
-	rm -f $(USPACE_PATH)/dist/app/*
-	rm -f $(USPACE_PATH)/dist/test/*
-	rm -f $(USPACE_PATH)/dist/cfg/net/*
+-include $(DEPENDS)
+
+AS_CFLAGS := $(addprefix -Xassembler ,$(AFLAGS))
+
+$(BOOT_OUTPUT): $(RAW)
+	$(OBJCOPY) -O $(BFD_OUTPUT) $< $@
+
+$(RAW): $(OBJECTS) $(LINK)
+	$(CC) $(CFLAGS) -Wl,-n $(LDFLAGS) -T $(LINK) -Wl,-M,-Map,$(MAP) -o $@ $(OBJECTS)
+
+$(LINK): | depend
+	$(CC) $(DEFS) $(CFLAGS) -D__ASSEMBLER__ -D__LINKER__ -E -x c $(LINK).in | grep -v "^\#" > $(LINK)
+
+%.o: %.s | depend
+	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS) $(AS_CFLAGS)
+
+%.o: %.S | depend
+	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS) $(AS_CFLAGS)
+
+%.o: %.c | depend
+	$(CC_JOB) -c -MD -MP $(DEFS) $(CFLAGS)
+
+depend: $(PRE_DEPEND)
+
+$(COMPS).s: $(COMPS).zip
+	unzip -p $< $@ > $@
+
+$(COMPS).h: $(COMPS).zip
+	unzip -p $< $@ > $@
+
+$(COMPS)_desc.c: $(COMPS).zip
+	unzip -p $< $@ > $@
+
+$(COMPONENTS_DEFLATE): $(COMPS).zip
+	unzip -p $< $@ > $@
+
+$(COMPS).zip: $(COMPONENTS)
+	$(MKARRAY) --deflate $(COMPS) $(COMP) "$(AS_PROLOG)" ".section .components, \"a\"" $^
+
+include Makefile.initrd
+
