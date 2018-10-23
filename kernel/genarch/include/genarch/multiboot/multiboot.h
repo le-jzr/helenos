@@ -39,7 +39,7 @@
 #include <genarch/multiboot/multiboot_info_struct.h>
 
 #define MULTIBOOT_HEADER_MAGIC  0x1badb002
-#define MULTIBOOT_HEADER_FLAGS  0x00010003
+#define MULTIBOOT_HEADER_FLAGS  0x00000003
 
 #define MULTIBOOT_LOADER_MAGIC  0x2badb002
 
