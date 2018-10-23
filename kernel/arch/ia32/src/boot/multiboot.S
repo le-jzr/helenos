@@ -51,6 +51,10 @@ multiboot_header:
 	.long 0
 	.long 0
 	.long 0
+	.long 0
+	.long CONFIG_BFB_WIDTH
+	.long CONFIG_BFB_HEIGHT
+	.long CONFIG_BFB_BPP
 
 .section K_TEXT_START, "ax"
 
@@ -105,8 +109,6 @@ SYMBOL(multiboot_image_start)
 	movl %ebx, multiboot_ebx
 
 	pm_status $status_prot
-
-#include "vesa_prot.inc"
 
 #ifndef PROCESSOR_i486
 
@@ -686,8 +688,6 @@ early_puts:
 
 	ret
 
-#include "vesa_real.inc"
-
 .section K_DATA_START, "aw", @progbits
 
 .align 4096
@@ -721,12 +721,8 @@ status_pse:
 	.asciz "[pse] "
 status_non_pse:
 	.asciz "[non_pse] "
-status_vesa_copy:
-	.asciz "[vesa_copy] "
 status_multiboot_cmdline:
 	.asciz "[multiboot_cmdline] "
-status_vesa_real:
-	.asciz "[vesa_real] "
 status_prot2:
 	.asciz "[prot2] "
 status_prot3:

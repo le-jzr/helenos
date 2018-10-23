@@ -51,6 +51,10 @@ multiboot_header:
 	.long 0
 	.long 0
 	.long 0
+	.long 0
+	.long CONFIG_BFB_WIDTH
+	.long CONFIG_BFB_HEIGHT
+	.long CONFIG_BFB_BPP
 
 .section K_TEXT_START, "ax"
 
@@ -158,8 +162,6 @@ SYMBOL(multiboot_image_start)
 		pm_error $err_sse2
 
 	sse2_supported:
-
-#include "vesa_prot.inc"
 
 	pm2_status $status_prot2
 
@@ -570,8 +572,6 @@ early_puts:
 
 	ret
 
-#include "vesa_real.inc"
-
 .section K_INI_PTLS, "aw", @progbits
 
 /** Generate initial page table contents.
@@ -709,12 +709,8 @@ err_sse2:
 
 status_prot:
 	.asciz "[prot] "
-status_vesa_copy:
-	.asciz "[vesa_copy] "
 status_multiboot_cmdline:
 	.asciz "[multiboot_cmdline] "
-status_vesa_real:
-	.asciz "[vesa_real] "
 status_prot2:
 	.asciz "[prot2] "
 status_long:
