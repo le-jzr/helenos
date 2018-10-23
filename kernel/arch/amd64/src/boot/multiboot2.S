@@ -36,9 +36,7 @@
 
 #define START_STACK  (BOOT_OFFSET - BOOT_STACK_SIZE)
 
-.section K_TEXT_START, "ax"
-
-.code32
+.section .multiboot, "a"
 
 .align 8
 multiboot2_header_start:
@@ -60,18 +58,6 @@ multiboot2_header_start:
 		.long MULTIBOOT2_TAG_FBINFO
 #endif
 	tag_info_req_end:
-
-	/* Address tag */
-	.align 8
-	tag_address_start:
-		.word MULTIBOOT2_TAG_ADDRESS
-		.word MULTIBOOT2_FLAGS_REQUIRED
-		.long tag_address_end - tag_address_start
-		.long multiboot2_header_start
-		.long unmapped_start
-		.long 0
-		.long 0
-	tag_address_end:
 
 	/* Entry address tag */
 	.align 8
@@ -121,6 +107,10 @@ multiboot2_header_start:
 		.long tag_terminator_end - tag_terminator_start
 	tag_terminator_end:
 multiboot2_header_end:
+
+.section K_TEXT_START, "ax"
+
+.code32
 
 SYMBOL(multiboot2_image_start)
 	cli

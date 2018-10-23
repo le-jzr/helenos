@@ -39,6 +39,19 @@
 
 #define START_STACK  (BOOT_OFFSET - BOOT_STACK_SIZE)
 
+.section .multiboot, "a"
+
+.align 4
+multiboot_header:
+	.long MULTIBOOT_HEADER_MAGIC
+	.long MULTIBOOT_HEADER_FLAGS
+	.long -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)  /* checksum */
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+
 .section K_TEXT_START, "ax"
 
 .code32
@@ -62,17 +75,6 @@
 	pm_status \msg
 #endif
 .endm
-
-.align 4
-multiboot_header:
-	.long MULTIBOOT_HEADER_MAGIC
-	.long MULTIBOOT_HEADER_FLAGS
-	.long -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)  /* checksum */
-	.long 0
-	.long 0
-	.long 0
-	.long 0
-	.long 0
 
 SYMBOL(multiboot_image_start)
 	cli
