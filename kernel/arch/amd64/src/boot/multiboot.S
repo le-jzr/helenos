@@ -44,17 +44,24 @@
 .align 4
 multiboot_header:
 	.long MULTIBOOT_HEADER_MAGIC
+#ifdef CONFIG_FB
 	.long MULTIBOOT_HEADER_FLAGS
 	.long -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)  /* checksum */
+#else
+	.long MULTIBOOT_HEADER_FLAGS_NOFB
+	.long -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS_NOFB)  /* checksum */
+#endif
 	.long 0
 	.long 0
 	.long 0
 	.long 0
 	.long 0
+#ifdef CONFIG_FB
 	.long 0
 	.long CONFIG_BFB_WIDTH
 	.long CONFIG_BFB_HEIGHT
 	.long CONFIG_BFB_BPP
+#endif
 
 .section K_TEXT_START, "ax"
 

@@ -169,6 +169,8 @@ void multiboot_info_parse(uint32_t signature, const multiboot_info_t *info)
 		multiboot_memmap(info->mmap_length,
 		    (multiboot_memmap_t *) MULTIBOOT_PTR(info->mmap_addr));
 
+#ifdef CONFIG_FB
+
 	/* Initialize framebuffer. */
 	if ((info->flags & MULTIBOOT_INFO_FLAGS_FB) != 0) {
 		if (info->framebuffer_type != 1) {
@@ -190,6 +192,8 @@ void multiboot_info_parse(uint32_t signature, const multiboot_info_t *info)
 		bfb_blue_pos = info->framebuffer_blue_field_position;
 		bfb_blue_size = info->framebuffer_blue_mask_size;
 	}
+
+#endif
 }
 
 /** @}
