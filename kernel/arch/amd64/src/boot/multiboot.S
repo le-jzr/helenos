@@ -37,6 +37,8 @@
 #include <arch/cpuid.h>
 #include <arch/cpu.h>
 
+// TODO: most of this file can be rewritten in C
+
 .section .multiboot, "a"
 
 .align 4
