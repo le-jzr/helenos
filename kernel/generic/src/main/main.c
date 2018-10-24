@@ -136,8 +136,7 @@ ballocs_t ballocs = {
 
 context_t ctx;
 
-/** Lowest safe stack virtual address. */
-uintptr_t stack_safe = 0;
+_Alignas(PAGE_SIZE) static uint8_t initial_stack[STACK_SIZE];
 
 /*
  * These two functions prevent stack from underflowing during the
@@ -172,34 +171,9 @@ NO_TRACE void main_bsp(void)
 	config.kernel_size =
 	    ALIGN_UP((uintptr_t) kdata_end - config.base, PAGE_SIZE);
 
-	/* Place the stack after the kernel, init and ballocs. */
-	config.stack_base = config.base + config.kernel_size;
-	config.stack_size = STACK_SIZE;
-
-	/* Avoid placing stack on top of init */
-	size_t i;
-	for (i = 0; i < init.cnt; i++) {
-		uintptr_t p = init.tasks[i].paddr + init.tasks[i].size;
-		uintptr_t bottom = PA2KA(ALIGN_UP(p, PAGE_SIZE));
-
-		if (config.stack_base < bottom)
-			config.stack_base = bottom;
-	}
-
-	/* Avoid placing stack on top of boot allocations. */
-	if (ballocs.size) {
-		uintptr_t bottom =
-		    ALIGN_UP(ballocs.base + ballocs.size, PAGE_SIZE);
-		if (config.stack_base < bottom)
-			config.stack_base = bottom;
-	}
-
-	if (config.stack_base < stack_safe)
-		config.stack_base = ALIGN_UP(stack_safe, PAGE_SIZE);
-
 	context_save(&ctx);
 	context_set(&ctx, FADDR(main_bsp_separated_stack),
-	    config.stack_base, STACK_SIZE);
+	    initial_stack, sizeof(initial_stack));
 	context_restore(&ctx);
 	/* not reached */
 }
@@ -216,10 +190,8 @@ void main_bsp_separated_stack(void)
 
 	version_print();
 
-	LOG("\nconfig.base=%p config.kernel_size=%zu"
-	    "\nconfig.stack_base=%p config.stack_size=%zu",
-	    (void *) config.base, config.kernel_size,
-	    (void *) config.stack_base, config.stack_size);
+	LOG("\nconfig.base=%p config.kernel_size=%zu",
+	    (void *) config.base, config.kernel_size);
 
 #ifdef CONFIG_KCONSOLE
 	/*
