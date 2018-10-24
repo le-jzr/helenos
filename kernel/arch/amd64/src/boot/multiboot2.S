@@ -34,8 +34,6 @@
 #include <arch/cpu.h>
 #include <genarch/multiboot/multiboot2.h>
 
-#define START_STACK  (BOOT_OFFSET - BOOT_STACK_SIZE)
-
 .section .multiboot, "a"
 
 .align 8
@@ -117,7 +115,7 @@ SYMBOL(multiboot2_image_start)
 	cld
 
 	/* Initialize stack pointer */
-	movl $START_STACK, %esp
+	movl $bootstack_top, %esp
 
 	/*
 	 * Initialize Global Descriptor Table and
@@ -234,7 +232,7 @@ start64:
 	 * Long mode.
 	 */
 
-	movq $(PA2KA(START_STACK)), %rsp
+	movq $(PA2KA(bootstack_top)), %rsp
 
 	/* Create the first stack frame */
 	pushq $0

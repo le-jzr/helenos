@@ -29,10 +29,9 @@
 #include <abi/asmtool.h>
 #include <arch/boot/boot.h>
 #include <arch/pm.h>
+#include <arch/mm/page.h>
 #include <arch/cpuid.h>
 #include <genarch/multiboot/multiboot2.h>
-
-#define START_STACK  (BOOT_OFFSET - BOOT_STACK_SIZE)
 
 .section .multiboot, "a"
 
@@ -115,7 +114,7 @@ SYMBOL(multiboot2_image_start)
 	cld
 
 	/* Initialize stack pointer */
-	movl $START_STACK, %esp
+	movl $bootstack_top, %esp
 
 	/*
 	 * Initialize Global Descriptor Table and
@@ -163,6 +162,7 @@ SYMBOL(multiboot2_image_start)
 		call map_kernel_non_pse
 
 	stack_init:
+	movl $(PA2KA(bootstack_top)), %esp
 
 	/* Create the first stack frame */
 	pushl $0
