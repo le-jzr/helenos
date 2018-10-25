@@ -41,6 +41,9 @@
 
 #ifndef __ASSEMBLER__
 
+extern void *shtab;
+extern size_t shtab_len;
+
 #ifdef CONFIG_SMP
 
 extern uint8_t ap_bootstrap_start[];

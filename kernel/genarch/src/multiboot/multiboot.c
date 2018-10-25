@@ -37,7 +37,9 @@
 #include <genarch/fb/bfb.h>
 #include <config.h>
 #include <stddef.h>
+#include <symtab.h>
 #include <str.h>
+#include <main/main.h>
 
 /** Extract command name from the multiboot module command line.
  *
@@ -193,6 +195,12 @@ void multiboot_info_parse(uint32_t signature, const multiboot_info_t *info)
 	}
 
 #endif
+
+	/* Process ELF section header table. */
+	if ((info->flags & MULTIBOOT_INFO_FLAGS_SYMS_ELF) != 0) {
+		shtab = (void *) PA2KA(info->syms[2]);
+		shtab_len = info->syms[0];
+	}
 }
 
 /** @}

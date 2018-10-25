@@ -143,34 +143,71 @@ void physmem_print(void)
 	}
 }
 
+static void reserve_shtab(elf_section_header_t *sht, size_t sht_len)
+{
+	/*
+	 * Reserve memory occupied by ELF sections.
+	 * The bootloader will load all sections, regarless of whether they are
+	 * covered by PT_LOAD or not. We use these extra sections (e.g. symbol
+	 * table and debuginfo sections).
+	 * Extra care must be taken since these memory spans need not be
+	 * frame-aligned.
+	 */
+
+	if (sht_len == 0) {
+		printf("Error: no section header table available.");
+		return;
+	}
+
+	uintptr_t bottom = ALIGN_DOWN(KA2PA(sht), FRAME_SIZE);
+	size_t sht_size = sht_len * sizeof(sht[0]);
+	uintptr_t top = ALIGN_UP(KA2PA(sht) + sht_size, FRAME_SIZE);
+
+	/* Reserve the table itself. */
+	frame_mark_unavailable(bottom >> FRAME_WIDTH,
+	    (top - bottom) >> FRAME_WIDTH);
+
+	/* Reserve each loaded section. */
+	for (size_t i = 0; i < sht_len; i++) {
+		if (sht[i].sh_type == SHT_NULL ||
+		    sht[i].sh_addr == 0 ||
+		    sht[i].sh_size == 0)
+			continue;
+
+		bottom = ALIGN_DOWN(sht[i].sh_addr, FRAME_SIZE);
+		top = ALIGN_UP(sht[i].sh_addr + sht[i].sh_size, FRAME_SIZE);
+
+		if ((intptr_t) bottom < 0) {
+			bottom = KA2PA(bottom);
+			top = KA2PA(top);
+		}
+
+		printf("Section %zu, %p, %zu\n", i, (void *) bottom, top - bottom);
+
+		frame_mark_unavailable(bottom >> FRAME_WIDTH,
+		    (top - bottom) >> FRAME_WIDTH);
+	}
+}
+
 void frame_low_arch_init(void)
 {
-	pfn_t minconf;
+	if (config.cpu_active != 1)
+		return;
 
-	if (config.cpu_active == 1) {
-		minconf = 1;
-
-#ifdef CONFIG_SMP
-		// FIXME: What is the purpose of minconf? Can we remove it?
-		uintptr_t ap_end = ALIGN_UP((uintptr_t) ap_bootstrap_end, FRAME_SIZE);
-		minconf = max(minconf, ADDR2PFN(ap_end));
-#endif
-
-		init_e820_memory(minconf, true);
-
-		/* Reserve frame 0 (BIOS data) */
-		frame_mark_unavailable(0, 1);
+	pfn_t minconf = 1;
 
 #ifdef CONFIG_SMP
-		// TODO: should go away implicitly with section table
-
-		/* Reserve AP real mode bootstrap memory */
-		size_t ap_size =
-		    ALIGN_UP(ap_bootstrap_end - ap_bootstrap_start, FRAME_SIZE);
-		frame_mark_unavailable(AP_BOOT_OFFSET >> FRAME_WIDTH,
-		    ap_size >> FRAME_WIDTH);
+	// FIXME: What is the purpose of minconf? Can we remove it?
+	uintptr_t ap_end = ALIGN_UP((uintptr_t) ap_bootstrap_end, FRAME_SIZE);
+	minconf = max(minconf, ADDR2PFN(ap_end));
 #endif
-	}
+
+	init_e820_memory(minconf, true);
+
+	/* Reserve frame 0 (BIOS data) */
+	frame_mark_unavailable(0, 1);
+
+	reserve_shtab(shtab, shtab_len);
 }
 
 void frame_high_arch_init(void)

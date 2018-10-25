@@ -249,10 +249,7 @@ RD_DATA_NON_ESSENTIAL = \
 
 
 COMPONENTS = \
-	$(KERNEL_PATH)/kernel.elf \
-	$(INIT_TASKS) \
-	$(INITRD).img
-
+	$(KERNEL_PATH)/kernel.elf
 
 LINK = arch/$(BARCH)/_link.ld
 COMP = component

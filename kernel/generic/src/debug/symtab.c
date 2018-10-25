@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2005 Ondrej Palkovsky
+ * Copyright (c) 2018 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,6 +27,16 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <symtab.h>
+#include <byteorder.h>
+#include <str.h>
+#include <print.h>
+#include <typedefs.h>
+#include <errno.h>
+#include <console/prompt.h>
+
+#include <abi/elf.h>
+
 /** @addtogroup kernel_generic_debug
  * @{
  */
@@ -35,13 +46,47 @@
  * @brief Kernel symbol resolver.
  */
 
-#include <symtab.h>
-#include <byteorder.h>
-#include <str.h>
-#include <stdio.h>
-#include <typedefs.h>
-#include <errno.h>
-#include <console/prompt.h>
+static const elf_symbol_t *_symtab = NULL;
+static size_t _symtab_len = 0;
+static const char *_strtab = NULL;
+
+void symtab_init(const elf_section_header_t *shtab, size_t shtab_len)
+{
+	for (size_t i = 0; i < shtab_len; i++) {
+		if (shtab[i].sh_type != SHT_SYMTAB)
+			continue;
+
+		uintptr_t symtabaddr = shtab[i].sh_addr;
+		uintptr_t strtabidx = shtab[i].sh_link;
+
+		if (strtabidx >= shtab_len) {
+			printf("Strtab section index out of bounds.\n");
+			return;
+		}
+
+		uintptr_t strtabaddr = shtab[strtabidx].sh_addr;
+
+		/* Check whether symtab and strtab are loaded. */
+		if (symtabaddr == 0 || strtabaddr == 0) {
+			printf("Symtab section present but not loaded.\n");
+			return;
+		}
+
+		/* Check whether symtab entries have expected size. */
+		if (shtab[i].sh_entsize != sizeof(elf_symbol_t)) {
+			printf("Symtab has wrong entry size.\n");
+			return;
+		}
+
+		/* sh_addr has the physical location of the loaded section. */
+
+		_symtab = (const elf_symbol_t *) PA2KA(symtabaddr);
+		_symtab_len = shtab[i].sh_size / shtab[i].sh_entsize;
+		_strtab = (const char *) PA2KA(strtabaddr);
+		printf("symtab: %p (%zu bytes)\n", _symtab, _symtab_len);
+		printf("strtab: %p\n", _strtab);
+	}
+}
 
 /** Get name of a symbol that seems most likely to correspond to address.
  *
@@ -55,29 +100,61 @@
  */
 errno_t symtab_name_lookup(uintptr_t addr, const char **name, uintptr_t *offset)
 {
-#ifdef CONFIG_SYMTAB
-	size_t i;
+	*name = NULL;
+	*offset = 0;
 
-	for (i = 1; symbol_table[i].address_le; i++) {
-		if (addr < uint64_t_le2host(symbol_table[i].address_le))
+	if (!_symtab)
+		return ENOTSUP;
+
+	/*
+	 * This is just a rarely used debugging feature, so we don't need to
+	 * do anything fast and smart. Just iterate through the whole symbol
+	 * table. It's not so large that it would pose an issue.
+	 */
+
+	const elf_symbol_t *best = NULL;
+
+	// TODO: We can discriminate between data and function symbols.
+
+	for (size_t i = 0; i < _symtab_len; i++) {
+		switch (ELF_ST_TYPE(_symtab[i].st_info)) {
+		case STT_NOTYPE:
+		case STT_OBJECT:
+		case STT_FUNC:
 			break;
+		default:
+			/* Anything else is not relevant. */
+			continue;
+		}
+
+		uintptr_t val = _symtab[i].st_value;
+		size_t sz = _symtab[i].st_size;
+
+		if (val > addr)
+			continue;
+
+		//printf("symbol %p, %zu, %zu\n", (void *)val, sz, _symtab[i].st_name);
+
+		if (addr < val + sz) {
+			/* We are within defined bounds, this is the one. */
+			best = &_symtab[i];
+			break;
+		}
+
+		if (sz == 0 && (!best || best->st_value < val)) {
+			/* Object has unknown size. Keep the closest. */
+			best = &_symtab[i];
+		}
 	}
+	if (!best)
+		return ENOENT;
 
-	if (addr >= uint64_t_le2host(symbol_table[i - 1].address_le)) {
-		*name = symbol_table[i - 1].symbol_name;
-		if (offset)
-			*offset = addr -
-			    uint64_t_le2host(symbol_table[i - 1].address_le);
-		return EOK;
-	}
+	printf ("\n SYMBOL FINISHED, %u\n", best->st_name);
+	*name = _strtab + best->st_name;
+	*offset = addr - best->st_value;
 
-	*name = NULL;
-	return ENOENT;
-
-#else
-	*name = NULL;
-	return ENOTSUP;
-#endif
+	printf ("\n SYMBOL FINISHED, %s, %zu\n\n", *name, *offset);
+	return EOK;
 }
 
 /** Lookup symbol by address and format for display.

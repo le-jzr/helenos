@@ -42,6 +42,9 @@ extern uint8_t kernel_load_address[];
 /* Address of the end of kernel. */
 extern uint8_t kdata_end[];
 
+extern void *shtab;
+extern size_t shtab_len;
+
 extern void main_bsp(void);
 extern void main_ap(void);
 

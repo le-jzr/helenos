@@ -37,7 +37,9 @@
 
 #include <symtab_lookup.h>
 #include <console/chardev.h>
+#include <abi/elf.h>
 
+extern void symtab_init(const elf_section_header_t *, size_t);
 extern void symtab_print_search(const char *);
 extern const char *symtab_hints_enum(const char *, const char **, void **);
 

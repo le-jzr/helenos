@@ -91,6 +91,7 @@
 #include <sysinfo/stats.h>
 #include <lib/ra.h>
 #include <cap/cap.h>
+#include <symtab.h>
 
 /*
  * Ensure [u]int*_t types are of correct size.
@@ -135,6 +136,10 @@ ballocs_t ballocs = {
 context_t ctx;
 
 static _Alignas(STACK_SIZE) uint8_t initial_stack[STACK_SIZE];
+
+/** Section header table provided by the bootloader. */
+void *shtab;
+size_t shtab_len;
 
 /*
  * These two functions prevent stack from underflowing during the
@@ -225,6 +230,7 @@ void main_bsp_separated_stack(void)
 	reserve_init();
 	ARCH_OP(pre_smp_init);
 	smp_init();
+	symtab_init(shtab, shtab_len);
 
 	/* Slab must be initialized after we know the number of processors. */
 	slab_enable_cpucache();
