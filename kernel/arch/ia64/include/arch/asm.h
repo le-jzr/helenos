@@ -40,6 +40,7 @@
 #include <arch/register.h>
 #include <arch/legacyio.h>
 #include <trace.h>
+#include <align.h>
 
 #define IO_SPACE_BOUNDARY       ((void *) (64 * 1024))
 
@@ -159,22 +160,18 @@ NO_TRACE static inline uint32_t pio_read_32(ioport32_t *port)
 	return v;
 }
 
-/** Return base address of current memory stack.
+/** Return base address of current stack.
  *
+ * Return the base address of the current stack.
  * The memory stack is assumed to be STACK_SIZE / 2 long. Note that there is
  * also the RSE stack, which takes up the upper half of STACK_SIZE.
- * The memory stack must start on page boundary.
+ * The stack must be aligned to STACK_SIZE.
+ *
  */
 NO_TRACE static inline uintptr_t get_stack_base(void)
 {
-	uint64_t value;
-
-	asm volatile (
-	    "mov %[value] = r12"
-	    : [value] "=r" (value)
-	);
-
-	return (value & (~(STACK_SIZE / 2 - 1)));
+	uintptr_t sp = (uintptr_t) __builtin_frame_address(0);
+	return ALIGN_DOWN(sp - 1, STACK_SIZE / 2);
 }
 
 /** Return Processor State Register.

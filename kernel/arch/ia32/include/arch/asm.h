@@ -41,6 +41,7 @@
 #include <typedefs.h>
 #include <config.h>
 #include <trace.h>
+#include <align.h>
 
 /** Halt CPU
  *
@@ -348,24 +349,17 @@ NO_TRACE static inline uint64_t read_msr(uint32_t msr)
 
 #endif /* PROCESSOR_i486 */
 
-/** Return base address of current stack
+/** Return base address of current stack.
  *
  * Return the base address of the current stack.
  * The stack is assumed to be STACK_SIZE bytes long.
- * The stack must start on page boundary.
+ * The stack must be aligned to STACK_SIZE.
  *
  */
 NO_TRACE static inline uintptr_t get_stack_base(void)
 {
-	uintptr_t v;
-
-	asm volatile (
-	    "andl %%esp, %[v]\n"
-	    : [v] "=r" (v)
-	    : "0" (~(STACK_SIZE - 1))
-	);
-
-	return v;
+	uintptr_t sp = (uintptr_t) __builtin_frame_address(0);
+	return ALIGN_DOWN(sp - 1, STACK_SIZE);
 }
 
 /** Invalidate TLB Entry.

@@ -98,20 +98,13 @@ NO_TRACE static inline uint32_t pio_read_32(ioport32_t *port)
  *
  * Return the base address of the current stack.
  * The stack is assumed to be STACK_SIZE bytes long.
- * The stack must start on page boundary.
+ * The stack must be aligned to STACK_SIZE.
  *
  */
 NO_TRACE static inline uintptr_t get_stack_base(void)
 {
-	uintptr_t v;
-
-	asm volatile (
-	    "and %[v], sp, %[size]\n"
-	    : [v] "=r" (v)
-	    : [size] "r" (~(STACK_SIZE - 1))
-	);
-
-	return v;
+	uintptr_t sp = (uintptr_t) __builtin_frame_address(0);
+	return ALIGN_DOWN(sp - 1, STACK_SIZE);
 }
 
 extern void cpu_halt(void) __attribute__((noreturn));

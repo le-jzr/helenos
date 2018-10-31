@@ -39,6 +39,7 @@
 #include <typedefs.h>
 #include <arch/cpu.h>
 #include <trace.h>
+#include <align.h>
 
 #define IO_SPACE_BOUNDARY	((void *) (64 * 1024))
 
@@ -46,21 +47,25 @@
  *
  * Return the base address of the current stack.
  * The stack is assumed to be STACK_SIZE bytes long.
- * The stack must start on page boundary.
+ * The stack must be aligned to STACK_SIZE.
  *
  */
 NO_TRACE static inline uintptr_t get_stack_base(void)
 {
-	uintptr_t v;
-
-	asm volatile (
-	    "andq %%rsp, %[v]\n"
-	    : [v] "=r" (v)
-	    : "0" (~((uint64_t) STACK_SIZE - 1))
-	);
-
-	return v;
+	uintptr_t sp = (uintptr_t) __builtin_frame_address(0);
+	return ALIGN_DOWN(sp - 1, STACK_SIZE);
 }
+
+NO_TRACE static inline void current_set(void *current)
+{
+	*((void **) get_stack_base()) = current;
+}
+
+NO_TRACE static inline void *current_get(void)
+{
+	return *((void **) get_stack_base());
+}
+
 
 NO_TRACE static inline void cpu_sleep(void)
 {

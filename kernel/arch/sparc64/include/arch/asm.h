@@ -385,20 +385,13 @@ NO_TRACE static inline bool interrupts_disabled(void)
  *
  * Return the base address of the current stack.
  * The stack is assumed to be STACK_SIZE bytes long.
- * The stack must start on page boundary.
+ * The stack must be aligned to STACK_SIZE.
  *
  */
 NO_TRACE static inline uintptr_t get_stack_base(void)
 {
-	uintptr_t unbiased_sp;
-
-	asm volatile (
-	    "add %%sp, %[stack_bias], %[unbiased_sp]\n"
-	    : [unbiased_sp] "=r" (unbiased_sp)
-	    : [stack_bias] "i" (STACK_BIAS)
-	);
-
-	return ALIGN_DOWN(unbiased_sp, STACK_SIZE);
+	uintptr_t sp = (uintptr_t) __builtin_frame_address(0);
+	return ALIGN_DOWN(sp - 1, STACK_SIZE);
 }
 
 /** Read Version Register.

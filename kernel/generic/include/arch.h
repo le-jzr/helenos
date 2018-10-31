@@ -42,7 +42,7 @@
  * The current_t structure holds pointers to various parts of the current
  * execution state, like running task, thread, address space, etc.
  */
-#define CURRENT  ((current_t * )(get_stack_base()))
+#define CURRENT  ((current_t *) get_current())
 
 #define MAGIC                UINT32_C(0xfacefeed)
 

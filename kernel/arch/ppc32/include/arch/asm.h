@@ -40,6 +40,7 @@
 #include <arch/msr.h>
 #include <arch/mm/asid.h>
 #include <trace.h>
+#include <align.h>
 
 NO_TRACE static inline uint32_t msr_read(void)
 {
@@ -166,20 +167,13 @@ NO_TRACE static inline bool interrupts_disabled(void)
  *
  * Return the base address of the current stack.
  * The stack is assumed to be STACK_SIZE bytes long.
- * The stack must start on page boundary.
+ * The stack must be aligned to STACK_SIZE.
  *
  */
 NO_TRACE static inline uintptr_t get_stack_base(void)
 {
-	uintptr_t base;
-
-	asm volatile (
-	    "and %[base], %%sp, %[mask]\n"
-	    : [base] "=r" (base)
-	    : [mask] "r" (~(STACK_SIZE - 1))
-	);
-
-	return base;
+	uintptr_t sp = (uintptr_t) __builtin_frame_address(0);
+	return ALIGN_DOWN(sp - 1, STACK_SIZE);
 }
 
 NO_TRACE static inline void cpu_sleep(void)
