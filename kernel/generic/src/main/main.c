@@ -212,8 +212,10 @@ _NO_TRACE void main_bsp(void)
  */
 void main_bsp_separated_stack(void)
 {
-	/* Keep this the first thing. */
-	current_initialize(CURRENT);
+	/* Temporary structure until CPU is initialized. */
+	current_t tmp_current;
+	current_initialize(&tmp_current);
+	current_set(&tmp_current);
 
 	version_print();
 
@@ -269,6 +271,10 @@ void main_bsp_separated_stack(void)
 	cpu_init();
 	calibrate_delay_loop();
 	ARCH_OP(post_cpu_init);
+
+	/* Move CURRENT to cpu_t. */
+	CPU->current = tmp_current;
+	current_set(&CPU->current);
 
 	clock_counter_init();
 	timeout_init();
@@ -339,10 +345,10 @@ void main_ap(void)
 	 */
 	config.cpu_active++;
 
-	/*
-	 * The CURRENT structure is well defined because ctx.sp is used as stack.
-	 */
-	current_initialize(CURRENT);
+	/* Temporary structure until CPU is initialized. */
+	current_t tmp_current;
+	current_initialize(&tmp_current);
+	current_set(&tmp_current);
 
 	ARCH_OP(pre_mm_init);
 	frame_init();
@@ -354,7 +360,12 @@ void main_ap(void)
 	calibrate_delay_loop();
 	ARCH_OP(post_cpu_init);
 
-	current_copy(CURRENT, (current_t *) CPU->stack);
+	/* Move CURRENT to cpu_t. */
+	CPU->current = tmp_current;
+	current_set(&CPU->current);
+
+	// TODO: remove
+	current_copy(CURRENT, (current_t **) CPU->stack);
 
 	/*
 	 * If we woke kmp up before we left the kernel stack, we could
