@@ -110,6 +110,11 @@ typedef struct cpu {
 	 * Stack used by scheduler when there is no running thread.
 	 */
 	uint8_t *stack;
+
+	/**
+	 * CPU-local pointers to current thread, task, address space, etc.
+	 */
+	current_t current;
 } cpu_t;
 
 extern cpu_t *cpus;

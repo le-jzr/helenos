@@ -42,7 +42,7 @@
  * The current_t structure holds pointers to various parts of the current
  * execution state, like running task, thread, address space, etc.
  */
-#define CURRENT  ((current_t *) get_current())
+#define CURRENT  (current_get())
 
 #define MAGIC                UINT32_C(0xfacefeed)
 
@@ -93,8 +93,18 @@ extern arch_ops_t *arch_ops;
 
 #define ARCH_OP(op)	ARCH_STRUCT_OP(arch_ops, op)
 
+static inline void current_set(current_t *current)
+{
+	*((current_t **) get_current()) = current;
+}
+
+static inline current_t *current_get(void)
+{
+	return *((current_t **) get_current());
+}
+
 extern void current_initialize(current_t *);
-extern void current_copy(current_t *, current_t *);
+extern void current_copy(current_t *, current_t **);
 
 extern void calibrate_delay_loop(void);
 

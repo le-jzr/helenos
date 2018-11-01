@@ -367,7 +367,7 @@ void scheduler(void)
 	 * from THREAD's or CPU's stack.
 	 *
 	 */
-	current_copy(CURRENT, (current_t *) CPU->stack);
+	current_copy(CURRENT, (current_t **) CPU->stack);
 
 	/*
 	 * We may not keep the old stack.
@@ -547,7 +547,7 @@ void scheduler_separated_stack(void)
 	 * Copy the knowledge of CPU, TASK, THREAD and preemption counter to
 	 * thread's stack.
 	 */
-	current_copy(CURRENT, (current_t *) THREAD->kstack);
+	current_copy(CURRENT, (current_t **) THREAD->kstack);
 
 	context_restore(&THREAD->saved_context);
 
