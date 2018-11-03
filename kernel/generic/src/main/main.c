@@ -368,9 +368,7 @@ void main_ap(void)
 	/* Move CURRENT to cpu_t. */
 	CPU->current = tmp_current;
 	current_set(&CPU->current);
-
-	// TODO: remove
-	current_copy(CURRENT, (current_t **) CPU->stack);
+	current_set_stack(CPU->stack, STACK_SIZE, CURRENT);
 
 	/*
 	 * If we woke kmp up before we left the kernel stack, we could

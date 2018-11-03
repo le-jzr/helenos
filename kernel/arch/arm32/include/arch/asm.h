@@ -107,6 +107,22 @@ NO_TRACE static inline uintptr_t get_stack_base(void)
 	return ALIGN_DOWN(sp - 1, STACK_SIZE);
 }
 
+NO_TRACE static inline void current_set(void *current)
+{
+	*((void **) get_stack_base()) = current;
+}
+
+NO_TRACE static inline void *current_get(void)
+{
+	return *((void **) get_stack_base());
+}
+
+/* Store the current_t pointer for some other stack. */
+static inline void current_set_stack(void *stack, size_t size, void *current)
+{
+	*((void **) stack) = current;
+}
+
 extern void cpu_halt(void) __attribute__((noreturn));
 extern void asm_delay_loop(uint32_t t);
 extern void userspace_asm(uintptr_t ustack, uintptr_t uspace_uarg,
