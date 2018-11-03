@@ -61,19 +61,5 @@ void current_initialize(current_t *the)
 	the->magic = MAGIC;
 }
 
-/** Copy CURRENT structure
- *
- * Copy the source CURRENT structure to the destination CURRENT structure.
- *
- * @param src The source CURRENT structure.
- * @param dst The destination stack.
- *
- */
-_NO_TRACE void current_copy(current_t *src, current_t **stack)
-{
-	assert(src->magic == MAGIC);
-	*stack = src;
-}
-
 /** @}
  */
