@@ -57,7 +57,7 @@ extern void *__gp;
 		(c)->bsp = ((uintptr_t) stack) + ALIGN_UP((size / 2), REGISTER_STACK_ALIGNMENT); \
 		(c)->ar_pfs &= PFM_MASK; \
 		(c)->ar_fpsr = FPSR_TRAPS_ALL | FPSR_SF1_CTRL; \
-		(c)->sp = ((uintptr_t) stack) + ALIGN_UP((size / 2), STACK_ALIGNMENT) - SP_DELTA; \
+		(c)->sp = ((uintptr_t) stack) + ALIGN_DOWN((size / 2), STACK_ALIGNMENT) - SP_DELTA; \
 		(c)->r1 = (uintptr_t) &__gp; \
 	} while (0)
 

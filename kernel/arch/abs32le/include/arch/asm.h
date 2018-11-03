@@ -187,17 +187,27 @@ NO_TRACE static inline bool interrupts_disabled(void)
 	return false;
 }
 
+/** Return base address of current stack.
+ *
+ * Return the base address of the current stack.
+ * The stack is assumed to be STACK_SIZE bytes long.
+ * The stack must be aligned to STACK_SIZE.
+ *
+ */
 NO_TRACE static inline uintptr_t get_stack_base(void)
 {
-	/*
-	 * On real hardware this returns the address of the bottom
-	 * of the current CPU stack. The current_t structure is stored
-	 * on the bottom of stack and this is used to identify the
-	 * current CPU, current task, current thread and current
-	 * address space.
-	 */
+	uintptr_t sp = (uintptr_t) __builtin_frame_address(0);
+	return ALIGN_DOWN(sp - 1, STACK_SIZE);
+}
 
-	return 0;
+NO_TRACE static inline void current_set(void *current)
+{
+	*((void **) get_stack_base()) = current;
+}
+
+NO_TRACE static inline void *current_get(void)
+{
+	return *((void **) get_stack_base());
 }
 
 #endif

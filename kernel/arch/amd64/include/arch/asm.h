@@ -43,29 +43,35 @@
 
 #define IO_SPACE_BOUNDARY	((void *) (64 * 1024))
 
-/** Return base address of current stack.
- *
+/**
  * Return the base address of the current stack.
- * The stack is assumed to be STACK_SIZE bytes long.
  * The stack must be aligned to STACK_SIZE.
  *
  */
 NO_TRACE static inline uintptr_t get_stack_base(void)
 {
+	// TODO: We can remove this if we use kseg instead of stack.
 	uintptr_t sp = (uintptr_t) __builtin_frame_address(0);
 	return ALIGN_DOWN(sp - 1, STACK_SIZE);
 }
 
+/* Store the current_t pointer to the current stack. */
 NO_TRACE static inline void current_set(void *current)
 {
 	*((void **) get_stack_base()) = current;
 }
 
+/* Retrieve the current_t pointer from the current stack. */
 NO_TRACE static inline void *current_get(void)
 {
 	return *((void **) get_stack_base());
 }
 
+/* Store the current_t pointer for some other stack. */
+static inline void current_set_stack(void *stack, size_t size, void *current)
+{
+	*((void **) stack) = current;
+}
 
 NO_TRACE static inline void cpu_sleep(void)
 {

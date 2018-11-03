@@ -358,7 +358,7 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	context_set(&thread->saved_context, FADDR(cushion),
 	    (uintptr_t) thread->kstack, STACK_SIZE);
 
-	*((current_t **) thread->kstack) = NULL;
+	current_set_stack(thread->kstack, STACK_SIZE, NULL);
 
 	ipl_t ipl = interrupts_disable();
 	thread->saved_context.ipl = interrupts_read();
