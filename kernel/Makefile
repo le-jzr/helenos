@@ -110,6 +110,10 @@ ifeq ($(CONFIG_UBSAN_KERNEL),y)
 	COMMON_CFLAGS += -fsanitize=undefined
 endif
 
+COMMON_CFLAGS += -fsanitize=kernel-address --param asan-instrumentation-with-call-threshold=0
+#COMMON_CFLAGS += --param asan-globals=1 --param asan-stack=1
+COMMON_CFLAGS += -fsanitize=undefined -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope -fstack-reuse=none -fverbose-asm -fasan-shadow-offset=0
+
 ifeq ($(CONFIG_LTO),y)
 	COMMON_CFLAGS += -flto
 endif
@@ -211,6 +215,7 @@ GENERIC_SOURCES = \
 	generic/src/lib/elf.c \
 	generic/src/lib/ra.c \
 	generic/src/lib/rd.c \
+	generic/src/lib/asan.c \
 	generic/src/lib/ubsan.c \
 	generic/src/printf/printf_core.c \
 	generic/src/printf/printf.c \

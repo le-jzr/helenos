@@ -40,6 +40,8 @@
 #include <mm/as.h>
 #include <stdarg.h>
 #include <interrupt.h>
+#include <arch/mm/km.h>
+#include <asan.h>
 
 #define BANNER_LEFT   "######>"
 #define BANNER_RIGHT  "<######"
@@ -79,6 +81,14 @@ void panic_common(panic_category_t cat, istate_t *istate, int access,
 			printf("referencing");
 		printf(" address %p. %s\n", (void *) address,
 		    BANNER_RIGHT);
+
+		if (address >= KM_SHADOW_START &&
+		    address - KM_SHADOW_START < KM_SHADOW_SIZE) {
+			printf("NOTE: This is shadow memory location"
+			    " representing address %p\n",
+			    (void *) asan_shadow_to_kernel(address));
+		}
+
 		if (fmt) {
 			vprintf(fmt, args);
 			printf("\n");

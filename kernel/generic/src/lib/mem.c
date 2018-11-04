@@ -42,6 +42,7 @@
 
 #include <mem.h>
 #include <typedefs.h>
+#include <asan.h>
 
 /** Fill block of memory.
  *
@@ -67,10 +68,16 @@ void memsetb(void *dst, size_t cnt, uint8_t val)
  * @param val Value to fill.
  *
  */
+ASAN_DISABLE
 void memsetw(void *dst, size_t cnt, uint16_t val)
 {
+	ASAN_ALIGNED(dst, 2);
+	ASAN_STORE(dst, cnt * 2);
+
+	typedef uint16_t a16_t __attribute__((may_alias));
+
 	size_t i;
-	uint16_t *ptr = (uint16_t *) dst;
+	a16_t *ptr = (a16_t *) dst;
 
 	for (i = 0; i < cnt; i++)
 		ptr[i] = val;
@@ -88,8 +95,12 @@ void memsetw(void *dst, size_t cnt, uint16_t val)
  * @return Destination address.
  *
  */
+ASAN_DISABLE
 void *memmove(void *dst, const void *src, size_t cnt)
 {
+	ASAN_LOAD(src, cnt);
+	ASAN_STORE(dst, cnt);
+
 	/* Nothing to do? */
 	if (src == dst)
 		return dst;

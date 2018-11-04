@@ -40,6 +40,8 @@
 #define MEMCPY_SRC   %rsi
 #define MEMCPY_SIZE  %rdx
 
+// FIXME: ASAN
+
 /**
  * Copy memory from/to userspace.
  *

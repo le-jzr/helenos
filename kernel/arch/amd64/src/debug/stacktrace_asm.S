@@ -30,6 +30,8 @@
 
 .text
 
+// FIXME: Use GCC intrinsic instead.
+
 FUNCTION_BEGIN(frame_pointer_get)
 	movq %rbp, %rax
 	ret

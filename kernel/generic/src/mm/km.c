@@ -37,6 +37,8 @@
 
 #include <mm/km.h>
 #include <arch/mm/km.h>
+#include <genarch/mm/page_ht.h>
+#include <genarch/mm/page_pt.h>
 #include <assert.h>
 #include <mm/page.h>
 #include <mm/frame.h>
@@ -281,6 +283,70 @@ void km_temporary_page_put(uintptr_t page)
 
 	if (km_is_non_identity(page))
 		km_unmap_deferred(page);
+}
+
+void km_shadow_poke_one(uintptr_t addr, uint32_t fill)
+{
+	pte_t pte;
+	bool found;
+	uintptr_t frame;
+
+	page_table_lock(AS_KERNEL, true);
+	found = page_mapping_find(AS_KERNEL, addr, false, &pte);
+	found = found && PTE_VALID(&pte) && PTE_PRESENT(&pte);
+	page_table_unlock(AS_KERNEL, true);
+
+	if (found)
+		return;
+
+	frame = frame_alloc(1, FRAME_HIGHMEM | FRAME_ATOMIC, 0);
+	if (!frame)
+		frame = frame_alloc(1, FRAME_ATOMIC, 0);
+	if (!frame)
+		panic("Can't allocate more frames for shadow memory.");
+
+	page_table_lock(AS_KERNEL, true);
+
+	/* Need to recheck to avoid races. */
+	found = page_mapping_find(AS_KERNEL, addr, false, &pte);
+	found = found && PTE_VALID(&pte) && PTE_PRESENT(&pte);
+
+	if (!found)
+		page_mapping_insert(AS_KERNEL, addr, frame,
+		    PAGE_READ | PAGE_WRITE | PAGE_CACHEABLE);
+
+	page_table_unlock(AS_KERNEL, true);
+
+	if (found) {
+		frame_free(frame, 1);
+		return;
+	}
+
+	typedef uint64_t a64_t __attribute__((may_alias));
+	a64_t *p = (a64_t *) addr;
+	uint64_t fill64 = ((uint64_t) fill) << 32 | fill;
+
+	for (int i = 0; i < PAGE_SIZE / 8; i++)
+		p[i] = fill64;
+}
+
+/**
+ * Poke a range of addresses in the shadow memory.
+ * This means that if any pages in the range haven't already been mapped,
+ * they are allocated physical frames and filled with the constant given.
+ * Once mapped, the memory is never unmapped.
+ */
+void km_shadow_poke(uintptr_t base, uintptr_t size, uint32_t fill)
+{
+	assert(base >= KM_SHADOW_START);
+	assert(size <= KM_SHADOW_SIZE - (base - KM_SHADOW_START));
+
+	uintptr_t abase = ALIGN_DOWN(base, PAGE_SIZE);
+	uintptr_t asize = ALIGN_UP(size + (base - abase), PAGE_SIZE);
+
+	for (uintptr_t addr = abase; addr - abase < asize; addr += PAGE_SIZE) {
+		km_shadow_poke_one(addr, fill);
+	}
 }
 
 /** @}

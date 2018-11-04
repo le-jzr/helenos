@@ -93,6 +93,7 @@
 #include <sysinfo/stats.h>
 #include <lib/ra.h>
 #include <cap/cap.h>
+#include <asan.h>
 
 /*
  * Ensure [u]int*_t types are of correct size.
@@ -220,6 +221,8 @@ void main_bsp_separated_stack(void)
 	current_initialize(&tmp_current);
 	current_set(&tmp_current);
 
+	asan_enable();
+
 	version_print();
 
 	LOG("\nconfig.base=%p config.kernel_size=%zu"
@@ -247,6 +250,7 @@ void main_bsp_separated_stack(void)
 	 */
 	ARCH_OP(pre_mm_init);
 	km_identity_init();
+	asan_disable_lowmem();
 	frame_init();
 	slab_cache_init();
 	ra_init();
@@ -261,6 +265,9 @@ void main_bsp_separated_stack(void)
 	reserve_init();
 	ARCH_OP(pre_smp_init);
 	smp_init();
+
+	/* Once MM is initialized, we can initialize and enable shadow memory. */
+	asan_init_shadow();
 
 	/* Slab must be initialized after we know the number of processors. */
 	slab_enable_cpucache();
