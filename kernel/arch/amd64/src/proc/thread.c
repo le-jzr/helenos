@@ -47,7 +47,7 @@ errno_t thread_create_arch(thread_t *thread, thread_flags_t flags)
 	 * Kernel RSP can be precalculated at thread creation time.
 	 */
 	thread->arch.kstack_rsp =
-	    (uintptr_t) &thread->kstack[PAGE_SIZE - sizeof(istate_t)];
+	    (uintptr_t) &thread->kstack[STACK_SIZE - SP_DELTA - sizeof(istate_t)];
 	return EOK;
 }
 

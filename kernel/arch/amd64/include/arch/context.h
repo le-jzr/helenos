@@ -44,6 +44,8 @@
  */
 #define SP_DELTA  16
 
+// FIXME: no idea why SP_DELTA must be > 0
+
 #define context_set(c, _pc, stack, size) \
 	do { \
 		(c)->pc = (uintptr_t) (_pc); \
