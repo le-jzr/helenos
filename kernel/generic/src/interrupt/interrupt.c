@@ -218,11 +218,12 @@ NO_TRACE void fault_if_from_uspace(istate_t *istate, const char *fmt, ...)
  */
 istate_t *istate_get(thread_t *thread)
 {
+	// FIXME: Spooky long-distance address magic.
 	/*
 	 * The istate structure should be right at the bottom of the kernel
 	 * memory stack.
 	 */
-	return (istate_t *) &thread->kstack[MEM_STACK_SIZE - sizeof(istate_t)];
+	return (istate_t *) &thread->kstack[MEM_STACK_SIZE - SP_DELTA - sizeof(istate_t)];
 }
 
 #ifdef CONFIG_KCONSOLE

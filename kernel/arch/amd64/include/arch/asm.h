@@ -64,6 +64,8 @@ NO_TRACE static inline void current_set(void *current)
 /* Retrieve the current_t pointer from the current stack. */
 NO_TRACE static inline void *current_get(void)
 {
+	__builtin_memset((void *) (get_stack_base() + STACK_SIZE - SP_DELTA), 0, SP_DELTA);
+
 	return *((void **) get_stack_base());
 }
 
