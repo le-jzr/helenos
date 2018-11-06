@@ -28,9 +28,9 @@ SECTIONS {
 		ktext_end = .;
 
 		kdata_start = .;
+		*(.rodata .rodata.*);  /* read only data */
+		krodata_end = .;
 		*(.data);              /* initialized data */
-		*(.rodata .rodata.*);  /* string literals */
-		*(COMMON);      /* global variables */
 
 		/* XXX: bss can't be omitted from the ELF image. */
 		*(.bss);        /* uninitialized static variables */
