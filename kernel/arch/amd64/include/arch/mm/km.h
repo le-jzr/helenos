@@ -43,8 +43,23 @@
 #define KM_AMD64_IDENTITY_START      UINT64_C(0xffffffff80000000)
 #define KM_AMD64_IDENTITY_SIZE       UINT64_C(0x0000000080000000)
 
-#define KM_AMD64_NON_IDENTITY_START  UINT64_C(0xffff800000000000)
-#define KM_AMD64_NON_IDENTITY_SIZE   UINT64_C(0x00007fff80000000)
+/* Shadow memory requires 1/8 of the kernel address space. */
+#define KM_SHADOW_START        UINT64_C(0xffff800000000000)
+#define KM_SHADOW_SIZE         UINT64_C(0x0000100000000000)
+
+#define KM_AMD64_NON_IDENTITY_START  UINT64_C(0xffff900000000000)
+#define KM_AMD64_NON_IDENTITY_SIZE   UINT64_C(0x00006fff80000000)
+
+_Static_assert(
+    KM_SHADOW_START + KM_SHADOW_SIZE == KM_AMD64_NON_IDENTITY_START,
+    "Non-identity memory doesn't start at the end of shadow memory."
+);
+
+_Static_assert(
+    KM_AMD64_NON_IDENTITY_START + KM_AMD64_NON_IDENTITY_SIZE ==
+        KM_AMD64_IDENTITY_START,
+    "Identity memory doesn't start at the end of non-identity memory."
+);
 
 #endif /* MEMORY_MODEL_kernel */
 

@@ -56,6 +56,9 @@ extern void km_unmap(uintptr_t, size_t);
 extern uintptr_t km_temporary_page_get(uintptr_t *, frame_flags_t);
 extern void km_temporary_page_put(uintptr_t);
 
+extern void km_shadow_poke_one(uintptr_t addr, uint32_t fill);
+extern void km_shadow_poke(uintptr_t base, uintptr_t size, uint32_t fill);
+
 #endif
 
 /** @}

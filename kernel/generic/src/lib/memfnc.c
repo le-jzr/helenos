@@ -41,6 +41,7 @@
 
 #include <lib/memfnc.h>
 #include <typedefs.h>
+#include <asan.h>
 
 /** Fill block of memory.
  *
@@ -53,8 +54,11 @@
  * @return Destination address.
  *
  */
+ASAN_DISABLE
 void *memset(void *dst, int val, size_t cnt)
 {
+	ASAN_STORE(dst, cnt);
+
 	uint8_t *dp = (uint8_t *) dst;
 
 	while (cnt-- != 0)
@@ -75,8 +79,12 @@ void *memset(void *dst, int val, size_t cnt)
  * @return Destination address.
  *
  */
+ASAN_DISABLE
 void *memcpy(void *dst, const void *src, size_t cnt)
 {
+	ASAN_LOAD(src, cnt);
+	ASAN_STORE(dst, cnt);
+
 	uint8_t *dp = (uint8_t *) dst;
 	const uint8_t *sp = (uint8_t *) src;
 
@@ -97,8 +105,12 @@ void *memcpy(void *dst, const void *src, size_t cnt)
  *	   difference of the first pair of different bytes.
  *
  */
+ASAN_DISABLE
 int memcmp(const void *s1, const void *s2, size_t len)
 {
+	ASAN_LOAD(s1, len);
+	ASAN_LOAD(s2, len);
+
 	uint8_t *u1 = (uint8_t *) s1;
 	uint8_t *u2 = (uint8_t *) s2;
 	size_t i;
