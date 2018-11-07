@@ -51,6 +51,7 @@ ARCH_SOURCES = \
 	arch/$(KARCH)/src/boot/multiboot.S \
 	arch/$(KARCH)/src/boot/multiboot2.S \
 	arch/$(KARCH)/src/boot/memmap.c \
+	arch/$(KARCH)/src/debug/early_putwchar.c \
 	arch/$(KARCH)/src/debug/stacktrace.c \
 	arch/$(KARCH)/src/debug/stacktrace_asm.S \
 	arch/$(KARCH)/src/pm.c \
