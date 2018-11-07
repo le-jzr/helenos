@@ -110,9 +110,9 @@ ifeq ($(CONFIG_UBSAN_KERNEL),y)
 	COMMON_CFLAGS += -fsanitize=undefined
 endif
 
-COMMON_CFLAGS += -fsanitize=kernel-address --param asan-instrumentation-with-call-threshold=0
+COMMON_CFLAGS += -fsanitize=kernel-address --param asan-instrumentation-with-call-threshold=0 -fsanitize=pointer-compare -fsanitize=pointer-subtract -fasan-shadow-offset=0
 #COMMON_CFLAGS += --param asan-globals=1 --param asan-stack=1
-COMMON_CFLAGS += -fsanitize=undefined -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope -fstack-reuse=none -fverbose-asm -fasan-shadow-offset=0
+COMMON_CFLAGS += -fsanitize=undefined -fsanitize-address-use-after-scope -fstack-reuse=none -fverbose-asm
 
 ifeq ($(CONFIG_LTO),y)
 	COMMON_CFLAGS += -flto
