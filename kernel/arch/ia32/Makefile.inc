@@ -63,6 +63,7 @@ FPU_NO_CFLAGS = -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -mno-3dnow
 
 ARCH_SOURCES = \
 	arch/$(KARCH)/src/context.S \
+	arch/$(KARCH)/src/debug/early_putwchar.c \
 	arch/$(KARCH)/src/debug/stacktrace.c \
 	arch/$(KARCH)/src/debug/stacktrace_asm.S \
 	arch/$(KARCH)/src/delay.S \
