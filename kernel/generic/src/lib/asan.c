@@ -207,10 +207,8 @@ static inline void _asan_access(uintptr_t addr, uintptr_t size)
 	assert(addr + size > addr);
 
 	if ((intptr_t) addr >= 0) {
-		if (!_lowmem_disable) {
-			_asan_disable = false;
+		if (!_lowmem_disable)
 			return;
-		}
 
 		_asan_error("Kernel memory access to lower half of memory: "
 		    "%p, %zu\n", (void *) addr, size);

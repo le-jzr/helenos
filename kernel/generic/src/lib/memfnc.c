@@ -54,7 +54,7 @@
  * @return Destination address.
  *
  */
-ASAN_DISABLE
+ASAN_CUSTOM
 void *memset(void *dst, int val, size_t cnt)
 {
 	ASAN_STORE(dst, cnt);
@@ -79,7 +79,7 @@ void *memset(void *dst, int val, size_t cnt)
  * @return Destination address.
  *
  */
-ASAN_DISABLE
+ASAN_CUSTOM
 void *memcpy(void *dst, const void *src, size_t cnt)
 {
 	ASAN_LOAD(src, cnt);
@@ -105,7 +105,7 @@ void *memcpy(void *dst, const void *src, size_t cnt)
  *	   difference of the first pair of different bytes.
  *
  */
-ASAN_DISABLE
+ASAN_CUSTOM
 int memcmp(const void *s1, const void *s2, size_t len)
 {
 	ASAN_LOAD(s1, len);

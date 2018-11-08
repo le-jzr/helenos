@@ -953,14 +953,7 @@ loop:
 	if (pzone)
 		*pzone = znum;
 
-	uintptr_t addr = PFN2ADDR(pfn);
-
-	if (flags & FRAME_LOWMEM) {
-		/* Mark the frames as accessible (but not initialized).*/
-		asan_mark_rw(PA2KA(addr), count * FRAME_SIZE, false);
-	}
-
-	return addr;
+	return PFN2ADDR(pfn);
 }
 
 uintptr_t frame_alloc(size_t count, frame_flags_t flags, uintptr_t constraint)
@@ -982,12 +975,6 @@ uintptr_t frame_alloc(size_t count, frame_flags_t flags, uintptr_t constraint)
 void frame_free_generic(uintptr_t start, size_t count, frame_flags_t flags)
 {
 	size_t freed = 0;
-
-	/* If the frames are accesible via identity mapping, mark them freed. */
-	if (start < config.identity_size) {
-//		size_t size = min(count * PAGE_SIZE, config.identity_size - start);
-//		asan_mark_freed_frames(PA2KA(start), size);
-	}
 
 	irq_spinlock_lock(&zones.lock, true);
 

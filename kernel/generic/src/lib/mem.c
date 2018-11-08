@@ -68,7 +68,7 @@ void memsetb(void *dst, size_t cnt, uint8_t val)
  * @param val Value to fill.
  *
  */
-ASAN_DISABLE
+ASAN_CUSTOM
 void memsetw(void *dst, size_t cnt, uint16_t val)
 {
 	ASAN_ALIGNED(dst, 2);
@@ -95,7 +95,7 @@ void memsetw(void *dst, size_t cnt, uint16_t val)
  * @return Destination address.
  *
  */
-ASAN_DISABLE
+ASAN_CUSTOM
 void *memmove(void *dst, const void *src, size_t cnt)
 {
 	ASAN_LOAD(src, cnt);

@@ -115,6 +115,7 @@
 #include <bitops.h>
 #include <macros.h>
 #include <cpu.h>
+#include <asan.h>
 
 IRQ_SPINLOCK_STATIC_INITIALIZE(slab_cache_lock);
 static LIST_INITIALIZE(slab_cache_list);
@@ -192,6 +193,7 @@ NO_TRACE static slab_t *slab_space_alloc(slab_cache_t *cache,
 		return NULL;
 
 	void *data = (void *) PA2KA(data_phys);
+	asan_mark_rw((uintptr_t) data, cache->frames * PAGE_SIZE, false);
 
 	slab_t *slab;
 	size_t fsize;

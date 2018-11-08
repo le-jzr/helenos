@@ -42,12 +42,12 @@ void __stack_chk_fail(void);
 #endif
 
 #if defined(__SANITIZE_ADDRESS__) && !defined(ASAN_SANITIZE_ALL)
-#define ASAN_DISABLE __attribute__((no_sanitize_address))
+#define ASAN_CUSTOM __attribute__((no_sanitize_address))
 #define ASAN_LOAD(addr, size) __asan_loadN_noabort((uintptr_t) (addr), (size))
 #define ASAN_STORE(addr, size) __asan_storeN_noabort((uintptr_t) (addr), (size))
 #define ASAN_ALIGNED(addr, align) asan_check_alignment((uintptr_t) (addr), (align))
 #else
-#define ASAN_DISABLE
+#define ASAN_CUSTOM
 #define ASAN_LOAD(addr, size)
 #define ASAN_STORE(addr, size)
 #define ASAN_ALIGNED(addr, align)

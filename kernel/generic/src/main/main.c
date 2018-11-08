@@ -221,7 +221,7 @@ void main_bsp_separated_stack(void)
 	current_initialize(&tmp_current);
 	current_set(&tmp_current);
 
-//	asan_enable();
+	asan_enable();
 
 	version_print();
 
@@ -250,7 +250,7 @@ void main_bsp_separated_stack(void)
 	 */
 	ARCH_OP(pre_mm_init);
 	km_identity_init();
-//	asan_disable_lowmem();
+	asan_disable_lowmem();
 	frame_init();
 	slab_cache_init();
 	ra_init();
@@ -267,7 +267,7 @@ void main_bsp_separated_stack(void)
 	smp_init();
 
 	/* Once MM is initialized, we can initialize and enable shadow memory. */
-//	asan_init_shadow();
+	asan_init_shadow();
 
 	/* Slab must be initialized after we know the number of processors. */
 	slab_enable_cpucache();
