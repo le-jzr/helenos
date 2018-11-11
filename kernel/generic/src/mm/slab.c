@@ -300,11 +300,11 @@ static int slab_odict_cmp(void *a, void *b)
  *
  */
 NO_TRACE static size_t slab_obj_destroy(slab_cache_t *cache, void *obj,
-    slab_t *slab)
+    slab_t *slab, bool run_destructor)
 {
 	size_t freed = 0;
 
-	if (cache->destructor)
+	if (run_destructor && cache->destructor)
 		freed = cache->destructor(obj);
 
 	irq_spinlock_lock(&cache->slablock, true);
@@ -386,8 +386,7 @@ NO_TRACE static void *slab_obj_create(slab_cache_t *cache, unsigned int flags)
 
 	if ((cache->constructor) && (cache->constructor(obj, flags) != EOK)) {
 		/* Bad, bad, construction failed */
-		// FIXME: don't run destructor
-		slab_obj_destroy(cache, obj, slab);
+		slab_obj_destroy(cache, obj, slab, false);
 		return NULL;
 	}
 
@@ -451,7 +450,7 @@ NO_TRACE static size_t magazine_destroy(slab_cache_t *cache,
 	size_t frames = 0;
 
 	for (i = 0; i < mag->busy; i++) {
-		frames += slab_obj_destroy(cache, mag->objs[i], NULL);
+		frames += slab_obj_destroy(cache, mag->objs[i], NULL, true);
 		atomic_dec(&cache->cached_objs);
 	}
 
@@ -847,7 +846,7 @@ void slab_free(slab_cache_t *cache, void *obj)
 
 	if ((cache->flags & SLAB_CACHE_NOMAGAZINE) ||
 	    (magazine_obj_put(cache, obj)))
-		slab_obj_destroy(cache, obj, NULL);
+		slab_obj_destroy(cache, obj, NULL, true);
 
 	interrupts_restore(ipl);
 	atomic_dec(&cache->allocated_objs);
