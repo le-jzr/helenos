@@ -168,7 +168,7 @@ NO_TRACE static errno_t physmem_map(uintptr_t phys, size_t pages,
 	 */
 
 	irq_spinlock_lock(&zones.lock, true);
-	size_t znum = find_zone(ADDR2PFN(phys), pages, 0);
+	size_t znum = find_zone(ADDR2PFN(phys), pages);
 
 	if (znum == (size_t) -1) {
 		/*

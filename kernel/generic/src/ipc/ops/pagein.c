@@ -78,7 +78,7 @@ static errno_t pagein_answer_preprocess(call_t *answer, ipc_data_t *olddata)
 		if (found & PTE_PRESENT(&pte)) {
 			frame = PTE_GET_FRAME(&pte);
 			pfn_t pfn = ADDR2PFN(frame);
-			if (find_zone(pfn, 1, 0) != (size_t) -1) {
+			if (find_zone(pfn, 1) != (size_t) -1) {
 				/*
 				 * The frame is in physical memory managed by
 				 * the frame allocator.

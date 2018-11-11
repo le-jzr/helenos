@@ -166,7 +166,7 @@ void user_frame_free(as_area_t *area, uintptr_t page, uintptr_t frame)
 	assert(mutex_locked(&area->lock));
 
 	pfn_t pfn = ADDR2PFN(frame);
-	if (find_zone(pfn, 1, 0) != (size_t) -1) {
+	if (find_zone(pfn, 1) != (size_t) -1) {
 		frame_free(frame, 1);
 	} else {
 		/* Nothing to do */

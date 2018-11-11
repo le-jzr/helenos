@@ -183,27 +183,17 @@ NO_TRACE size_t frame_total_free_get(void)
  *
  * @param frame Frame number contained in zone.
  * @param count Number of frames to look for.
- * @param hint  Used as zone hint.
  *
  * @return Zone index or -1 if not found.
  *
  */
-NO_TRACE size_t find_zone(pfn_t frame, size_t count, size_t hint)
+NO_TRACE size_t find_zone(pfn_t frame, size_t count)
 {
-	if (hint >= zones.count)
-		hint = 0;
-
-	size_t i = hint;
-	do {
+	for (size_t i = 0; i < zones.count; i++) {
 		if ((zones.info[i].base <= frame) &&
 		    (zones.info[i].base + zones.info[i].count >= frame + count))
 			return i;
-
-		i++;
-		if (i >= zones.count)
-			i = 0;
-
-	} while (i != hint);
+	}
 
 	return (size_t) -1;
 }
@@ -231,18 +221,15 @@ NO_TRACE static bool zone_can_alloc(zone_t *zone, size_t count,
  * @param flags      Required flags of the zone.
  * @param constraint Indication of bits that cannot be set in the
  *                   physical frame number of the first allocated frame.
- * @param hint       Preferred zone.
  *
  * @return Zone that can allocate specified number of frames.
  * @return -1 if no zone can satisfy the request.
  *
  */
 NO_TRACE static size_t find_free_zone_all(size_t count, zone_flags_t flags,
-    pfn_t constraint, size_t hint)
+    pfn_t constraint)
 {
-	for (size_t pos = 0; pos < zones.count; pos++) {
-		size_t i = (pos + hint) % zones.count;
-
+	for (size_t i = 0; i < zones.count; i++) {
 		/* Check whether the zone meets the search criteria. */
 		if (!ZONE_FLAGS_MATCH(zones.info[i].flags, flags))
 			continue;
@@ -277,18 +264,15 @@ NO_TRACE static bool is_high_priority(pfn_t base, size_t count)
  * @param flags      Required flags of the zone.
  * @param constraint Indication of bits that cannot be set in the
  *                   physical frame number of the first allocated frame.
- * @param hint       Preferred zone.
  *
  * @return Zone that can allocate specified number of frames.
  * @return -1 if no low-priority zone can satisfy the request.
  *
  */
 NO_TRACE static size_t find_free_zone_lowprio(size_t count, zone_flags_t flags,
-    pfn_t constraint, size_t hint)
+    pfn_t constraint)
 {
-	for (size_t pos = 0; pos < zones.count; pos++) {
-		size_t i = (pos + hint) % zones.count;
-
+	for (size_t i = 0; i < zones.count; i++) {
 		/* Skip zones containing only high-priority memory. */
 		if (is_high_priority(zones.info[i].base, zones.info[i].count))
 			continue;
@@ -314,29 +298,25 @@ NO_TRACE static size_t find_free_zone_lowprio(size_t count, zone_flags_t flags,
  * @param flags      Required flags of the target zone.
  * @param constraint Indication of bits that cannot be set in the
  *                   physical frame number of the first allocated frame.
- * @param hint       Preferred zone.
  *
  * @return Zone that can allocate specified number of frames.
  * @return -1 if no zone can satisfy the request.
  *
  */
 NO_TRACE static size_t find_free_zone(size_t count, zone_flags_t flags,
-    pfn_t constraint, size_t hint)
+    pfn_t constraint)
 {
-	if (hint >= zones.count)
-		hint = 0;
-
 	/*
 	 * Prefer zones with low-priority memory over
 	 * zones with high-priority memory.
 	 */
 
-	size_t znum = find_free_zone_lowprio(count, flags, constraint, hint);
+	size_t znum = find_free_zone_lowprio(count, flags, constraint);
 	if (znum != (size_t) -1)
 		return znum;
 
 	/* Take all zones into account */
-	return find_free_zone_all(count, flags, constraint, hint);
+	return find_free_zone_all(count, flags, constraint);
 }
 
 /******************/
@@ -782,18 +762,17 @@ size_t zone_create(pfn_t start, size_t count, pfn_t confframe,
 /* Frame functions */
 /*******************/
 
-static size_t try_find_zone(size_t count, bool lowmem,
-    pfn_t frame_constraint, size_t hint)
+static size_t try_find_zone(size_t count, bool lowmem, pfn_t frame_constraint)
 {
 	if (!lowmem) {
 		size_t znum = find_free_zone(count,
-		    ZONE_HIGHMEM | ZONE_AVAILABLE, frame_constraint, hint);
+		    ZONE_HIGHMEM | ZONE_AVAILABLE, frame_constraint);
 		if (znum != (size_t) -1)
 			return znum;
 	}
 
 	return find_free_zone(count, ZONE_LOWMEM | ZONE_AVAILABLE,
-	    frame_constraint, hint);
+	    frame_constraint);
 }
 
 /** Allocate frames of physical memory.
@@ -807,12 +786,10 @@ static size_t try_find_zone(size_t count, bool lowmem,
  * @return Physical address of the allocated frame.
  *
  */
-uintptr_t frame_alloc_generic(size_t count, frame_flags_t flags,
-    uintptr_t constraint, size_t *pzone)
+uintptr_t frame_alloc(size_t count, frame_flags_t flags, uintptr_t constraint)
 {
 	assert(count > 0);
 
-	size_t hint = pzone ? (*pzone) : 0;
 	pfn_t frame_constraint = ADDR2PFN(constraint);
 
 	/*
@@ -830,7 +807,7 @@ loop:
 	/*
 	 * First, find suitable frame zone.
 	 */
-	size_t znum = try_find_zone(count, lowmem, frame_constraint, hint);
+	size_t znum = try_find_zone(count, lowmem, frame_constraint);
 
 	/*
 	 * If no memory, reclaim some slab memory,
@@ -842,8 +819,7 @@ loop:
 		irq_spinlock_lock(&zones.lock, true);
 
 		if (freed > 0)
-			znum = try_find_zone(count, lowmem,
-			    frame_constraint, hint);
+			znum = try_find_zone(count, lowmem, frame_constraint);
 
 		if (znum == (size_t) -1) {
 			irq_spinlock_unlock(&zones.lock, true);
@@ -852,7 +828,7 @@ loop:
 
 			if (freed > 0)
 				znum = try_find_zone(count, lowmem,
-				    frame_constraint, hint);
+				    frame_constraint);
 		}
 	}
 
@@ -916,16 +892,7 @@ loop:
 	    frame_constraint) + zones.info[znum].base;
 
 	irq_spinlock_unlock(&zones.lock, true);
-
-	if (pzone)
-		*pzone = znum;
-
 	return PFN2ADDR(pfn);
-}
-
-uintptr_t frame_alloc(size_t count, frame_flags_t flags, uintptr_t constraint)
-{
-	return frame_alloc_generic(count, flags, constraint, NULL);
 }
 
 /** Free frames of physical memory.
@@ -950,7 +917,7 @@ void frame_free_generic(uintptr_t start, size_t count, frame_flags_t flags)
 		 * First, find host frame zone for addr.
 		 */
 		pfn_t pfn = ADDR2PFN(start) + i;
-		size_t znum = find_zone(pfn, 1, 0);
+		size_t znum = find_zone(pfn, 1);
 
 		assert(znum != (size_t) -1);
 
@@ -1010,7 +977,7 @@ NO_TRACE void frame_reference_add(pfn_t pfn)
 	/*
 	 * First, find host frame zone for addr.
 	 */
-	size_t znum = find_zone(pfn, 1, 0);
+	size_t znum = find_zone(pfn, 1);
 
 	assert(znum != (size_t) -1);
 
@@ -1027,7 +994,7 @@ NO_TRACE void frame_mark_unavailable(pfn_t start, size_t count)
 	irq_spinlock_lock(&zones.lock, true);
 
 	for (size_t i = 0; i < count; i++) {
-		size_t znum = find_zone(start + i, 1, 0);
+		size_t znum = find_zone(start + i, 1);
 
 		if (znum == (size_t) -1)  /* PFN not found */
 			continue;
