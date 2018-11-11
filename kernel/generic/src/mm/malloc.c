@@ -118,7 +118,8 @@ static slab_cache_t *cache_for_size(size_t size)
 
 // TODO: Expose publicly and use mem_alloc() and mem_free() instead of malloc()
 
-__attribute__((malloc))
+static void *mem_alloc(size_t, size_t) __attribute__((malloc));
+
 static void *mem_alloc(size_t size, size_t alignment)
 {
 	_check_sizes(&size, &alignment);
@@ -196,4 +197,3 @@ void *realloc(void *old_obj, size_t new_size)
 	free(old_obj);
 	return new_obj;
 }
-
