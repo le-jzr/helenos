@@ -91,7 +91,6 @@ typedef uint8_t zone_flags_t;
 
 typedef struct {
 	size_t refcount;  /**< Tracking of shared frames */
-	void *parent;     /**< If allocated by slab, this points there */
 } frame_t;
 
 typedef struct {
@@ -142,8 +141,6 @@ extern size_t frame_total_free_get(void);
 
 extern size_t find_zone(pfn_t, size_t, size_t);
 extern size_t zone_create(pfn_t, size_t, pfn_t, zone_flags_t);
-extern void *frame_get_parent(pfn_t, size_t);
-extern void frame_set_parent(pfn_t, void *, size_t);
 extern void frame_mark_unavailable(pfn_t, size_t);
 extern size_t zone_conf_size(size_t);
 extern pfn_t zone_external_conf_alloc(size_t);

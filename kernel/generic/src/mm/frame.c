@@ -81,7 +81,6 @@ static size_t mem_avail_gen = 0;  /**< Generation counter. */
 NO_TRACE static void frame_initialize(frame_t *frame)
 {
 	frame->refcount = 0;
-	frame->parent = NULL;
 }
 
 /*******************/
@@ -782,37 +781,6 @@ size_t zone_create(pfn_t start, size_t count, pfn_t confframe,
 /*******************/
 /* Frame functions */
 /*******************/
-
-/** Set parent of frame. */
-void frame_set_parent(pfn_t pfn, void *data, size_t hint)
-{
-	irq_spinlock_lock(&zones.lock, true);
-
-	size_t znum = find_zone(pfn, 1, hint);
-
-	assert(znum != (size_t) -1);
-
-	zone_get_frame(&zones.info[znum],
-	    pfn - zones.info[znum].base)->parent = data;
-
-	irq_spinlock_unlock(&zones.lock, true);
-}
-
-void *frame_get_parent(pfn_t pfn, size_t hint)
-{
-	irq_spinlock_lock(&zones.lock, true);
-
-	size_t znum = find_zone(pfn, 1, hint);
-
-	assert(znum != (size_t) -1);
-
-	void *res = zone_get_frame(&zones.info[znum],
-	    pfn - zones.info[znum].base)->parent;
-
-	irq_spinlock_unlock(&zones.lock, true);
-
-	return res;
-}
 
 static size_t try_find_zone(size_t count, bool lowmem,
     pfn_t frame_constraint, size_t hint)
