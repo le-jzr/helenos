@@ -105,6 +105,7 @@
 #include <synch/spinlock.h>
 #include <mm/slab.h>
 #include <adt/list.h>
+#include <adt/odict.h>
 #include <mem.h>
 #include <align.h>
 #include <mm/frame.h>
@@ -116,6 +117,46 @@
 #include <macros.h>
 #include <cpu.h>
 #include <stdlib.h>
+
+struct slab_cache {
+	const char *name;
+
+	link_t link;
+
+	/* Configuration */
+
+	/** Size of slab position - align_up(sizeof(obj)) */
+	size_t size;
+
+	errno_t (*constructor)(void *obj, unsigned int kmflag);
+	size_t (*destructor)(void *obj);
+
+	/** Flags changing behaviour of cache */
+	unsigned int flags;
+
+	/* Computed values */
+	size_t frames;   /**< Number of frames to be allocated */
+	size_t objects;  /**< Number of objects that fit in */
+
+	/* Statistics */
+	atomic_t allocated_slabs;
+	atomic_t allocated_objs;
+	atomic_t cached_objs;
+	/** How many magazines in magazines list */
+	atomic_t magazine_counter;
+
+	/* Slabs */
+	list_t full_slabs;     /**< List of full slabs */
+	list_t partial_slabs;  /**< List of partial slabs */
+	odict_t slab_odict;
+	IRQ_SPINLOCK_DECLARE(slablock);
+	/* Magazines */
+	list_t magazines;  /**< List o full magazines */
+	IRQ_SPINLOCK_DECLARE(maglock);
+
+	/** CPU cache */
+	slab_mag_cache_t *mag_cache;
+};
 
 IRQ_SPINLOCK_STATIC_INITIALIZE(slab_cache_lock);
 static LIST_INITIALIZE(slab_cache_list);
@@ -141,6 +182,7 @@ static slab_cache_t *slab_extern_cache;
 typedef struct {
 	slab_cache_t *cache;  /**< Pointer to parent cache. */
 	link_t link;          /**< List of full/partial slabs. */
+	odlink_t odlink;      /**< odict of full/partial slabs. */
 	void *start;          /**< Start address of first available item. */
 	size_t available;     /**< Count of available items in this slab. */
 	size_t nextavail;     /**< The index of next available item. */
@@ -183,17 +225,13 @@ NO_TRACE static slab_t *slab_space_alloc(slab_cache_t *cache,
 		slab = data + fsize - sizeof(*slab);
 	}
 
-	/* Fill in slab structures */
-	size_t i;
-	for (i = 0; i < cache->frames; i++)
-		frame_set_parent(ADDR2PFN(KA2PA(data)) + i, slab, zone);
-
 	slab->start = data;
 	slab->available = cache->objects;
 	slab->nextavail = 0;
 	slab->cache = cache;
+	odlink_initialize(&slab->odlink);
 
-	for (i = 0; i < cache->objects; i++)
+	for (size_t i = 0; i < cache->objects; i++)
 		*((size_t *) (slab->start + i * cache->size)) = i + 1;
 
 	atomic_inc(&cache->allocated_slabs);
@@ -207,7 +245,7 @@ NO_TRACE static slab_t *slab_space_alloc(slab_cache_t *cache,
  */
 NO_TRACE static size_t slab_space_free(slab_cache_t *cache, slab_t *slab)
 {
-	frame_free(KA2PA(slab->start), slab->cache->frames);
+	frame_free(KA2PA(slab->start), cache->frames);
 	if (!(cache->flags & SLAB_CACHE_SLINSIDE))
 		slab_free(slab_extern_cache, slab);
 
@@ -217,9 +255,28 @@ NO_TRACE static size_t slab_space_free(slab_cache_t *cache, slab_t *slab)
 }
 
 /** Map object to slab structure */
-NO_TRACE static slab_t *obj2slab(void *obj)
+NO_TRACE static slab_t *find_slab(slab_cache_t *cache, void *obj)
 {
-	return (slab_t *) frame_get_parent(ADDR2PFN(KA2PA(obj)), 0);
+	// TODO: Don't use odict when slab_t is on the same page
+	odlink_t *odlink = odict_find_leq(&cache->slab_odict, obj, NULL);
+	if (!odlink)
+		panic("Slab object from wrong slab cache.");
+	return odict_get_instance(odlink, slab_t, odlink);
+}
+
+static void *slab_odict_getkey(odlink_t *odlink)
+{
+	slab_t *slab = odict_get_instance(odlink, slab_t, odlink);
+	return slab->start;
+}
+
+static int slab_odict_cmp(void *a, void *b)
+{
+	if (a < b)
+		return -1;
+	if (a > b)
+		return 1;
+	return 0;
 }
 
 /******************/
@@ -236,17 +293,19 @@ NO_TRACE static slab_t *obj2slab(void *obj)
 NO_TRACE static size_t slab_obj_destroy(slab_cache_t *cache, void *obj,
     slab_t *slab)
 {
-	if (!slab)
-		slab = obj2slab(obj);
-
-	assert(slab->cache == cache);
-
 	size_t freed = 0;
 
 	if (cache->destructor)
 		freed = cache->destructor(obj);
 
 	irq_spinlock_lock(&cache->slablock, true);
+
+	if (!slab)
+		slab = find_slab(cache, obj);
+
+	assert(slab->cache == cache);
+	assert(obj >= slab->start);
+	assert(obj < slab->start + FRAMES2SIZE(cache->frames));
 	assert(slab->available < cache->objects);
 
 	*((size_t *) obj) = slab->nextavail;
@@ -257,6 +316,7 @@ NO_TRACE static size_t slab_obj_destroy(slab_cache_t *cache, void *obj,
 	if (slab->available == cache->objects) {
 		/* Free associated memory */
 		list_remove(&slab->link);
+		odict_remove(&slab->odlink);
 		irq_spinlock_unlock(&cache->slablock, true);
 
 		return freed + slab_space_free(cache, slab);
@@ -296,25 +356,27 @@ NO_TRACE static void *slab_obj_create(slab_cache_t *cache, unsigned int flags)
 			return NULL;
 
 		irq_spinlock_lock(&cache->slablock, true);
+		odict_insert(&slab->odlink, &cache->slab_odict, NULL);
+		list_prepend(&slab->link, &cache->partial_slabs);
 	} else {
 		slab = list_get_instance(list_first(&cache->partial_slabs),
 		    slab_t, link);
-		list_remove(&slab->link);
 	}
 
 	void *obj = slab->start + slab->nextavail * cache->size;
 	slab->nextavail = *((size_t *) obj);
 	slab->available--;
 
-	if (!slab->available)
+	if (!slab->available) {
+		list_remove(&slab->link);
 		list_prepend(&slab->link, &cache->full_slabs);
-	else
-		list_prepend(&slab->link, &cache->partial_slabs);
+	}
 
 	irq_spinlock_unlock(&cache->slablock, true);
 
 	if ((cache->constructor) && (cache->constructor(obj, flags) != EOK)) {
 		/* Bad, bad, construction failed */
+		// FIXME: don't run destructor
 		slab_obj_destroy(cache, obj, slab);
 		return NULL;
 	}
@@ -606,6 +668,7 @@ NO_TRACE static void _slab_cache_create(slab_cache_t *cache, const char *name,
 	list_initialize(&cache->full_slabs);
 	list_initialize(&cache->partial_slabs);
 	list_initialize(&cache->magazines);
+	odict_initialize(&cache->slab_odict, slab_odict_getkey, slab_odict_cmp);
 
 	irq_spinlock_initialize(&cache->slablock, "slab.cache.slablock");
 	irq_spinlock_initialize(&cache->maglock, "slab.cache.maglock");
@@ -703,24 +766,6 @@ NO_TRACE static size_t _slab_reclaim(slab_cache_t *cache, unsigned int flags)
 	return frames;
 }
 
-/** Return object to cache, use slab if known
- *
- */
-NO_TRACE static void _slab_free(slab_cache_t *cache, void *obj, slab_t *slab)
-{
-	if (!obj)
-		return;
-
-	ipl_t ipl = interrupts_disable();
-
-	if ((cache->flags & SLAB_CACHE_NOMAGAZINE) ||
-	    (magazine_obj_put(cache, obj)))
-		slab_obj_destroy(cache, obj, slab);
-
-	interrupts_restore(ipl);
-	atomic_dec(&cache->allocated_objs);
-}
-
 /** Check that there are no slabs and remove cache from system
  *
  */
@@ -785,7 +830,17 @@ void *slab_alloc(slab_cache_t *cache, unsigned int flags)
  */
 void slab_free(slab_cache_t *cache, void *obj)
 {
-	_slab_free(cache, obj, NULL);
+	if (!obj)
+		return;
+
+	ipl_t ipl = interrupts_disable();
+
+	if ((cache->flags & SLAB_CACHE_NOMAGAZINE) ||
+	    (magazine_obj_put(cache, obj)))
+		slab_obj_destroy(cache, obj, NULL);
+
+	interrupts_restore(ipl);
+	atomic_dec(&cache->allocated_objs);
 }
 
 /** Go through all caches and reclaim what is possible */
