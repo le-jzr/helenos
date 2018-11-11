@@ -254,10 +254,19 @@ NO_TRACE static size_t slab_space_free(slab_cache_t *cache, slab_t *slab)
 	return cache->frames;
 }
 
+static inline bool fast_lookup_slab(slab_cache_t *cache)
+{
+	return (cache->flags & SLAB_CACHE_SLINSIDE) && cache->frames == 1;
+}
+
 /** Map object to slab structure */
 NO_TRACE static slab_t *find_slab(slab_cache_t *cache, void *obj)
 {
-	// TODO: Don't use odict when slab_t is on the same page
+	if (fast_lookup_slab(cache)) {
+		uintptr_t page_top = ALIGN_UP((uintptr_t) obj + 1, PAGE_SIZE);
+		return (slab_t *) (page_top - sizeof(slab_t));
+	}
+
 	odlink_t *odlink = odict_find_leq(&cache->slab_odict, obj, NULL);
 	if (!odlink)
 		panic("Slab object from wrong slab cache.");
@@ -356,7 +365,8 @@ NO_TRACE static void *slab_obj_create(slab_cache_t *cache, unsigned int flags)
 			return NULL;
 
 		irq_spinlock_lock(&cache->slablock, true);
-		odict_insert(&slab->odlink, &cache->slab_odict, NULL);
+		if (!fast_lookup_slab(cache))
+			odict_insert(&slab->odlink, &cache->slab_odict, NULL);
 		list_prepend(&slab->link, &cache->partial_slabs);
 	} else {
 		slab = list_get_instance(list_first(&cache->partial_slabs),
