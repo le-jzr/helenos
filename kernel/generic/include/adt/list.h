@@ -72,7 +72,7 @@ extern unsigned long list_count(const list_t *);
  *     list_t list;
  * } var = {
  *     .name = "default name",
- *     .list = LIST_INITIALIZER(name_list.list)
+ *     .list = LIST_INITIALIZER(named_list.list)
  * };
  * @endcode
  *

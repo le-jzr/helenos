@@ -40,6 +40,17 @@
 #include <stddef.h>
 #include <types/adt/odict.h>
 
+#define ODICT_INITIALIZE(name__, getkey__, cmp__) \
+	odict_t name__ = ODICT_INITIALIZER(name__, getkey__, cmp__)
+
+#define ODICT_INITIALIZER(name__, getkey__, cmp__) \
+	{ \
+		.root = NULL, \
+		.getkey = (getkey__), \
+		.cmp = (cmp__), \
+		.entries = LIST_INITIALIZER((name__).entries), \
+	}
+
 #define odict_get_instance(odlink, type, member) \
 	((type *)( (void *)(odlink) - ((void *) &((type *) NULL)->member)))
 
