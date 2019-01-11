@@ -36,6 +36,9 @@
 #define _LIBC_ARG_PARSE_H_
 
 #include <errno.h>
+#include <_bits/decls.h>
+
+__HELENOS_DECLS_BEGIN;
 
 typedef errno_t (*arg_parser)(const char *, int *);
 
@@ -43,6 +46,8 @@ extern int arg_parse_short_long(const char *, const char *, const char *);
 extern errno_t arg_parse_int(int, char **, int *, int *, int);
 extern errno_t arg_parse_name_int(int, char **, int *, int *, int, arg_parser);
 extern errno_t arg_parse_string(int, char **, int *, char **, int);
+
+__HELENOS_DECLS_END;
 
 #endif
 

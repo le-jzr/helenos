@@ -40,6 +40,9 @@
 #include <stdint.h>
 #include <abi/mm/as.h>
 #include <libarch/config.h>
+#include <_bits/decls.h>
+
+__HELENOS_DECLS_BEGIN;
 
 static inline size_t SIZE2PAGES(size_t size)
 {
@@ -62,6 +65,8 @@ extern errno_t as_area_get_info(void *, as_area_info_t *);
 extern errno_t as_area_destroy(void *);
 extern void *set_maxheapsize(size_t);
 extern errno_t as_get_physical_mapping(const void *, uintptr_t *);
+
+__HELENOS_DECLS_END;
 
 #endif
 
