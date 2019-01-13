@@ -119,11 +119,7 @@ static slab_cache_t *cache_for_size(size_t size)
 	return cache;
 }
 
-// TODO: Expose publicly and use mem_alloc() and mem_free() instead of malloc()
-
-static void *mem_alloc(size_t, size_t) __attribute__((malloc));
-
-static void *mem_alloc(size_t alignment, size_t size)
+void *mem_alloc(size_t alignment, size_t size)
 {
 	_check_sizes(&alignment, &size);
 
@@ -136,7 +132,7 @@ static void *mem_alloc(size_t alignment, size_t size)
 	return slab_alloc(cache_for_size(size), FRAME_ATOMIC);
 }
 
-static void *mem_realloc(void *old_ptr, size_t alignment, size_t old_size,
+void *mem_realloc(void *old_ptr, size_t alignment, size_t old_size,
     size_t new_size)
 {
 	assert(old_ptr);
@@ -167,7 +163,7 @@ static void *mem_realloc(void *old_ptr, size_t alignment, size_t old_size,
  * @param size       Size used to call mem_alloc().
  * @param alignment  Alignment used to call mem_alloc().
  */
-static void mem_free(void *ptr, size_t alignment, size_t size)
+void mem_free(void *ptr, size_t alignment, size_t size)
 {
 	if (!ptr)
 		return;

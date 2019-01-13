@@ -160,8 +160,7 @@ void kmp(void *arg __attribute__((unused)))
 		 * it needs to be replaced by a generic fuctionality of
 		 * the memory subsystem
 		 */
-		descriptor_t *gdt_new =
-		    (descriptor_t *) malloc(GDT_ITEMS * sizeof(descriptor_t));
+		descriptor_t *gdt_new = make_array(descriptor_t, GDT_ITEMS);
 		if (!gdt_new)
 			panic("Cannot allocate memory for GDT.");
 

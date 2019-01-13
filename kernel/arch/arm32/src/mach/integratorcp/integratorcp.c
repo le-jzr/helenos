@@ -52,7 +52,7 @@
 #include <abi/fb/visuals.h>
 #include <ddi/ddi.h>
 #include <log.h>
-#include <stdlib.h>
+#include <mem.h>
 
 #define SDRAM_SIZE \
 	sdram[(*(uint32_t *) (ICP_CMCR + ICP_SDRAMCR_OFFSET) & ICP_SDRAM_MASK) >> 2]
@@ -319,7 +319,7 @@ void icp_output_init(void)
 void icp_input_init(void)
 {
 
-	pl050_t *pl050 = malloc(sizeof(pl050_t));
+	pl050_t *pl050 = make(pl050_t);
 	pl050->status = (ioport8_t *) icp.hw_map.kbd_stat;
 	pl050->data = (ioport8_t *) icp.hw_map.kbd_data;
 	pl050->ctrl = (ioport8_t *) icp.hw_map.kbd_ctrl;

@@ -36,7 +36,7 @@
 #include <arch/asm.h>
 #include <panic.h>
 #include <arch/kseg_struct.h>
-#include <stdlib.h>
+#include <mem.h>
 
 /**
  * Allocate and initialize a per-CPU structure to be accessible via the
@@ -46,7 +46,7 @@ void kseg_init(void)
 {
 	kseg_t *kseg;
 
-	kseg = (kseg_t *) malloc(sizeof(kseg_t));
+	kseg = make(kseg_t);
 	if (!kseg)
 		panic("Cannot allocate kseg.");
 

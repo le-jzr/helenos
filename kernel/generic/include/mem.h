@@ -56,6 +56,28 @@ extern void memsetw(void *, size_t, uint16_t)
 extern void *memmove(void *, const void *, size_t)
     __attribute__((nonnull(1, 2))) DO_NOT_DISCARD;
 
+extern void *mem_alloc(size_t alignment, size_t size) __attribute__((malloc));
+extern void *mem_realloc(void *old_ptr, size_t alignment, size_t old_size,
+    size_t new_size);
+extern void mem_free(void *ptr, size_t alignment, size_t size);
+
+#define make(type) \
+	((type *) mem_alloc(_Alignof(type), sizeof(type)))
+
+#define make_array(type, items) \
+	((type *) mem_alloc(_Alignof(type), sizeof(type) * (items)))
+
+#define resize_array(ptr, old_items, new_items) \
+	((typeof(*(ptr)) *) mem_realloc(ptr, alignof(*(ptr)), \
+	    (old_items) * sizeof(*(ptr)), \
+	    (new_items) * sizeof(*(ptr))))
+
+#define delete(ptr) \
+	mem_free((ptr), _Alignof(*(ptr)), sizeof(*(ptr)))
+
+#define delete_array(ptr, items) \
+	mem_free((ptr), _Alignof(*(ptr)), sizeof(*(ptr)) * (items))
+
 #endif
 
 /** @}

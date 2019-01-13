@@ -39,7 +39,6 @@
 #include <mm/as.h>
 #include <mm/frame.h>
 #include <mem.h>
-#include <stdlib.h>
 
 /*
  * There is no segmentation in long mode so we set up flat mode. In this
@@ -268,13 +267,13 @@ void pm_init(void)
 		tss_p = &tss;
 	} else {
 		/*
-		 * We are going to use malloc, which may return
+		 * We are going to use make(), which may return
 		 * non boot-mapped pointer, initialize the CR3 register
 		 * ahead of page_init
 		 */
 		write_cr3((uintptr_t) AS_KERNEL->genarch.page_table);
 
-		tss_p = (tss_t *) malloc(sizeof(tss_t));
+		tss_p = make(tss_t);
 		if (!tss_p)
 			panic("Cannot allocate TSS.");
 	}
