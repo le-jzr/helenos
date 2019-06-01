@@ -36,6 +36,7 @@ CHECK = tools/check.sh
 CONFIG = tools/config.py
 AUTOTOOL = tools/autotool.py
 SANDBOX = autotool
+MESON = meson
 
 CONFIG_RULES = HelenOS.config
 
@@ -47,18 +48,27 @@ CONFIG_HEADER = config.h
 ERRNO_HEADER = abi/include/abi/errno.h
 ERRNO_INPUT = abi/include/abi/errno.in
 
+-include $(CONFIG_MAKEFILE)
+-include $(COMMON_MAKEFILE)
+
+CROSS_PATH = $(shell dirname "$(CC)")
+
 .PHONY: all precheck cscope cscope_parts autotool config_auto config_default config distclean clean check releasefile release common boot kernel uspace export-posix space
 
 all: kernel uspace export-cross test-xcw
 	$(MAKE) -r -C boot PRECHECK=$(PRECHECK)
 
-common: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER)
+build/build.ninja:
+	PATH="$(CROSS_PATH):$$PATH" meson . build --cross-file meson/cross/$(UARCH) --prefix $$PWD
+
+common: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER) build/build.ninja
 
 kernel: common
 	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK)
 
 uspace: common
-	$(MAKE) -r -C uspace PRECHECK=$(PRECHECK)
+	PATH="$(CROSS_PATH):$$PATH" ninja -C ./build -v -k 0
+	ninja -C ./build install
 
 test-xcw: uspace export-cross
 	export PATH=$$PATH:$(abspath tools/xcw/bin) && $(MAKE) -r -C tools/xcw/demo
@@ -67,11 +77,11 @@ export-posix: common
 ifndef EXPORT_DIR
 	@echo ERROR: Variable EXPORT_DIR is not defined. && false
 else
-	$(MAKE) -r -C uspace export EXPORT_DIR=$(abspath $(EXPORT_DIR))
+	$(MAKE) -r -C uspace export EXPORT_DIR=$(abspath $(EXPORT_DIR)) UARCH=$(UARCH)
 endif
 
 export-cross: common
-	$(MAKE) -r -C uspace export EXPORT_DIR=$(abspath uspace/export)
+	$(MAKE) -r -C uspace export EXPORT_DIR=$(abspath uspace/export) UARCH=$(UARCH)
 
 precheck: clean
 	$(MAKE) -r all PRECHECK=y

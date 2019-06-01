@@ -27,10 +27,9 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-USPACE_PREFIX = ../..
-LIBRARY = libposix
-
-EXTRA_CFLAGS = -Iinclude/posix -D_XOPEN_SOURCE
+ROOT_PATH = ../../..
+USPACE_PREFIX = $(ROOT_PATH)/uspace
+LIBC_PREFIX = $(USPACE_PREFIX)/lib/c
 
 EXPORT_FILES = \
 	../math/libmath.a \
@@ -42,61 +41,27 @@ EXPORT_FILES = \
 	../pcm/libpcm.a \
 	../cpp/libcpp.a \
 	$(LIBC_PREFIX)/libc.a \
-	$(LIBC_PREFIX)/crt0.o \
-	$(LIBC_PREFIX)/crt1.o \
-	$(LIBRARY).a
-
-SOURCES = \
-	src/ctype.c \
-	src/dlfcn.c \
-	src/fcntl.c \
-	src/fnmatch.c \
-	src/locale.c \
-	src/pthread/condvar.c \
-	src/pthread/keys.c \
-	src/pthread/mutex.c \
-	src/pthread/threads.c \
-	src/pwd.c \
-	src/signal.c \
-	src/stdio.c \
-	src/stdlib.c \
-	src/string.c \
-	src/strings.c \
-	src/sys/mman.c \
-	src/sys/stat.c \
-	src/sys/wait.c \
-	src/time.c \
-	src/unistd.c
-
-TEST_SOURCES = \
-	test/main.c \
-	test/stdio.c \
-	test/stdlib.c \
-	test/unistd.c
-
-EXTRA_TEST_CFLAGS = -Wno-deprecated-declarations
+	$(LIBC_PREFIX)/libstartfiles.a \
+	libposix.a
 
 EXPORT_CPPFLAGS = \
 	-isystem $$(HELENOS_EXPORT_ROOT)/include/posix \
 	-isystem $$(HELENOS_EXPORT_ROOT)/include/libc \
-	-idirafter $$(HELENOS_EXPORT_ROOT)/include \
-	$(COMMON_CPPFLAGS)
+	-idirafter $$(HELENOS_EXPORT_ROOT)/include
 
 EXPORT_LDFLAGS = \
+	-nostdlib \
 	-L$$(HELENOS_EXPORT_ROOT)/lib \
-	$$(HELENOS_EXPORT_ROOT)/lib/crt0.o \
-	$$(HELENOS_EXPORT_ROOT)/lib/crt1.o
+	-Wl,--whole-archive \
+	$$(HELENOS_EXPORT_ROOT)/lib/libstartfiles.a \
+	-Wl,--no-whole-archive
 
 EXPORT_LDLIBS = \
 	-Wl,--start-group -lposix -lmath -lc -lgcc -Wl,--end-group
 
-EXPORT_CFLAGS = \
-	$(COMMON_CFLAGS)
-
-EXPORT_CXXFLAGS = \
-	$(COMMON_CXXFLAGS)
-
-include $(USPACE_PREFIX)/Makefile.common
+# TODO: get cross flags from meson
+EXPORT_CFLAGS =
+EXPORT_CXXFLAGS =
 
 export: $(EXPORT_DIR)/config.mk $(EXPORT_DIR)/config.rc \
     $(EXPORT_DIR)/Makefile.common $(EXPORT_DIR)/Makefile.config

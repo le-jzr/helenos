@@ -64,8 +64,7 @@ ifeq ($(CONFIG_DEVEL_FILES), y)
 	cp -r -L "$(USPACE_PATH)/lib/c/include/." "$(DIST_PATH)/inc/c/"
 	cp -r -L "$(ROOT_PATH)/abi/include/." "$(DIST_PATH)/inc/c/"
 	cp -r -L "$(USPACE_PATH)/lib/c/arch/$(UARCH)/include/." "$(DIST_PATH)/inc/c/"
-	cp -L "$(USPACE_PATH)/lib/c/crt0.o" "$(DIST_PATH)/lib/"
-	cp -L "$(USPACE_PATH)/lib/c/crt1.o" "$(DIST_PATH)/lib/"
+	cp -L "$(USPACE_PATH)/lib/c/libstartfiles.a" "$(DIST_PATH)/lib/"
 	cp -L "$(LIBGCC_PATH)" "$(DIST_PATH)/lib/"
 endif
 
