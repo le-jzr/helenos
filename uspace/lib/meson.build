@@ -9,8 +9,6 @@ testfiles = []
 # libc is special
 subdir('c')
 
-# TODO: libposix
-
 # IMPORTANT: Dependencies must be listed before libs that depend on them.
 libs = [
 	'block',
@@ -107,12 +105,6 @@ foreach l : libs
 
 	subdir(l)
 
-	# Set soname.
-	soname = 'lib' + l + '.so.' + version.split('.')[0]
-	# TODO: set compiler argument
-	# TODO: symlink
-	# XXX: may be unnecessary with meson
-
 	# Add `include` subdirectory to include dirs if it exists.
 	incdir = join_paths(l, 'include')
 	if run_command('[', '-d', incdir, ']').returncode() == 0
@@ -127,8 +119,6 @@ foreach l : libs
 	endif
 
 	link_args = [ '-Wl,--no-undefined,--no-allow-shlib-undefined' ]
-	# FIXME link_args += [ -Wl,-soname,$(LSONAME) ]
-	# XXX may be unnecessary
 
 	# Convert strings to dependency objects
 	_deps = []

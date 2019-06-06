@@ -51,12 +51,11 @@ add_project_arguments(
 find = find_program('find')
 unzip = find_program('unzip')
 mkarray = find_program('tools/mkarray_for_meson.sh')
-#config_header = files('config.h')
 
 CONFIG_RDFMT = get_option('rdfmt')
 CONFIG_UBSAN = get_option('ubsan')
 # TODO
-CONFIG_BUILD_SHARED_LIBS = false
+CONFIG_BUILD_SHARED_LIBS = true
 CONFIG_DEBUG = true
 CONFIG_STRIP_BINARIES = false
 CONFIG_LINE_DEBUG = false

@@ -70,7 +70,7 @@ apps = [
 
 if CONFIG_BUILD_SHARED_LIBS
 	apps += [
-		'app/dltest',
-		'app/dltests',
+		'dltest',
+		'dltests',
 	]
 endif
