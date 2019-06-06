@@ -10,6 +10,7 @@
 *.prev
 *.pyc
 *.so.*
+*.so
 /Makefile.common
 /Makefile.config
 /PKG
