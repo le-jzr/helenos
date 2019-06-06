@@ -1,5 +1,4 @@
 deps = [ 'softrend' , 'compress' ]
-includes = include_directories('.')
 src = files(
 	'codec/tga.c',
 	'codec/tga.gz.c',

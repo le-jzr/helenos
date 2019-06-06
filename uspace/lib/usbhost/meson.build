@@ -1,5 +1,5 @@
 deps = [ 'usb' , 'drv' ]
-private_includes = include_directories('include/usb/host')
+private_includes += include_directories('include/usb/host')
 src = files(
 	'src/ddf_helpers.c',
 	'src/endpoint.c',

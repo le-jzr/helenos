@@ -1,5 +1,5 @@
 deps = [ 'pcm' ]
-private_includes = include_directories('generic/private')
+private_includes += include_directories('generic/private')
 src = files(
 	'generic/driver.c',
 	'generic/dev_iface.c',

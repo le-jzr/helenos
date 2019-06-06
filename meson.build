@@ -8,6 +8,7 @@
 # TODO: fix clang build
 # TODO: fix xcw
 # TODO: CONFIG_STRIP_BINARIES
+# TODO: export cross flags
 
 project(
     'HelenOS',

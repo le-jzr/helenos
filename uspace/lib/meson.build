@@ -71,7 +71,7 @@ foreach l : libs
 	# Use include_directories('include_dir1', 'include_dir2') to set this.
 	# By default, the 'include' subdirectory is used and the variable may
 	# be omitted.
-	includes = include_directories()
+	includes = []
 
 	# Private include directories.
 	# Unnecessary if you always include private headers using relative
@@ -105,10 +105,14 @@ foreach l : libs
 
 	subdir(l)
 
-	# Add `include` subdirectory to include dirs if it exists.
-	incdir = join_paths(l, 'include')
-	if run_command('[', '-d', incdir, ']').returncode() == 0
-		includes = [ includes, include_directories(incdir) ]
+	# Add `include` or `.` subdirectory to include dirs if needed.
+	if includes.length() == 0
+		incdir = join_paths(l, 'include')
+		if run_command('[', '-d', incdir, ']').returncode() == 0
+			includes += include_directories(incdir)
+		else
+			includes += include_directories(l)
+		endif
 	endif
 
 	# Pretty much everything depends on libc.

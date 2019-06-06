@@ -1,5 +1,5 @@
 deps = [ 'clui', 'fmtutil' ]
-includes = include_directories('.', 'cmds', 'cmds/builtins', 'cmds/modules')
+includes += include_directories('.', 'cmds', 'cmds/builtins', 'cmds/modules')
 src = files(
 	'cmds/modules/module_aliases.c',
 	'cmds/modules/modules.c',

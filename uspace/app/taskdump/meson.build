@@ -1,4 +1,4 @@
-includes = include_directories('include')
+includes += include_directories('include')
 src = files(
 	'elf_core.c',
 	'fibrildump.c',

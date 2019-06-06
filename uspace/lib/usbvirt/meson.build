@@ -1,5 +1,5 @@
 deps = [ 'drv' , 'usb' , 'usbdev' ]
-private_includes = include_directories('include/usbvirt')
+private_includes += include_directories('include/usbvirt')
 src = files(
 	'src/ctrltransfer.c',
 	'src/device.c',

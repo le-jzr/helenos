@@ -1,4 +1,4 @@
-includes = include_directories('include/posix')
+includes += include_directories('include/posix', 'include')
 c_args += [ '-fno-builtin', '-D_XOPEN_SOURCE' ]
 
 # TODO

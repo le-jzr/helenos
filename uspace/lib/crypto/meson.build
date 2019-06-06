@@ -1,4 +1,3 @@
-includes = include_directories('.')
 src = files(
 	'crypto.c',
 	'aes.c',

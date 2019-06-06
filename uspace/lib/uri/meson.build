@@ -1,4 +1,3 @@
-includes = include_directories('.')
 src = files('uri.c')
 
 test_src = files(

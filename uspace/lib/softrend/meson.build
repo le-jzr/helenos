@@ -1,5 +1,4 @@
 deps = [ 'math' ]
-includes = include_directories('.')
 src = files(
 	'compose.c',
 	'filter.c',

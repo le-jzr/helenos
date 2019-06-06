@@ -1,5 +1,4 @@
 deps = [ 'draw' , 'softrend' , 'graph' ]
-includes = include_directories('.')
 src = files(
 	'common.c',
 	'button.c',
