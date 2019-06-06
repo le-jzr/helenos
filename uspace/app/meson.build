@@ -1,6 +1,3 @@
-
-# TODO: dltest dltests
-
 apps = [
 	'barber',
 	'bdsh',
@@ -12,8 +9,6 @@ apps = [
 	'date',
 	'devctl',
 	'df',
-	'dltest',
-	'dltests',
 	'dnscfg',
 	'dnsres',
 	'download',

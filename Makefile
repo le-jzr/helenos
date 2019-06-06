@@ -67,7 +67,7 @@ kernel: common
 	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK)
 
 uspace: common
-	PATH="$(CROSS_PATH):$$PATH" ninja -C ./build -v -k 0
+	PATH="$(CROSS_PATH):$$PATH" ninja -C ./build
 	ninja -C ./build install
 
 test-xcw: uspace export-cross

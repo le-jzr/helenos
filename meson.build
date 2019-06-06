@@ -7,6 +7,7 @@
 # TODO: CONFIG_BUILD_SHARED_LIBRARIES, CONFIG_USE_SHARED_LIBRARIES
 # TODO: fix clang build
 # TODO: fix xcw
+# TODO: CONFIG_STRIP_BINARIES
 
 project(
     'HelenOS',
