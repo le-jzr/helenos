@@ -51,6 +51,8 @@ foreach drv : drvs
 	dirs += [ join_paths('drv', drv) ]
 endforeach
 
+bin_targets = []
+
 foreach dir : dirs
 	src = []
 	test_src = []
@@ -108,71 +110,71 @@ foreach dir : dirs
 	# Build executable
 
 	if src.length() > 0
-		mapfile = meson.current_build_dir() / dir + '.map'
-		# We want linker to generate link map for debugging.
-		_ldargs = link_args + [ '-Wl,-Map,' + mapfile ]
-		if static_build
-			_ldargs += [ '-static' ]
-		endif
-
-		_bin = executable(join_paths(dir, basename), src,
-			include_directories: includes,
-			dependencies: _deps,
-			objects: startfiles,
-			c_args: c_args,
-			link_args: _ldargs,
-			implicit_include_directories: false,
-			install: true,
-			install_dir: _dirpath,
-		)
-
-		if disassemble
-			custom_target(dir + '.disasm',
-				command: [ objdump, '-S', '@INPUT@' ],
-				input: _bin,
-				output: basename + '.disasm',
-				capture: true,
-				install: true,
-				install_dir: join_paths('debug', _dirpath),
-			)
-		endif
+		bin_targets += {
+			'src': src,
+			'dirname': _dirpath,
+			'basename': basename,
+			'install_dir': _dirpath,
+			'includes': includes,
+			'dependencies': _deps,
+			'c_args': c_args,
+			'link_args': link_args + static_build ? [ '-static' ] : [],
+		}
 	endif
 
 	# Build test executable, if any
 
 	if test_src.length() > 0
-		mapdir = 'test' / _dirpath
-		mapfile = meson.current_build_dir() / mapdir / 'test-' + basename + '.map'
-		_ldargs = link_args + [ '-Wl,-Map,' + mapfile ]
+		bin_targets += {
+			'src': test_src,
+			'dirname': _dirpath,
+			'basename': 'test-' + basename,
+			'install_dir': 'test' / _dirpath,
+			'includes': includes,
+			'dependencies': [ _deps, static_libpcut ],
+			'c_args': c_args,
+			'link_args': link_args,
+		}
+	endif
+endforeach
 
-		# Make sure the directory exists before the linker runs.
-		_mapdir_target = custom_target(mapdir.underscorify(),
-			install: false,
-			output: mapdir.underscorify(),
-			command: [ 'mkdir', '-p', meson.current_build_dir() / mapdir ],
-		)
+foreach tst : bin_targets
+	_dir = tst.get('dirname') / tst.get('basename')
 
-		_bin = executable(join_paths(dir, 'test-' + basename), test_src,
-			_mapdir_target,
-			include_directories: includes,
-			dependencies: [ _deps, static_libpcut ],
-			objects: startfiles,
-			c_args: c_args,
-			link_args: _ldargs,
-			implicit_include_directories: false,
+	# We want linker to generate link map for debugging.
+	_mapdir = tst.get('install_dir')
+	_mapdir1 = _mapdir / tst.get('basename')
+	_mapfile = meson.current_build_dir() / _mapdir / tst.get('basename') + '.map'
+	_ldargs = tst.get('link_args') + [ '-Wl,-Map,' + _mapfile ]
+
+	# Make sure the directory exists before the linker runs.
+	_mapdir_target = custom_target(_mapdir1.underscorify(),
+		install: false,
+		output: _mapdir1.underscorify(),
+		command: [ 'mkdir', '-p', meson.current_build_dir() / _mapdir ],
+	)
+
+	_bin = executable(_dir / tst.get('basename'),
+		tst.get('src'),
+		_mapdir_target,
+		include_directories: tst.get('includes'),
+		dependencies: tst.get('dependencies'),
+		objects: startfiles,
+		c_args: tst.get('c_args'),
+		link_args: _ldargs,
+		implicit_include_directories: false,
+		install: true,
+		install_dir: tst.get('install_dir'),
+	)
+
+	if disassemble
+		custom_target(_dir / tst.get('basename') + '.disasm',
+			command: [ objdump, '-S', '@INPUT@' ],
+			input: _bin,
+			output: tst.get('basename') + '.disasm',
+			capture: true,
 			install: true,
-			install_dir: join_paths('test', _dirpath),
+			install_dir: 'debug' / tst.get('install_dir'),
 		)
-
-		if disassemble
-			custom_target(join_paths(dir, 'test-' + basename + '.disasm'),
-				command: [ objdump, '-S', '@INPUT@' ],
-				input: _bin,
-				output: 'test-' + basename + '.disasm',
-				capture: true,
-				install: true,
-				install_dir: join_paths('debug', 'test', _dirpath),
-			)
-		endif
 	endif
 endforeach
