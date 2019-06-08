@@ -1,5 +1,9 @@
-objdump = find_program('objdump')
+link_map = true
 disassemble = true
+
+if disassemble
+	objdump = find_program('objdump')
+endif
 
 subdir('lib')
 subdir('app')
@@ -118,7 +122,7 @@ foreach dir : dirs
 			'includes': includes,
 			'dependencies': _deps,
 			'c_args': c_args,
-			'link_args': link_args + static_build ? [ '-static' ] : [],
+			'link_args': link_args + (static_build ? [ '-static' ] : []),
 		}
 	endif
 
@@ -140,23 +144,25 @@ endforeach
 
 foreach tst : bin_targets
 	_dir = tst.get('dirname') / tst.get('basename')
+	_ldargs = tst.get('link_args')
+	_src = tst.get('src')
 
-	# We want linker to generate link map for debugging.
-	_mapdir = tst.get('install_dir')
-	_mapdir1 = _mapdir / tst.get('basename')
-	_mapfile = meson.current_build_dir() / _mapdir / tst.get('basename') + '.map'
-	_ldargs = tst.get('link_args') + [ '-Wl,-Map,' + _mapfile ]
+	if link_map
+		# We want linker to generate link map for debugging.
+		_mapdir = tst.get('install_dir')
+		_mapdir1 = _mapdir / tst.get('basename')
+		_mapfile = meson.current_build_dir() / _mapdir / tst.get('basename') + '.map'
+		_ldargs += [ '-Wl,-Map,' + _mapfile ]
 
-	# Make sure the directory exists before the linker runs.
-	_mapdir_target = custom_target(_mapdir1.underscorify(),
-		install: false,
-		output: _mapdir1.underscorify(),
-		command: [ 'mkdir', '-p', meson.current_build_dir() / _mapdir ],
-	)
+		# Make sure the directory exists before the linker runs.
+		_src += custom_target(_mapdir1.underscorify(),
+			install: false,
+			output: _mapdir1.underscorify(),
+			command: [ 'mkdir', '-p', meson.current_build_dir() / _mapdir ],
+		)
+	endif
 
-	_bin = executable(_dir / tst.get('basename'),
-		tst.get('src'),
-		_mapdir_target,
+	_bin = executable(_dir / tst.get('basename'), _src,
 		include_directories: tst.get('includes'),
 		dependencies: tst.get('dependencies'),
 		objects: startfiles,
