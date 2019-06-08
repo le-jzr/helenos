@@ -1,5 +1,4 @@
 
-# FIXME: startfiles
 # FIXME: autocheck
 
 # libarch
@@ -9,7 +8,7 @@ c_args = [ '-fno-builtin', '-D_LIBC_SOURCE' ]
 
 root_path = '../../..'
 
-includes = include_directories(
+includes += include_directories(
 	'include',
 	join_paths('arch', h_arch, 'include'),
 	join_paths(root_path, 'abi/arch', h_arch, 'include'),
@@ -18,7 +17,9 @@ includes = include_directories(
 	is_system: true,
 )
 
-src = files(
+src = [ arch_src ]
+
+src += files(
 	'generic/libc.c',
 	'generic/ddi.c',
 	'generic/as.c',
@@ -152,15 +153,13 @@ src = files(
 	'generic/vol.c',
 )
 
-_rtld_src = files(
-	'generic/rtld/rtld.c',
-	'generic/rtld/dynamic.c',
-	'generic/rtld/module.c',
-	'generic/rtld/symbol.c',
-)
-
 if CONFIG_RTLD
-	src = [ src, _rtld_src ]
+	src += files(
+		'generic/rtld/rtld.c',
+		'generic/rtld/dynamic.c',
+		'generic/rtld/module.c',
+		'generic/rtld/symbol.c',
+	)
 endif
 
 test_src = files(
@@ -191,42 +190,16 @@ test_src = files(
 	'test/uuid.c',
 )
 
-start_src = files(
-	'generic/crt/crt1.c',
-)
-
-_lib = both_libraries('c', [ src, arch_src ],
-	include_directories: includes,
-	c_args: c_args,
-	version: '0.0',
-	install: true,
-	install_dir: 'lib',
-)
-
-libc = declare_dependency(
-	link_with: _lib,
-	include_directories: includes,
-)
-
-deplibc = libc
-
-if get_option('default_library') == 'static'
-	static_libc = libc
-else
-	static_libc = declare_dependency(
-		link_with: _lib.get_static_lib(),
-		include_directories: includes,
-	)
-endif
-
 # Startfiles.
 # This is what other systems know as crt*.o files, i.e. a set of object files
 # that are automatically built into every program binary (but not libraries).
 # We haven't yet installed the object files where the compiler can find them,
 # so we have to add them manually.
 #
-libstartfiles = static_library('startfiles',
-	[ arch_start_src, start_src ],
+
+start_src = [ arch_start_src, files('generic/crt/crt1.c') ]
+
+libstartfiles = static_library('startfiles', start_src,
 	include_directories: includes,
 	c_args: c_args,
 	install: true,
@@ -235,12 +208,3 @@ libstartfiles = static_library('startfiles',
 )
 
 startfiles = libstartfiles.extract_all_objects()
-
-#
-#install_data(startfiles, install_dir: join_paths('uspace', 'lib', 'c'))
-
-testfiles += [ {
-	'name': 'c',
-	'src': test_src,
-	'includes': [],
-} ]

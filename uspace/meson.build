@@ -108,8 +108,9 @@ foreach dir : dirs
 	# Build executable
 
 	if src.length() > 0
+		mapfile = meson.current_build_dir() / dir + '.map'
 		# We want linker to generate link map for debugging.
-		_ldargs = link_args + [ '-Wl,-Map,' + join_paths(meson.current_build_dir(), dir, basename) + '.map' ]
+		_ldargs = link_args + [ '-Wl,-Map,' + mapfile ]
 		if static_build
 			_ldargs += [ '-static' ]
 		endif
@@ -140,9 +141,19 @@ foreach dir : dirs
 	# Build test executable, if any
 
 	if test_src.length() > 0
-		_ldargs = link_args + [ '-Wl,-Map,' + join_paths(meson.current_build_dir(), dir, 'test-' + basename) + '.map' ]
+		mapdir = 'test' / _dirpath
+		mapfile = meson.current_build_dir() / mapdir / 'test-' + basename + '.map'
+		_ldargs = link_args + [ '-Wl,-Map,' + mapfile ]
+
+		# Make sure the directory exists before the linker runs.
+		_mapdir_target = custom_target(mapdir.underscorify(),
+			install: false,
+			output: mapdir.underscorify(),
+			command: [ 'mkdir', '-p', meson.current_build_dir() / mapdir ],
+		)
 
 		_bin = executable(join_paths(dir, 'test-' + basename), test_src,
+			_mapdir_target,
 			include_directories: includes,
 			dependencies: [ _deps, static_libpcut ],
 			objects: startfiles,

@@ -7,11 +7,10 @@ as_prolog = ''
 # List of test sources
 testfiles = []
 
-# libc is special
-subdir('c')
-
 # IMPORTANT: Dependencies must be listed before libs that depend on them.
 libs = [
+	'c',
+
 	'block',
 	'clui',
 	'compress',
@@ -119,13 +118,19 @@ foreach l : libs
 	endif
 
 	# Pretty much everything depends on libc.
-	deps += 'c'
+	if l != 'c'
+		deps += 'c'
+	endif
 
-	if language == 'cpp'
+	if language == 'cpp' and l != 'cpp'
 		deps += 'cpp'
 	endif
 
+	mapfile = meson.current_build_dir() / 'lib' + l + '.map'
+
 	link_args = [ '-Wl,--no-undefined,--no-allow-shlib-undefined' ]
+	# We want linker to generate link map for debugging.
+	link_args += [ '-Wl,-Map,' + mapfile ]
 
 	# Convert strings to dependency objects
 	_deps = []
@@ -229,11 +234,13 @@ foreach test : testfiles
 	testname = test['name']
 	libname = testname.split('-')[0]
 
+	# TODO: disassembly/mapfile for tests
+
 	executable('test-lib' + testname, test.get('src'),
 		include_directories: test.get('includes'),
 		dependencies: [ get_variable('lib' + libname), libpcut ],
 		objects: startfiles,
 		install: true,
-		install_dir: 'test',
+		install_dir: 'test' / 'lib',
 	)
 endforeach

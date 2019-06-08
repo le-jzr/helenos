@@ -1,3 +1,4 @@
+language = 'cpp'
 src = files(
 	'src/condition_variable.cpp',
 	'src/exception.cpp',

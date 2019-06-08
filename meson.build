@@ -17,6 +17,8 @@ project(
     version : '0.9.1-git',
 )
 
+meson.add_install_script('build_dist.sh')
+
 if get_option('default_library') == 'both'
 	error('You must use either shared or static for default_library.')
 endif
