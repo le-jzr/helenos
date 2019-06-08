@@ -200,7 +200,7 @@ _lib = both_libraries('c', [ src, arch_src ],
 	c_args: c_args,
 	version: '0.0',
 	install: true,
-	install_dir: join_paths('uspace', 'lib', 'c'),
+	install_dir: 'lib',
 )
 
 libc = declare_dependency(
@@ -225,14 +225,16 @@ endif
 # We haven't yet installed the object files where the compiler can find them,
 # so we have to add them manually.
 #
-startfiles = static_library('startfiles',
+libstartfiles = static_library('startfiles',
 	[ arch_start_src, start_src ],
 	include_directories: includes,
 	c_args: c_args,
 	install: true,
-	install_dir: join_paths('uspace', 'lib', 'c'),
+	install_dir: 'lib',
 	pic: false,
-).extract_all_objects()
+)
+
+startfiles = libstartfiles.extract_all_objects()
 
 #
 #install_data(startfiles, install_dir: join_paths('uspace', 'lib', 'c'))

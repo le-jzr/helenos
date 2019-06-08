@@ -67,6 +67,13 @@ foreach dir : dirs
 	_path = dir.split('/')
 	basename = _path[_path.length()-1]
 
+	# A convoluted way to remove last component of the path.
+
+	_dirpath = '@' + dir
+	_dirpath = _dirpath.strip('-_abcdefghijklmnopqrstuvwxyz0123456789')
+	_dirpath = _dirpath.strip('/')
+	_dirpath = _dirpath.strip('@')
+
 	# Extra linker flags
 
 	# TODO: let meson do this on install instead, so that disassembly works
@@ -115,7 +122,7 @@ foreach dir : dirs
 			link_args: _ldargs,
 			implicit_include_directories: false,
 			install: true,
-			install_dir: join_paths('uspace', dir),
+			install_dir: _dirpath,
 		)
 
 		if disassemble
@@ -125,7 +132,7 @@ foreach dir : dirs
 				output: basename + '.disasm',
 				capture: true,
 				install: true,
-				install_dir: join_paths(meson.current_build_dir(), dir),
+				install_dir: join_paths('debug', _dirpath),
 			)
 		endif
 	endif
@@ -143,7 +150,7 @@ foreach dir : dirs
 			link_args: _ldargs,
 			implicit_include_directories: false,
 			install: true,
-			install_dir: join_paths('uspace', dir),
+			install_dir: join_paths('test', _dirpath),
 		)
 
 		if disassemble
@@ -153,7 +160,7 @@ foreach dir : dirs
 				output: 'test-' + basename + '.disasm',
 				capture: true,
 				install: true,
-				install_dir: join_paths(meson.current_build_dir(), dir),
+				install_dir: join_paths('debug', 'test', _dirpath),
 			)
 		endif
 	endif

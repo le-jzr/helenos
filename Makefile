@@ -59,7 +59,7 @@ all: kernel uspace export-cross test-xcw
 	$(MAKE) -r -C boot PRECHECK=$(PRECHECK)
 
 build/build.ninja:
-	PATH="$(CROSS_PATH):$$PATH" meson . build --cross-file meson/cross/$(UARCH) --prefix $$PWD
+	PATH="$(CROSS_PATH):$$PATH" meson . build --cross-file meson/cross/$(UARCH)
 
 common: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER) build/build.ninja
 
@@ -67,8 +67,7 @@ kernel: common
 	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK)
 
 uspace: common
-	PATH="$(CROSS_PATH):$$PATH" ninja -C ./build
-	ninja -C ./build install
+	PATH="$(CROSS_PATH):$$PATH" DESTDIR="$$PWD/dist" meson install --only-changed -C build
 
 test-xcw: uspace export-cross
 	export PATH=$$PATH:$(abspath tools/xcw/bin) && $(MAKE) -r -C tools/xcw/demo
@@ -77,10 +76,12 @@ export-posix: common
 ifndef EXPORT_DIR
 	@echo ERROR: Variable EXPORT_DIR is not defined. && false
 else
-	$(MAKE) -r -C uspace export EXPORT_DIR=$(abspath $(EXPORT_DIR)) UARCH=$(UARCH)
+	mkdir -p $(EXPORT_DIR)
+	$(MAKE) -r -C uspace/lib/posix export EXPORT_DIR=$(abspath $(EXPORT_DIR)) UARCH=$(UARCH)
 endif
 
 export-cross: common
+	mkdir -p uspace/export
 	$(MAKE) -r -C uspace export EXPORT_DIR=$(abspath uspace/export) UARCH=$(UARCH)
 
 precheck: clean

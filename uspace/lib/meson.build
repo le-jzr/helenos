@@ -1,3 +1,4 @@
+always_static = (get_option('default_library') == 'static')
 
 # Redefined in libarch, if necessary.
 # Used in a few places where we generate custom assembly.
@@ -69,8 +70,10 @@ foreach l : libs
 	# Public include directories. These are used by everyone who depends
 	# on this library.
 	# Use include_directories('include_dir1', 'include_dir2') to set this.
-	# By default, the 'include' subdirectory is used and the variable may
-	# be omitted.
+	# If the variable is omitted, it defaults to 'include' subdirectory
+	# if it exists, or the source directory otherwise.
+	# If the library has no headers, you can use
+	# includes += include_directories()
 	includes = []
 
 	# Private include directories.
@@ -78,9 +81,9 @@ foreach l : libs
 	# paths, but may be useful if you need to override system headers.
 	private_includes = []
 
-	# List of dependency _objects_.
-	# Use e.g. deps = [ libnic, libuntar ]
-	# Don't just use string names here.
+	# List of dependency names.
+	# E.g. to use libnic and libuntar use
+	# `deps = [ 'nic', 'untar' ]`
 	deps = []
 
 	# Extra arguments for the C compiler.
@@ -142,10 +145,21 @@ foreach l : libs
 			link_args: link_args,
 			version: version,
 			install: true,
-			install_dir: join_paths('uspace', 'lib', l),
+			install_dir: 'lib',
 		)
 
-		if get_option('default_library') == 'static'
+		if disassemble and not always_static
+			custom_target('lib' + l + '.disasm',
+				command: [ objdump, '-S', '@INPUT@' ],
+				input: _lib,
+				output: 'lib' + l + '.disasm',
+				capture: true,
+				install: true,
+				install_dir: join_paths('debug', 'lib'),
+			)
+		endif
+
+		if always_static
 			_static_lib = _lib
 		else
 			_static_lib = static_library(l, src,
@@ -156,7 +170,7 @@ foreach l : libs
 				c_args: c_args,
 				link_args: link_args,
 				install: true,
-				install_dir: join_paths('uspace', 'lib', l),
+				install_dir: 'lib',
 			)
 		endif
 
@@ -168,7 +182,7 @@ foreach l : libs
 			dependencies: _deps,
 		)
 
-		if get_option('default_library') == 'static'
+		if always_static
 			_static_dep = _dep
 		else
 			_static_dep = declare_dependency(
@@ -220,6 +234,6 @@ foreach test : testfiles
 		dependencies: [ get_variable('lib' + libname), libpcut ],
 		objects: startfiles,
 		install: true,
-		install_dir: join_paths('uspace', 'lib', libname),
+		install_dir: 'test',
 	)
 endforeach

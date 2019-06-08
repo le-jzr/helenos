@@ -13,7 +13,7 @@
 project(
     'HelenOS',
     [ 'c', 'cpp' ],
-    default_options : ['buildtype=plain', 'c_std=gnu11', 'cpp_std=c++17', 'warning_level=3', 'werror=true', 'b_staticpic=false', 'default_library=shared' ],
+    default_options : ['buildtype=plain', 'c_std=gnu11', 'cpp_std=c++17', 'warning_level=3', 'werror=true', 'b_staticpic=false', 'default_library=shared', 'prefix=/' ],
     version : '0.9.1-git',
 )
 
