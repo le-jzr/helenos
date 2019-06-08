@@ -67,7 +67,8 @@ kernel: common
 	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK)
 
 uspace: common
-	PATH="$(CROSS_PATH):$$PATH" DESTDIR="$$PWD/dist" meson install --only-changed -C build
+	PATH="$(CROSS_PATH):$$PATH" ninja -C build
+	PATH="$(CROSS_PATH):$$PATH" DESTDIR="$$PWD/dist" meson install --only-changed -C build > build/install.log
 
 test-xcw: uspace export-cross
 	export PATH=$$PATH:$(abspath tools/xcw/bin) && $(MAKE) -r -C tools/xcw/demo
