@@ -108,7 +108,7 @@ foreach dir : dirs
 
 	_deps = []
 	foreach s : deps
-		_deps += get_variable((static_build ? 'static_lib' : 'lib') + s)
+		_deps += get_variable('lib' + s).get(static_build ? 'static' : 'any')
 	endforeach
 
 	# Build executable
@@ -135,7 +135,7 @@ foreach dir : dirs
 			'basename': 'test-' + basename,
 			'install_dir': 'test' / _dirpath,
 			'includes': includes,
-			'dependencies': [ _deps, static_libpcut ],
+			'dependencies': [ _deps, libpcut.get('any') ],
 			'c_args': c_args,
 			'link_args': link_args,
 		}

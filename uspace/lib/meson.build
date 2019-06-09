@@ -4,9 +4,6 @@ always_static = (get_option('default_library') == 'static')
 # Used in a few places where we generate custom assembly.
 as_prolog = ''
 
-# List of test sources
-testfiles = []
-
 # IMPORTANT: Dependencies must be listed before libs that depend on them.
 libs = [
 	'c',
@@ -53,10 +50,11 @@ libs = [
 	'ieee80211',
 ]
 
-# For each of the subdirectories in the above list, we create a dependency
-# object, which is then assigned to a variable name `lib{name}`.
-# E.g. to use library in subdirectory `nic` from another library or binary,
-# you would use variable `libnic` as a dependency.
+# Generated list of include directory paths
+include_paths = []
+
+# Generated list of test sources
+testfiles = []
 
 foreach l : libs
 	# Variables that might be defined in library meson files:
@@ -112,6 +110,7 @@ foreach l : libs
 		incdir = join_paths(l, 'include')
 		if run_command('[', '-d', incdir, ']').returncode() == 0
 			includes += include_directories(incdir)
+			install_subdir(l / 'include', install_dir: 'include' / 'lib' + l, strip_directory: true)
 		else
 			includes += include_directories(l)
 		endif
@@ -136,8 +135,8 @@ foreach l : libs
 	_deps = []
 	_static_deps = []
 	foreach s : deps
-		_deps += get_variable('deplib' + s)
-		_static_deps += get_variable('static_lib' + s)
+		_deps += get_variable('lib' + s).get('shared')
+		_static_deps += get_variable('lib' + s).get('static')
 	endforeach
 
 	if src.length() > 0
@@ -218,15 +217,17 @@ foreach l : libs
 		} ]
 	endif
 
-	_deplib = _dep
+	_shared = _dep
 
 	if not allow_shared
 		_dep = _static_dep
 	endif
 
-	set_variable('lib' + l, _dep)
-	set_variable('deplib' + l, _deplib)
-	set_variable('static_lib' + l, _static_dep)
+	set_variable('lib' + l, {
+		'any': _dep,
+		'shared': _shared,
+		'static': _static_dep,
+	})
 endforeach
 
 # Test binaries
@@ -238,7 +239,7 @@ foreach test : testfiles
 
 	executable('test-lib' + testname, test.get('src'),
 		include_directories: test.get('includes'),
-		dependencies: [ get_variable('lib' + libname), libpcut ],
+		dependencies: [ get_variable('lib' + libname).get('any'), libpcut.get('any') ],
 		objects: startfiles,
 		install: true,
 		install_dir: 'test' / 'lib',

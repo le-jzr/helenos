@@ -6,16 +6,23 @@ subdir(join_paths('arch', h_arch))
 
 c_args = [ '-fno-builtin', '-D_LIBC_SOURCE' ]
 
-root_path = '../../..'
+root_path = '..' / '..' / '..'
 
-includes += include_directories(
+incdirs = [
 	'include',
-	join_paths('arch', h_arch, 'include'),
-	join_paths(root_path, 'abi/arch', h_arch, 'include'),
-	join_paths(root_path, 'abi/include'),
+	'arch' / h_arch / 'include',
+	root_path / 'abi' / 'arch' / h_arch / 'include',
+	root_path / 'abi' / 'include',
+]
 
-	is_system: true,
-)
+includes += include_directories(incdirs, is_system: true)
+
+# FIXME: symlinks from uspace to kernel will break in future Meson version
+#        we should instead move the duplicated library parts into a shared location.
+
+foreach idir : incdirs
+	install_subdir(idir, install_dir: 'include' / 'libc', strip_directory: true)
+endforeach
 
 src = [ arch_src ]
 
