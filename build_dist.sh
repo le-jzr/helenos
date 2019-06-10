@@ -21,3 +21,11 @@ for lib in *; do
 		cd -
 	fi
 done
+
+# Add some helpful importable files with variables.
+
+configdir="${DESTDIR}/${MESON_INSTALL_PREFIX}/config"
+
+sed 's:$(HELENOS_EXPORT_ROOT):${HELENOS_EXPORT_ROOT}:g' < "${configdir}/config.mk" > "${configdir}/config.sh"
+cp "${MESON_SOURCE_ROOT}/Makefile.common" "${configdir}"
+cp "${MESON_SOURCE_ROOT}/Makefile.config" "${configdir}"

@@ -9,6 +9,7 @@
 # TODO: fix xcw
 # TODO: CONFIG_STRIP_BINARIES
 # TODO: export cross flags
+# TODO: autocheck
 
 project(
     'HelenOS',
@@ -141,3 +142,57 @@ foreach lang : [ 'c', 'cpp' ]
 endforeach
 
 subdir('uspace')
+
+
+## Generate config.mk
+
+# Get the directory where the compiler resides.
+
+cc_fullname = run_command('which', meson.get_compiler('c').cmd_array()[0].split(' ')[0]).stdout().strip()
+cc_path = run_command('dirname', cc_fullname).stdout().strip()
+
+message(['Compiler directory is:', cc_path])
+
+export_cppflags = [
+	'-isystem', '$(HELENOS_EXPORT_ROOT)/include/posix',
+	'-isystem', '$(HELENOS_EXPORT_ROOT)/include/libc',
+	'-idirafter', '$(HELENOS_EXPORT_ROOT)/include',
+]
+
+export_ldflags = [
+	'-nostdlib',
+	'-L$(HELENOS_EXPORT_ROOT)/lib',
+	'-Wl,--whole-archive',
+	'$(HELENOS_EXPORT_ROOT)/lib/libstartfiles.a',
+	'-Wl,--no-whole-archive',
+]
+
+export_ldlibs = [
+	'-Wl,--start-group',
+	'-lposix',
+	'-lmath',
+	'-lc',
+	'-lgcc',
+	'-Wl,--end-group',
+]
+
+cc_arch = meson.get_cross_property('cc_arch')
+
+conf_data = configuration_data({
+	'HELENOS_CROSS_PATH' : cc_path,
+	'HELENOS_ARCH' : cc_arch,
+	'HELENOS_CFLAGS' : ' '.join(meson.get_cross_property('c_args')),
+	'HELENOS_CXXFLAGS' : ' '.join(meson.get_cross_property('cpp_args')),
+	'HELENOS_CPPFLAGS' : ' '.join(export_cppflags),
+	'HELENOS_LDFLAGS' : ' '.join(export_ldflags),
+	'HELENOS_LDLIBS' : ' '.join(export_ldlibs),
+	'HELENOS_TARGET' : cc_arch + '-helenos',
+})
+
+configure_file(
+	input: 'config.mk.in',
+	output: 'config.mk',
+	configuration: conf_data,
+	install: true,
+	install_dir: 'config',
+)
