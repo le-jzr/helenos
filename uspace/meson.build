@@ -149,38 +149,29 @@ foreach tst : bin_targets
 
 	if link_map
 		# We want linker to generate link map for debugging.
-		_mapdir = tst.get('install_dir')
-		_mapdir1 = _mapdir / tst.get('basename')
-		_mapfile = meson.current_build_dir() / _mapdir / tst.get('basename') + '.map'
-		_ldargs += [ '-Wl,-Map,' + _mapfile ]
-
-		# Make sure the directory exists before the linker runs.
-		_src += custom_target(_mapdir1.underscorify(),
-			install: false,
-			output: _mapdir1.underscorify(),
-			command: [ 'mkdir', '-p', meson.current_build_dir() / _mapdir ],
-		)
+		_ldargs += [ '-Wl,-Map,' + meson.current_build_dir() / _dir.underscorify() + '.map' ]
 	endif
 
-	_bin = executable(_dir / tst.get('basename'), _src,
+	_bin = executable(_dir.underscorify(), _src,
 		include_directories: tst.get('includes'),
 		dependencies: tst.get('dependencies'),
 		objects: startfiles,
 		c_args: tst.get('c_args'),
 		link_args: _ldargs,
 		implicit_include_directories: false,
-		install: true,
-		install_dir: tst.get('install_dir'),
+		install: false,
+		#install_dir: tst.get('install_dir'),
 	)
 
 	if disassemble
-		custom_target(_dir / tst.get('basename') + '.disasm',
+		custom_target(_dir.underscorify() + '.disasm',
 			command: [ objdump, '-S', '@INPUT@' ],
 			input: _bin,
-			output: tst.get('basename') + '.disasm',
+			output: _dir.underscorify() + '.disasm',
 			capture: true,
-			install: true,
-			install_dir: 'debug' / tst.get('install_dir'),
+			install: false,
+			#install_dir: 'debug' / tst.get('install_dir'),
+			build_by_default: true,
 		)
 	endif
 endforeach

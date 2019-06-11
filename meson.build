@@ -54,6 +54,7 @@ add_project_arguments(
 
 find = find_program('find')
 unzip = find_program('unzip')
+sed = find_program('sed')
 mkarray = find_program('tools/mkarray_for_meson.sh')
 
 CONFIG_RDFMT = get_option('rdfmt')
@@ -148,8 +149,8 @@ subdir('uspace')
 
 # Get the directory where the compiler resides.
 
-cc_fullname = run_command('which', meson.get_compiler('c').cmd_array()[0].split(' ')[0]).stdout().strip()
-cc_path = run_command('dirname', cc_fullname).stdout().strip()
+cc_fullname = run_command('which', meson.get_compiler('c').cmd_array()[0].split(' ')[0], check: true).stdout().strip()
+cc_path = run_command('dirname', cc_fullname, check: true).stdout().strip()
 
 message(['Compiler directory is:', cc_path])
 
@@ -189,10 +190,21 @@ conf_data = configuration_data({
 	'HELENOS_TARGET' : cc_arch + '-helenos',
 })
 
-configure_file(
+config_mk = configure_file(
 	input: 'config.mk.in',
 	output: 'config.mk',
 	configuration: conf_data,
 	install: true,
 	install_dir: 'config',
 )
+
+custom_target('config.sh',
+	input: config_mk,
+	output: 'config.sh',
+	command: [ sed, 's:$(HELENOS_EXPORT_ROOT):${HELENOS_EXPORT_ROOT}:g', '@INPUT@' ],
+	capture: true,
+	install: true,
+	install_dir: 'config',
+)
+
+install_data('Makefile.common', 'Makefile.config', install_dir: 'config')
