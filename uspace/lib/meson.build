@@ -232,16 +232,33 @@ endforeach
 
 # Test binaries
 foreach test : testfiles
-	testname = test['name']
-	libname = testname.split('-')[0]
+	_testname = test['name']
+	_libname = _testname.split('-')[0]
+	_ldargs = []
+	_test_binname = 'test-lib' + _testname
 
-	# TODO: disassembly/mapfile for tests
+	if link_map
+		# We want linker to generate link map for debugging.
+		_ldargs += [ '-Wl,-Map,' + meson.current_build_dir() / _test_binname + '.map' ]
+	endif
 
-	executable('test-lib' + testname, test.get('src'),
+	_bin = executable(_test_binname, test.get('src'),
 		include_directories: test.get('includes'),
-		dependencies: [ get_variable('lib' + libname).get('any'), libpcut.get('any') ],
+		dependencies: [ get_variable('lib' + _libname).get('any'), libpcut.get('any') ],
 		objects: startfiles,
 		install: true,
 		install_dir: 'test' / 'lib',
+		link_args: _ldargs,
 	)
+
+	if disassemble
+		custom_target(_test_binname + '.disasm',
+			command: [ objdump, '-S', '@INPUT@' ],
+			input: _bin,
+			output: _test_binname + '.disasm',
+			capture: true,
+			install: true,
+			install_dir: 'debug' / 'test' / 'lib',
+		)
+	endif
 endforeach
