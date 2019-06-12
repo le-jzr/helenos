@@ -1,5 +1,9 @@
+# TODO: set from configuration
 link_map = true
 disassemble = true
+install_nonessential_data = true
+install_debug_files = false
+install_devel_files = false
 
 if disassemble
 	objdump = find_program('objdump')
@@ -55,7 +59,7 @@ foreach srv : srvs
 
 	dirs += {
 		'subdir': join_paths('srv', srv),
-		'installdir': 'srv' / _dirname,
+		'installdir': _dirname == '.' ? 'srv' : ('srv' / _dirname),
 	}
 endforeach
 
@@ -161,7 +165,12 @@ foreach tst : bin_targets
 	_install_dir = tst.get('install_dir').split('/')
 	_install_dir += tst.get('basename')
 	_install_name = 'install@' + '$'.join(_install_dir)
-	_debug_name = 'install@' + '$'.join([ 'debug' ] + _install_dir)
+
+	if install_debug_files
+		_debug_name = 'install@' + '$'.join([ 'debug' ] + _install_dir)
+	else
+		_debug_name = '_'.join(_install_dir)
+	endif
 
 	if link_map
 		# We want linker to generate link map for debugging.

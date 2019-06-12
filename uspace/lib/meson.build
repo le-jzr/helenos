@@ -110,7 +110,10 @@ foreach l : libs
 		incdir = join_paths(l, 'include')
 		if run_command('[', '-d', incdir, ']').returncode() == 0
 			includes += include_directories(incdir)
-			install_subdir(l / 'include', install_dir: 'include' / 'lib' + l, strip_directory: true)
+
+			if install_devel_files
+				install_subdir(l / 'include', install_dir: 'include' / 'lib' + l, strip_directory: true)
+			endif
 		else
 			includes += include_directories(l)
 		endif
@@ -125,6 +128,7 @@ foreach l : libs
 		deps += 'cpp'
 	endif
 
+	# TODO: install mapfile if install_debug_data is true
 	mapfile = meson.current_build_dir() / 'lib' + l + '.map'
 
 	link_args = [ '-Wl,--no-undefined,--no-allow-shlib-undefined' ]
@@ -158,7 +162,7 @@ foreach l : libs
 				input: _lib,
 				output: 'lib' + l + '.disasm',
 				capture: true,
-				install: true,
+				install: install_debug_files,
 				install_dir: join_paths('debug', 'lib'),
 			)
 		endif
@@ -173,7 +177,7 @@ foreach l : libs
 				dependencies: _static_deps,
 				c_args: c_args,
 				link_args: link_args,
-				install: true,
+				install: install_devel_files,
 				install_dir: 'lib',
 			)
 		endif
@@ -257,7 +261,7 @@ foreach test : testfiles
 			input: _bin,
 			output: _test_binname + '.disasm',
 			capture: true,
-			install: true,
+			install: install_debug_files,
 			install_dir: 'debug' / 'test' / 'lib',
 		)
 	endif

@@ -67,24 +67,24 @@ DISTROOT = distroot
 INITRD = initrd
 
 INIT_TASKS = \
-	$(USPACE_PATH)/srv/ns/ns \
-	$(USPACE_PATH)/srv/loader/loader \
-	$(USPACE_PATH)/app/init/init \
-	$(USPACE_PATH)/srv/locsrv/locsrv \
-	$(USPACE_PATH)/srv/bd/rd/rd \
-	$(USPACE_PATH)/srv/vfs/vfs \
-	$(USPACE_PATH)/srv/logger/logger
+	srv/ns \
+	srv/loader \
+	app/init \
+	srv/locsrv \
+	srv/bd/rd \
+	srv/vfs \
+	srv/logger
 
 ifeq ($(RDFMT),tmpfs)
-	INIT_TASKS += $(USPACE_PATH)/srv/fs/tmpfs/tmpfs
+	INIT_TASKS += srv/fs/tmpfs
 endif
 
 ifeq ($(RDFMT),fat)
-	INIT_TASKS += $(USPACE_PATH)/srv/fs/fat/fat
+	INIT_TASKS += srv/fs/fat
 endif
 
 ifeq ($(RDFMT),ext4fs)
-	INIT_TASKS += $(USPACE_PATH)/srv/fs/ext4fs/ext4fs
+	INIT_TASKS += srv/fs/ext4fs
 endif
 
 RD_SRVS_ESSENTIAL = \
@@ -146,20 +146,6 @@ RD_DRVS_NON_ESSENTIAL = \
 	nic/virtio-net \
 	block/ahci \
 	block/virtio-blk
-
-RD_LIBS =
-
-ifeq ($(CONFIG_DEVEL_FILES), y)
-	RD_LIBS += \
-		$(USPACE_PATH)/lib/c/libc.a
-endif
-
-ifeq ($(CONFIG_BUILD_SHARED_LIBS), y)
-	RD_LIBS += \
-		$(USPACE_PATH)/lib/c/libc.so.0 \
-		$(USPACE_PATH)/lib/math/libmath.so.0 \
-		$(USPACE_PATH)/lib/dltest/libdltest.so.0
-endif
 
 RD_APPS_ESSENTIAL = \
 	bdsh \
@@ -240,7 +226,7 @@ endif
 
 COMPONENTS = \
 	$(KERNEL_PATH)/kernel.elf \
-	$(INIT_TASKS) \
+	$(addprefix $(DIST_PATH)/,$(INIT_TASKS)) \
 	$(INITRD).img
 
 
