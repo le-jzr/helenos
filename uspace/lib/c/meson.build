@@ -1,6 +1,3 @@
-
-# FIXME: autocheck
-
 # libarch
 subdir(join_paths('arch', h_arch))
 

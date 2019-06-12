@@ -1,5 +1,6 @@
+arch_src = [ autocheck.process('include/libarch/fibril_context.h') ]
 
-arch_src = files(
+arch_src += files(
 	'src/entryjmp.S',
 	'src/thread_entry.S',
 	'src/syscall.S',
@@ -12,8 +13,3 @@ arch_src = files(
 )
 
 arch_start_src = files('src/crt0.S')
-
-# TODO
-_autocheck_headers = files(
-	'include/libarch/fibril_context.h',
-)

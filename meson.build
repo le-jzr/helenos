@@ -9,7 +9,6 @@
 # TODO: fix xcw
 # TODO: CONFIG_STRIP_BINARIES
 # TODO: export cross flags
-# TODO: autocheck
 
 project(
     'HelenOS',
@@ -56,6 +55,12 @@ find = find_program('find')
 unzip = find_program('unzip')
 sed = find_program('sed')
 mkarray = find_program('tools/mkarray_for_meson.sh')
+
+autocheck = generator(find_program('tools/autocheck.awk'),
+	arguments: [ '@INPUT@' ],
+	output: '@PLAINNAME@.check.c',
+	capture: true,
+)
 
 CONFIG_RDFMT = get_option('rdfmt')
 CONFIG_UBSAN = get_option('ubsan')
