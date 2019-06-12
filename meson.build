@@ -10,6 +10,7 @@
 # TODO: CONFIG_STRIP_BINARIES
 # TODO: export cross flags
 # TODO: CONFIG_PCUT_TESTS, CONFIG_PCUT_SELF_TESTS
+# TODO: only install static libraries and headers when CONFIG_DEVEL_FILES is enabled
 
 project(
     'HelenOS',

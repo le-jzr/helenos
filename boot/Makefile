@@ -50,16 +50,9 @@ build_dist: clean_dist
 	mkdir -p "$(DIST_PATH)/w/"
 
 ifeq ($(CONFIG_DEVEL_FILES), y)
-	mkdir -p "$(DIST_PATH)/inc/c/"
-	cp -r -L "$(USPACE_PATH)/lib/c/include/." "$(DIST_PATH)/inc/c/"
-	cp -r -L "$(ROOT_PATH)/abi/include/." "$(DIST_PATH)/inc/c/"
-	cp -r -L "$(USPACE_PATH)/lib/c/arch/$(UARCH)/include/." "$(DIST_PATH)/inc/c/"
 	cp -L "$(LIBGCC_PATH)" "$(DIST_PATH)/lib/"
 endif
 
-	for file in $(RD_DATA) ; do \
-		cp "$$file" "$(DIST_PATH)/" ; \
-	done
 	if ls $(DIST_OVERLAY_PATH)/* >/dev/null 2>/dev/null; then \
 		cp -r -L $(DIST_OVERLAY_PATH)/* "$(DIST_PATH)"; \
 	fi

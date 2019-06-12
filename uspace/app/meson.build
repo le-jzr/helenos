@@ -1,3 +1,6 @@
+# TODO: set from configuration
+install_nonessential_data = true
+
 apps = [
 	'barber',
 	'bdsh',

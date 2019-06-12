@@ -64,9 +64,6 @@ RD_APPS_ESSENTIAL += \
 	mixerctl \
 	wavplay
 
-RD_DATA_NON_ESSENTIAL += \
-	$(USPACE_PATH)/app/wavplay/demo.wav
-
 POST_OUTPUT = $(ROOT_PATH)/image.iso
 BUILD = Makefile.empty
 POSTBUILD = Makefile.grub

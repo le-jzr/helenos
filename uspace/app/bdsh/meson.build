@@ -40,3 +40,6 @@ test_src = files(
 	'tok.c',
 	'test/toktest.c',
 )
+
+# TODO: install this file somewhere sane
+install_data('demo.txt', install_dir: '/')
