@@ -140,16 +140,20 @@ foreach dir : dirs
 endforeach
 
 foreach tst : bin_targets
-	_dir = tst.get('dirname') / tst.get('basename')
 	_ldargs = tst.get('link_args')
 	_src = tst.get('src')
 
+	_install_dir = tst.get('install_dir').split('/')
+	_install_dir += tst.get('basename')
+	_install_name = 'install@' + '$'.join(_install_dir)
+	_debug_name = 'install@' + '$'.join([ 'debug' ] + _install_dir)
+
 	if link_map
 		# We want linker to generate link map for debugging.
-		_ldargs += [ '-Wl,-Map,' + meson.current_build_dir() / _dir.underscorify() + '.map' ]
+		_ldargs += [ '-Wl,-Map,' + meson.current_build_dir() / _debug_name + '.map' ]
 	endif
 
-	_bin = executable(_dir.underscorify(), _src,
+	_bin = executable(_install_name, _src,
 		include_directories: tst.get('includes'),
 		dependencies: tst.get('dependencies'),
 		objects: startfiles,
@@ -161,10 +165,10 @@ foreach tst : bin_targets
 	)
 
 	if disassemble
-		custom_target(_dir.underscorify() + '.disasm',
+		custom_target(_debug_name + '.disasm',
 			command: [ objdump, '-S', '@INPUT@' ],
 			input: _bin,
-			output: _dir.underscorify() + '.disasm',
+			output: _debug_name + '.disasm',
 			capture: true,
 			install: false,
 			#install_dir: 'debug' / tst.get('install_dir'),
