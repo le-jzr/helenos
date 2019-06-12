@@ -44,25 +44,37 @@ essential = [
 dirs = []
 
 foreach app : apps
-	dirs += [ join_paths('app', app) ]
+	dirs += {
+		'subdir': join_paths('app', app),
+		'installdir': 'app',
+	}
 endforeach
 
 foreach srv : srvs
-	dirs += [ join_paths('srv', srv) ]
+	_dirname = run_command(dirname, srv, check: true).stdout().strip()
+
+	dirs += {
+		'subdir': join_paths('srv', srv),
+		'installdir': 'srv' / _dirname,
+	}
 endforeach
 
 foreach drv : drvs
-	dirs += [ join_paths('drv', drv) ]
+	_basename = run_command(basename, drv, check: true).stdout().strip()
+	_dirname = run_command(dirname, drv, check: true).stdout().strip()
+
+	dirs += {
+		'subdir': join_paths('drv', drv),
+		'installdir': 'drv' / _basename,
+	}
 
 	# Install driver metadata.
-	_basename = run_command('basename', drv, check: true).stdout().strip()
-	_dirname = run_command('dirname', drv, check: true).stdout().strip()
-	install_data('drv' / drv / _basename + '.ma', install_dir: 'drv' / _dirname)
+	install_data('drv' / drv / _basename + '.ma', install_dir: 'drv' / _basename)
 endforeach
 
 bin_targets = []
 
-foreach dir : dirs
+foreach appdirs : dirs
 	src = []
 	test_src = []
 	includes = []
@@ -71,11 +83,14 @@ foreach dir : dirs
 	link_args = []
 	language = 'c'
 
-	subdir(dir)
+	subdir(appdirs.get('subdir'))
+
+	dir = appdirs.get('subdir')
+	installdir = appdirs.get('installdir')
 
 	# basename/dirname will be is useful later.
-	_basename = run_command('basename', dir, check: true).stdout().strip()
-	_dirname = run_command('dirname', dir, check: true).stdout().strip()
+	_basename = run_command(basename, dir, check: true).stdout().strip()
+	_dirname = run_command(dirname, dir, check: true).stdout().strip()
 
 	# Extra linker flags
 
@@ -115,7 +130,7 @@ foreach dir : dirs
 			'src': src,
 			'dirname': _dirname,
 			'basename': _basename,
-			'install_dir': _dirname,
+			'install_dir': installdir,
 			'includes': includes,
 			'dependencies': _deps,
 			'c_args': c_args,
@@ -130,7 +145,7 @@ foreach dir : dirs
 			'src': test_src,
 			'dirname': _dirname,
 			'basename': 'test-' + _basename,
-			'install_dir': 'test' / _dirname,
+			'install_dir': 'test' / installdir,
 			'includes': includes,
 			'dependencies': [ _deps, libpcut.get('any') ],
 			'c_args': c_args,

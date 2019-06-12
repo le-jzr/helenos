@@ -56,6 +56,9 @@ find = find_program('find')
 unzip = find_program('unzip')
 sed = find_program('sed')
 mkarray = find_program('tools/mkarray_for_meson.sh')
+dirname = find_program('dirname')
+basename = find_program('basename')
+which = find_program('which')
 
 autocheck = generator(find_program('tools/autocheck.awk'),
 	arguments: [ '@INPUT@' ],
@@ -155,8 +158,8 @@ subdir('uspace')
 
 # Get the directory where the compiler resides.
 
-cc_fullname = run_command('which', meson.get_compiler('c').cmd_array()[0].split(' ')[0], check: true).stdout().strip()
-cc_path = run_command('dirname', cc_fullname, check: true).stdout().strip()
+cc_fullname = run_command(which, meson.get_compiler('c').cmd_array()[0].split(' ')[0], check: true).stdout().strip()
+cc_path = run_command(dirname, cc_fullname, check: true).stdout().strip()
 
 message(['Compiler directory is:', cc_path])
 
