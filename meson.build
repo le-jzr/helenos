@@ -9,6 +9,7 @@
 # TODO: fix xcw
 # TODO: CONFIG_STRIP_BINARIES
 # TODO: export cross flags
+# TODO: CONFIG_PCUT_TESTS, CONFIG_PCUT_SELF_TESTS
 
 project(
     'HelenOS',

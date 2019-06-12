@@ -53,6 +53,11 @@ endforeach
 
 foreach drv : drvs
 	dirs += [ join_paths('drv', drv) ]
+
+	# Install driver metadata.
+	_basename = run_command('basename', drv, check: true).stdout().strip()
+	_dirname = run_command('dirname', drv, check: true).stdout().strip()
+	install_data('drv' / drv / _basename + '.ma', install_dir: 'drv' / _dirname)
 endforeach
 
 bin_targets = []
@@ -68,17 +73,9 @@ foreach dir : dirs
 
 	subdir(dir)
 
-	# basename is useful later.
-
-	_path = dir.split('/')
-	basename = _path[_path.length()-1]
-
-	# A convoluted way to remove last component of the path.
-
-	_dirpath = '@' + dir
-	_dirpath = _dirpath.strip('-_abcdefghijklmnopqrstuvwxyz0123456789')
-	_dirpath = _dirpath.strip('/')
-	_dirpath = _dirpath.strip('@')
+	# basename/dirname will be is useful later.
+	_basename = run_command('basename', dir, check: true).stdout().strip()
+	_dirname = run_command('dirname', dir, check: true).stdout().strip()
 
 	# Extra linker flags
 
@@ -116,9 +113,9 @@ foreach dir : dirs
 	if src.length() > 0
 		bin_targets += {
 			'src': src,
-			'dirname': _dirpath,
-			'basename': basename,
-			'install_dir': _dirpath,
+			'dirname': _dirname,
+			'basename': _basename,
+			'install_dir': _dirname,
 			'includes': includes,
 			'dependencies': _deps,
 			'c_args': c_args,
@@ -131,9 +128,9 @@ foreach dir : dirs
 	if test_src.length() > 0
 		bin_targets += {
 			'src': test_src,
-			'dirname': _dirpath,
-			'basename': 'test-' + basename,
-			'install_dir': 'test' / _dirpath,
+			'dirname': _dirname,
+			'basename': 'test-' + _basename,
+			'install_dir': 'test' / _dirname,
 			'includes': includes,
 			'dependencies': [ _deps, libpcut.get('any') ],
 			'c_args': c_args,
