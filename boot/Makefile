@@ -60,11 +60,6 @@ endif
 	for file in $(RD_DATA) ; do \
 		cp "$$file" "$(DIST_PATH)/" ; \
 	done
-	for file in $(RD_DRVS_FW) ; do \
-		file_dir="`dirname "$$file"`" ; \
-		file_name="`basename "$$file"`" ; \
-		cp "$(USPACE_PATH)/$(DRVS_PATH)/$$file_dir/$$file_name/$$file_name.fw" "$(DIST_PATH)/$(DRVS_PATH)/$$file_name/" ; \
-	done
 	if ls $(DIST_OVERLAY_PATH)/* >/dev/null 2>/dev/null; then \
 		cp -r -L $(DIST_OVERLAY_PATH)/* "$(DIST_PATH)"; \
 	fi
