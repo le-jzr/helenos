@@ -89,9 +89,6 @@ RD_DRVS_NON_ESSENTIAL += \
 	bus/usb/vhc \
 	block/usbmast \
 	hid/usbhid
-
-RD_DRV_CFG += \
-	bus/isa
 endif
 
 ifeq ($(MACHINE),ski)

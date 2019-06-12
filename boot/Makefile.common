@@ -147,8 +147,6 @@ RD_DRVS_NON_ESSENTIAL = \
 	block/ahci \
 	block/virtio-blk
 
-RD_DRV_CFG =
-
 RD_DRVS_FW_NON_ESSENTIAL = \
 	nic/ar9271
 

@@ -59,9 +59,6 @@ RD_DRVS_NON_ESSENTIAL += \
 	block/usbmast \
 	hid/usbhid
 
-RD_DRV_CFG += \
-	bus/isa
-
 RD_APPS_ESSENTIAL += \
 	edit \
 	mixerctl \

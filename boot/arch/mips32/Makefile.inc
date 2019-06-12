@@ -61,9 +61,6 @@ ifeq ($(MACHINE), $(filter $(MACHINE),bmalta lmalta))
 		char/ns8250 \
 		hid/ps2mouse \
 		hid/xtkbd
-
-	RD_DRV_CFG += \
-		bus/isa
 endif
 
 ifeq ($(MACHINE),msim)
