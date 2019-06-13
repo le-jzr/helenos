@@ -2,7 +2,7 @@
 # TODO: jobfile
 # TODO: lto
 # TODO: -D__$(ENDIANESS)__ in cross
-# TODO: CONFIG_BUILD_SHARED_LIBRARIES, CONFIG_USE_SHARED_LIBRARIES
+# TODO: CONFIG_BUILD_SHARED_LIBS, CONFIG_USE_SHARED_LIBS
 # TODO: fix clang build
 # TODO: CONFIG_PCUT_TESTS, CONFIG_PCUT_SELF_TESTS
 # TODO: only install static libraries and headers when CONFIG_DEVEL_FILES is enabled
@@ -146,11 +146,15 @@ extra_common_flags = [
 
 	'-pipe',
 	'-ffunction-sections',
-	'-fvar-tracking-assignments',
+
 	'-fno-common',
 
 	'-fdebug-prefix-map=' + meson.source_root() + '=.',
 ]
+
+if h_arch != 'ia64'
+	extra_common_flags += [ '-fvar-tracking-assignments' ]
+endif
 
 if CONFIG_DEBUG
 	extra_common_flags += [ '-Werror' ]

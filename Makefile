@@ -51,6 +51,14 @@ ERRNO_INPUT = abi/include/abi/errno.in
 -include $(CONFIG_MAKEFILE)
 -include $(COMMON_MAKEFILE)
 
+# TODO: make meson reconfigure correctly when library build changes
+
+ifeq ($(CONFIG_BUILD_SHARED_LIBS),y)
+	MESON_ARGS = -Ddefault_library=shared
+else
+	MESON_ARGS = -Ddefault_library=static
+endif
+
 CROSS_PATH = $(shell dirname "$(CC)")
 
 .PHONY: all precheck cscope cscope_parts autotool config_auto config_default config distclean clean check releasefile release common boot kernel uspace export-posix space
@@ -59,7 +67,7 @@ all: kernel uspace export-cross test-xcw
 	$(MAKE) -r -C boot PRECHECK=$(PRECHECK)
 
 build/build.ninja: Makefile.config version
-	PATH="$(CROSS_PATH):$$PATH" meson . build --cross-file meson/cross/$(UARCH)
+	PATH="$(CROSS_PATH):$$PATH" meson . build --cross-file meson/cross/$(UARCH) $(MESON_ARGS)
 
 common: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER) build/build.ninja
 
