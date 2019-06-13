@@ -11,6 +11,8 @@
 *.pyc
 *.so.*
 *.so
+/build
+/dist
 /Makefile.common
 /Makefile.config
 /PKG
