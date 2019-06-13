@@ -1,9 +1,11 @@
-# TODO: set from configuration
+# FIXME: somehow disabling link map makes tools/mkext4.py crash
 link_map = true
-disassemble = true
-install_nonessential_data = true
+disassemble = CONFIG_LINE_DEBUG
+install_nonessential_data = not CONFIG_BAREBONE
+# TODO: Allow installing debug files.
+# This is currently disabled due to boot image size restrictions.
 install_debug_files = false
-install_devel_files = true
+install_devel_files = CONFIG_DEVEL_FILES
 
 if disassemble
 	objdump = find_program('objdump')
@@ -17,7 +19,7 @@ subdir('drv')
 init = [
 	'app/init',
 	'srv/bd/rd',
-	'srv/fs/' + CONFIG_RDFMT,
+	'srv/fs/' + RDFMT,
 	'srv/loader',
 	'srv/locsrv',
 	'srv/logger',

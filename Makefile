@@ -58,7 +58,7 @@ CROSS_PATH = $(shell dirname "$(CC)")
 all: kernel uspace export-cross test-xcw
 	$(MAKE) -r -C boot PRECHECK=$(PRECHECK)
 
-build/build.ninja:
+build/build.ninja: Makefile.config version
 	PATH="$(CROSS_PATH):$$PATH" meson . build --cross-file meson/cross/$(UARCH)
 
 common: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER) build/build.ninja

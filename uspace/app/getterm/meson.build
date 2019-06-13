@@ -1,4 +1,4 @@
-c_args += [ '-DRELEASE=' + h_release, '-DCOPYRIGHT=' + h_copyright, '-DNAME=' + h_name ]
+c_args += [ '-DRELEASE=' + HELENOS_RELEASE, '-DCOPYRIGHT=' + HELENOS_COPYRIGHT, '-DNAME=' + HELENOS_NAME ]
 src = files(
 	'getterm.c',
 	'version.c',

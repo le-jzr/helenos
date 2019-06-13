@@ -1,2 +1,0 @@
-option('rdfmt', type : 'combo', choices : ['tmpfs', 'fat', 'ext4fs'], value : 'ext4fs')
-option('ubsan', type : 'boolean', value : false)

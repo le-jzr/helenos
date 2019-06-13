@@ -1,22 +1,16 @@
 # TODO: Use vcs_tag() to generate version string
 # TODO: jobfile
 # TODO: lto
-# TODO: -Werror on CONFIG_DEBUG
-# TODO: OPTIMIZATION flag
 # TODO: -D__$(ENDIANESS)__ in cross
 # TODO: CONFIG_BUILD_SHARED_LIBRARIES, CONFIG_USE_SHARED_LIBRARIES
 # TODO: fix clang build
-# TODO: fix xcw
-# TODO: CONFIG_STRIP_BINARIES
-# TODO: export cross flags
 # TODO: CONFIG_PCUT_TESTS, CONFIG_PCUT_SELF_TESTS
 # TODO: only install static libraries and headers when CONFIG_DEVEL_FILES is enabled
 
 project(
     'HelenOS',
     [ 'c', 'cpp' ],
-    default_options : ['buildtype=plain', 'c_std=gnu11', 'cpp_std=c++17', 'warning_level=3', 'werror=true', 'b_staticpic=false', 'default_library=shared', 'prefix=/' ],
-    version : '0.9.1-git',
+    default_options : ['buildtype=plain', 'c_std=gnu11', 'cpp_std=c++17', 'warning_level=3', 'werror=false', 'b_staticpic=false', 'default_library=shared', 'prefix=/' ],
 )
 
 meson.add_install_script('install.sh')
@@ -25,17 +19,21 @@ if get_option('default_library') == 'both'
 	error('You must use either shared or static for default_library.')
 endif
 
+debug_options = false
+
 # Output compiler flags for use by third-party builds.
 # NOTE: See $srcroot/meson/cross/$arch for architecture-specific compiler flags.
 
-message('Cross c_args:')
-message(meson.get_cross_property('c_args'))
-message('Cross cpp_args:')
-message(meson.get_cross_property('cpp_args'))
-message('Cross c_link_args:')
-message(meson.get_cross_property('c_link_args'))
-message('Cross cpp_link_args:')
-message(meson.get_cross_property('cpp_link_args'))
+if debug_options
+	message('Cross c_args:')
+	message(meson.get_cross_property('c_args'))
+	message('Cross cpp_args:')
+	message(meson.get_cross_property('cpp_args'))
+	message('Cross c_link_args:')
+	message(meson.get_cross_property('c_link_args'))
+	message('Cross cpp_link_args:')
+	message(meson.get_cross_property('cpp_link_args'))
+endif
 
 cc = meson.get_compiler('c')
 
@@ -60,6 +58,7 @@ mkarray = find_program('tools/mkarray_for_meson.sh')
 dirname = find_program('dirname')
 basename = find_program('basename')
 which = find_program('which')
+grep = find_program('grep')
 
 autocheck = generator(find_program('tools/autocheck.awk'),
 	arguments: [ '@INPUT@' ],
@@ -67,28 +66,67 @@ autocheck = generator(find_program('tools/autocheck.awk'),
 	capture: true,
 )
 
-CONFIG_RDFMT = get_option('rdfmt')
-CONFIG_UBSAN = get_option('ubsan')
-# TODO
-CONFIG_BUILD_SHARED_LIBS = true
-CONFIG_DEBUG = true
-CONFIG_STRIP_BINARIES = false
-CONFIG_LINE_DEBUG = false
-CONFIG_RTLD = true
+# Read some variables from Makefile.common
+config_variables = [
+	'CONFIG_BAREBONE',
+	'CONFIG_BUILD_SHARED_LIBS',
+	'CONFIG_DEBUG',
+	'CONFIG_DEVEL_FILES',
+	'CONFIG_LINE_DEBUG',
+	'CONFIG_RTLD',
+	'CONFIG_STRIP_BINARIES',
+	'CONFIG_UBSAN',
+	'OPTIMIZATION',
+	'RDFMT',
+]
+
+foreach varname : config_variables
+	result = run_command(grep, '^' + varname + '\\b', meson.source_root() / 'Makefile.config')
+	if result.returncode() != 0
+		error('Missing configuration variable ' + varname + ' in Makefile.config')
+	endif
+
+	value = result.stdout().strip().split('=')[1].strip()
+	if value == 'y'
+		value = true
+	elif value == 'n'
+		value = false
+	endif
+
+	set_variable(varname, value)
+	if debug_options
+		message([ varname, value ])
+	endif
+endforeach
+
+# Also read version information.
+version_variables = [
+	'COPYRIGHT',
+	'NAME',
+	'PATCHLEVEL',
+	'SUBLEVEL',
+	'VERSION',
+]
+
+foreach varname : version_variables
+	line = run_command(grep, '^' + varname + '\\b', meson.source_root() / 'version', check: true).stdout().strip()
+	value = line.split('=')[1].strip()
+	set_variable('HELENOS_' + varname, value)
+	if debug_options
+		message([ 'HELENOS_' + varname, value ])
+	endif
+endforeach
+
+HELENOS_RELEASE = HELENOS_VERSION + '.' + HELENOS_PATCHLEVEL + '.' + HELENOS_SUBLEVEL
 
 h_arch = meson.get_cross_property('h_arch')
 
-# FIXME
-h_release = meson.project_version()
-h_copyright = 'Copyright (c) 2001-2019 HelenOS project'
-h_name = 'Armonia'
-
 # TODO: enable more warnings
-# XXX: -fno-builtin-strftime works around seemingly spurious format warning.
-# TODO: CONFIG_DEBUG, CONFIG_UBSAN
+# FIXME: -fno-builtin-strftime works around seemingly spurious format warning.
+# We should investigate what's going on there.
 
 extra_common_flags = [
-	'-O3',
+	'-O' + OPTIMIZATION,
 	'-fexec-charset=UTF-8',
 	'-finput-charset=UTF-8',
 
@@ -113,6 +151,10 @@ extra_common_flags = [
 
 	'-fdebug-prefix-map=' + meson.source_root() + '=.',
 ]
+
+if CONFIG_DEBUG
+	extra_common_flags += [ '-Werror' ]
+endif
 
 if CONFIG_LINE_DEBUG
 	extra_common_flags += [ '-gdwarf-4', '-g3' ]
