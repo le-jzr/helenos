@@ -3,7 +3,7 @@ link_map = true
 disassemble = true
 install_nonessential_data = true
 install_debug_files = false
-install_devel_files = false
+install_devel_files = true
 
 if disassemble
 	objdump = find_program('objdump')

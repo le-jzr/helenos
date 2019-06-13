@@ -179,12 +179,12 @@ export_ldflags = [
 ]
 
 export_ldlibs = [
-	'-Wl,--start-group',
+	'-Wl,--as-needed',
 	'-lposix',
 	'-lmath',
 	'-lc',
 	'-lgcc',
-	'-Wl,--end-group',
+	'-Wl,--no-as-needed',
 ]
 
 cc_arch = meson.get_cross_property('cc_arch')
