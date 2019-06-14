@@ -106,7 +106,7 @@ foreach appdirs : dirs
 	endif
 
 	# Init binaries need to always be linked statically.
-	static_build = init.contains(dir)
+	static_build = (not CONFIG_USE_SHARED_LIBS) or init.contains(dir)
 
 	# Add the corresponding standard libraries to dependencies.
 

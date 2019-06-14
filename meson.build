@@ -2,7 +2,7 @@
 # TODO: jobfile
 # TODO: lto
 # TODO: -D__$(ENDIANESS)__ in cross
-# TODO: CONFIG_BUILD_SHARED_LIBS, CONFIG_USE_SHARED_LIBS
+# TODO: CONFIG_BUILD_SHARED_LIBS
 # TODO: fix clang build
 # TODO: CONFIG_PCUT_TESTS, CONFIG_PCUT_SELF_TESTS
 # TODO: only install static libraries and headers when CONFIG_DEVEL_FILES is enabled
@@ -76,6 +76,7 @@ config_variables = [
 	'CONFIG_RTLD',
 	'CONFIG_STRIP_BINARIES',
 	'CONFIG_UBSAN',
+	'CONFIG_USE_SHARED_LIBS',
 	'OPTIMIZATION',
 	'RDFMT',
 ]
