@@ -36,7 +36,4 @@ ifeq ($(CONFIG_FPU),y)
 	COMMON_CFLAGS += -mfloat-abi=hard
 endif
 
-ENDIANESS = LE
 
-BFD_NAME = elf32-littlearm
-BFD_ARCH = arm

@@ -28,7 +28,4 @@
 
 COMMON_CFLAGS += -fno-unwind-tables
 
-ENDIANESS = LE
 
-BFD_NAME = elf64-ia64-little
-BFD_ARCH = ia64-elf64

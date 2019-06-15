@@ -39,7 +39,4 @@ endif
 COMMON_CFLAGS += -mno-tls-direct-seg-refs -fno-omit-frame-pointer
 LDFLAGS += -Wl,--gc-sections
 
-ENDIANESS = LE
 
-BFD_NAME = elf32-i386
-BFD_ARCH = i386

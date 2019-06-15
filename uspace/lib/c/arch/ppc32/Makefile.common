@@ -36,7 +36,4 @@ COMMON_CFLAGS += -mcpu=powerpc -m$(FLOATS)-float -m32 -Wl,-z,max-page-size=0x100
 AFLAGS += -a32
 LDFLAGS += -Wl,--gc-sections
 
-ENDIANESS = BE
 
-BFD_NAME = elf32-powerpc
-BFD_ARCH = powerpc:common
