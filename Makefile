@@ -41,7 +41,6 @@ MESON = meson
 CONFIG_RULES = HelenOS.config
 
 COMMON_MAKEFILE = Makefile.common
-COMMON_HEADER = common.h
 
 CONFIG_MAKEFILE = Makefile.config
 CONFIG_HEADER = config.h
@@ -69,7 +68,7 @@ all: kernel uspace export-cross test-xcw
 build/build.ninja: Makefile.config version
 	PATH="$(CROSS_PATH):$$PATH" meson . build --cross-file meson/cross/$(UARCH) $(MESON_ARGS)
 
-common: $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER) build/build.ninja
+common: $(COMMON_MAKEFILE) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER) build/build.ninja
 
 kernel: common
 	$(MAKE) -r -C kernel PRECHECK=$(PRECHECK)
@@ -142,9 +141,8 @@ check_errno:
 
 # Autotool (detects compiler features)
 
-autotool $(COMMON_MAKEFILE) $(COMMON_HEADER): $(CONFIG_MAKEFILE) $(AUTOTOOL)
+autotool $(COMMON_MAKEFILE): $(CONFIG_MAKEFILE) $(AUTOTOOL)
 	$(AUTOTOOL)
-	diff -q $(COMMON_HEADER).new $(COMMON_HEADER) 2> /dev/null; if [ $$? -ne 0 ]; then mv -f $(COMMON_HEADER).new $(COMMON_HEADER); fi
 
 # Build-time configuration
 
@@ -172,7 +170,7 @@ release:
 # Cleaning
 
 distclean: clean
-	rm -f $(CSCOPE).out $(COMMON_MAKEFILE) $(COMMON_HEADER) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) tools/*.pyc tools/checkers/*.pyc release/HelenOS-*
+	rm -f $(CSCOPE).out $(COMMON_MAKEFILE) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) tools/*.pyc tools/checkers/*.pyc release/HelenOS-*
 
 clean:
 	rm -fr $(SANDBOX)
