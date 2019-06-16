@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2005 Martin Decky
+# Copyright (c) 2007 Jakub Jermar, Michal Kebrt
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,46 +27,59 @@
 #
 
 
-COMMON_CFLAGS += -mconstant-gp -fno-unwind-tables -mfixed-range=f32-f127
+atsign = '%'
 
-LDFLAGS += -Wl,-EL
+kernel_c_args += [ '-fno-omit-frame-pointer', '-mapcs-frame', '-mno-unaligned-access', '-mfpu=vfpv3' ]
 
-BITS = 64
-ENDIANESS = LE
-
-ARCH_SOURCES = \
-	arch/$(KARCH)/src/start.S \
-	arch/$(KARCH)/src/asm.S \
-	arch/$(KARCH)/src/dummy.S \
-	arch/$(KARCH)/src/ia64.c \
-	arch/$(KARCH)/src/fpu_context.c \
-	arch/$(KARCH)/src/context.S \
-	arch/$(KARCH)/src/cpu/cpu.c \
-	arch/$(KARCH)/src/debug/stacktrace.c \
-	arch/$(KARCH)/src/debug/stacktrace_asm.S \
-	arch/$(KARCH)/src/ivt.S \
-	arch/$(KARCH)/src/interrupt.c \
-	arch/$(KARCH)/src/mm/km.c \
-	arch/$(KARCH)/src/mm/as.c \
-	arch/$(KARCH)/src/mm/frame.c \
-	arch/$(KARCH)/src/mm/page.c \
-	arch/$(KARCH)/src/mm/tlb.c \
-	arch/$(KARCH)/src/mm/vhpt.c \
-	arch/$(KARCH)/src/proc/scheduler.c \
-	arch/$(KARCH)/src/ddi/ddi.c \
-	arch/$(KARCH)/src/smc.c \
-	arch/$(KARCH)/src/smp/smp.c \
-	arch/$(KARCH)/src/drivers/it.c
-
-ifeq ($(MACHINE),ski)
-	ARCH_SOURCES += arch/$(KARCH)/src/drivers/ski.c
+if CONFIG_FPU
+	# This is necessary to allow vmsr insn and fpexc manipulation
+	# Use vfp32 to allow context save/restore of d16-d31 regs.
+	kernel_c_args += [ '-mfloat-abi=hard', '-mfpu=vfp3' ]
 endif
 
-ifeq ($(MACHINE),i460GX)
-	DEFS += -DI460GX
+arch_src += files(
+	'src/start.S',
+	'src/asm.S',
+	'src/eabi.S',
+	'src/exc_handler.S',
+	'src/arm32.c',
+	'src/machine_func.c',
+	'src/context.S',
+	'src/dummy.S',
+	'src/cpu/cpu.c',
+	'src/interrupt.c',
+	'src/exception.c',
+	'src/userspace.c',
+	'src/smc.c',
+	'src/debug/stacktrace.c',
+	'src/debug/stacktrace_asm.S',
+	'src/mm/km.c',
+	'src/mm/as.c',
+	'src/mm/frame.c',
+	'src/mm/page.c',
+	'src/mm/tlb.c',
+	'src/mm/page_fault.c',
+	'src/atomic.c',
+	'src/ras.c',
+)
+
+if CONFIG_FPU
+	arch_src += files('src/fpu_context.c', 'src/fpu.S')
 endif
 
-ARCH_AUTOCHECK_HEADERS = \
-	arch/$(KARCH)/include/arch/istate_struct.h \
-	arch/$(KARCH)/include/arch/context_struct.h
+if MACHINE == 'gta02'
+	arch_src += files('src/mach/gta02/gta02.c')
 
+elif MACHINE == 'integratorcp'
+	arch_src += files('src/mach/integratorcp/integratorcp.c')
+
+elif MACHINE == 'beagleboardxm'
+	arch_src += files('src/mach/beagleboardxm/beagleboardxm.c')
+
+elif MACHINE == 'beaglebone'
+	arch_src += files('src/mach/beaglebone/beaglebone.c')
+
+elif MACHINE == 'raspberrypi'
+	arch_src += files('src/mach/raspberrypi/raspberrypi.c')
+
+endif
