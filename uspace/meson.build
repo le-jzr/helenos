@@ -7,10 +7,6 @@ install_nonessential_data = not CONFIG_BAREBONE
 install_debug_files = false
 install_devel_files = CONFIG_DEVEL_FILES
 
-if disassemble
-	objdump = find_program('objdump')
-endif
-
 subdir('lib')
 subdir('app')
 subdir('srv')

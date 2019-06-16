@@ -21,6 +21,7 @@ c_link_args = [ '-nostdlib', '-lgcc' ]
 cpp_link_args = [ '-nostdlib', '-lgcc' ]
 cc_arch = 'ia64'
 h_arch = 'ia64'
+bits = 64
 
 [host_machine]
 system = 'helenos'

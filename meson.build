@@ -15,6 +15,24 @@ project(
 
 meson.add_install_script('install.sh')
 
+cc = meson.get_compiler('c')
+basename = find_program('basename')
+dirname = find_program('dirname')
+find = find_program('find')
+grep = find_program('grep')
+mkarray = find_program('tools/mkarray_for_meson.sh')
+objdump = find_program('objdump')
+sed = find_program('sed')
+unzip = find_program('unzip')
+which = find_program('which')
+
+autocheck = generator(find_program('tools/autocheck.awk'),
+	arguments: [ '@INPUT@' ],
+	output: '@PLAINNAME@.check.c',
+	capture: true,
+)
+
+
 if get_option('default_library') == 'both'
 	error('You must use either shared or static for default_library.')
 endif
@@ -35,39 +53,9 @@ if debug_options
 	message(meson.get_cross_property('cpp_link_args'))
 endif
 
-cc = meson.get_compiler('c')
-
-add_project_link_arguments(
-	cc.get_supported_link_arguments([
-		'-Wl,--gc-sections',
-		'-Wl,--warn-common',
-	]),
-	'-Wl,--fatal-warnings',
-	language : [ 'c', 'cpp' ],
-)
-
-add_project_arguments(
-	'-imacros', join_paths(meson.source_root(), 'config.h'),
-	language : [ 'c' ],
-)
-
-find = find_program('find')
-unzip = find_program('unzip')
-sed = find_program('sed')
-mkarray = find_program('tools/mkarray_for_meson.sh')
-dirname = find_program('dirname')
-basename = find_program('basename')
-which = find_program('which')
-grep = find_program('grep')
-
-autocheck = generator(find_program('tools/autocheck.awk'),
-	arguments: [ '@INPUT@' ],
-	output: '@PLAINNAME@.check.c',
-	capture: true,
-)
-
 # Read some variables from Makefile.common
 config_variables = [
+	# Uspace and kernel
 	'CONFIG_BAREBONE',
 	'CONFIG_BUILD_SHARED_LIBS',
 	'CONFIG_DEBUG',
@@ -79,12 +67,56 @@ config_variables = [
 	'CONFIG_USE_SHARED_LIBS',
 	'OPTIMIZATION',
 	'RDFMT',
+
+	# Kernel only
+	'CONFIG_ACPI',
+	'CONFIG_AM335X_TIMERS',
+	'CONFIG_ASID',
+	'CONFIG_ASID_FIFO',
+	'CONFIG_AT_KBD',
+	'CONFIG_BCM2835_MAILBOX',
+	'CONFIG_DSRLNIN',
+	'CONFIG_DSRLNOUT',
+	'CONFIG_EGA',
+	'CONFIG_FB',
+	'CONFIG_GICV2',
+	'CONFIG_I8042',
+	'CONFIG_I8259',
+	'CONFIG_IOMAP_BITMAP',
+	'CONFIG_IOMAP_DUMMY',
+	'CONFIG_KCONSOLE',
+	'CONFIG_MAC_KBD',
+	'CONFIG_MULTIBOOT',
+	'CONFIG_NS16550',
+	'CONFIG_OFW_PCI',
+	'CONFIG_OFW_TREE',
+	'CONFIG_OMAP_UART',
+	'CONFIG_PAGE_HT',
+	'CONFIG_PAGE_PT',
+	'CONFIG_PC_KBD',
+	'CONFIG_PL011_UART',
+	'CONFIG_S3C24XX_IRQC',
+	'CONFIG_S3C24XX_UART',
+	'CONFIG_SMP',
+	'CONFIG_SOFTINT',
+	'CONFIG_SRLN',
+	'CONFIG_SUN_KBD',
+	'CONFIG_SYMTAB',
+	'CONFIG_TEST',
+	'CONFIG_TRACE',
+	'CONFIG_UDEBUG',
+	'CONFIG_VIA_CUDA',
+	'MEMORY_MODEL',
+	'PROCESSOR',
 ]
 
 foreach varname : config_variables
 	result = run_command(grep, '^' + varname + '\\b', meson.source_root() / 'Makefile.config')
 	if result.returncode() != 0
-		error('Missing configuration variable ' + varname + ' in Makefile.config')
+		# TODO: Output negative/inapplicable variables too in config, so that we can check for typos here.
+		#warning('Missing configuration variable ' + varname + ' in Makefile.config')
+		set_variable(varname, false)
+		continue
 	endif
 
 	value = result.stdout().strip().split('=')[1].strip()
@@ -121,6 +153,15 @@ endforeach
 HELENOS_RELEASE = HELENOS_VERSION + '.' + HELENOS_PATCHLEVEL + '.' + HELENOS_SUBLEVEL
 
 h_arch = meson.get_cross_property('h_arch')
+
+add_project_link_arguments(
+	cc.get_supported_link_arguments([
+		'-Wl,--gc-sections',
+		'-Wl,--warn-common',
+	]),
+	'-Wl,--fatal-warnings',
+	language : [ 'c', 'cpp' ],
+)
 
 # TODO: enable more warnings
 # FIXME: -fno-builtin-strftime works around seemingly spurious format warning.
@@ -166,6 +207,8 @@ if CONFIG_LINE_DEBUG
 endif
 
 extra_cflags = extra_common_flags + [
+	'-imacros', join_paths(meson.source_root(), 'config.h'),
+
 	'-Wmissing-prototypes',
 
 	'-Wno-missing-braces',
@@ -195,10 +238,11 @@ w_flags = {
 
 # Process flags. Only sets those that compiler supports.
 foreach lang : [ 'c', 'cpp' ]
-	_args = meson.get_compiler(lang).get_supported_arguments(w_flags.get(lang))
-	add_project_arguments(_args, language : [ lang ])
+	extra_cflags = meson.get_compiler(lang).get_supported_arguments(w_flags.get(lang))
+	add_project_arguments(extra_cflags, language : [ lang ])
 endforeach
 
+subdir('kernel')
 subdir('uspace')
 
 
