@@ -1028,7 +1028,7 @@ sys_errno_t sys_thread_create(uspace_ptr_uspace_arg_t uspace_uarg, uspace_ptr_ch
 	thread_t *thread = thread_create(uinit, kernel_uarg, TASK,
 	    THREAD_FLAG_USPACE | THREAD_FLAG_NOATTACH, namebuf);
 	if (thread) {
-		if (uspace_thread_id) {
+		if (uspace_addr_unwrap(uspace_thread_id)) {
 			rc = copy_to_uspace(uspace_thread_id, &thread->tid,
 			    sizeof(thread->tid));
 			if (rc != EOK) {

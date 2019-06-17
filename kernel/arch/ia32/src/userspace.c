@@ -69,12 +69,12 @@ void userspace(uspace_arg_t *kernel_uarg)
 	    :
 	    : [eflags_mask] "i" (~EFLAGS_NT),
 	      [udata_des] "i" (GDT_SELECTOR(UDATA_DES) | PL_USER),
-	      [stack_top] "r" (kernel_uarg->uspace_stack +
+	      [stack_top] "r" (uspace_addr_unwrap(kernel_uarg->uspace_stack) +
 	      kernel_uarg->uspace_stack_size),
 	      [eflags] "r" ((eflags & ~(EFLAGS_NT)) | EFLAGS_IF),
 	      [utext_des] "i" (GDT_SELECTOR(UTEXT_DES) | PL_USER),
-	      [entry] "r" (kernel_uarg->uspace_entry),
-	      [uarg] "r" (kernel_uarg->uspace_uarg),
+	      [entry] "r" (uspace_addr_unwrap(kernel_uarg->uspace_entry)),
+	      [uarg] "r" (uspace_addr_unwrap(kernel_uarg->uspace_uarg)),
 	      [vreg_des] "r" (GDT_SELECTOR(VREG_DES))
 	    : "eax");
 

@@ -57,16 +57,40 @@ typedef intptr_t  native_t;
 
 #ifdef KERNEL
 
+#if 0
 typedef sysarg_t uspace_addr_t;
+#define to_uspace_addr(addr) (addr)
+#define uspace_addr_add(addr, inc) ((addr) + (inc))
+#define uspace_addr_unwrap(addr) (addr)
+#else
+/*
+ * Some hackery to truly check we aren't directly accessing uspace pointers
+ * in kernel. It exploits the fact that `struct { uintptr_t }` has the same
+ * representation and calling convention as `uintptr_t`, but otherwise can't
+ * be legally converted in C. It breaks function cast checks though, so it
+ * isn't enabled unconditionally.
+ */
+typedef struct __uspace_ptr {
+	uintptr_t address;
+} uspace_addr_t;
+
+#define to_uspace_addr(addr) ((uspace_addr_t) { (addr) })
+#define uspace_addr_add(addr, inc) ((uspace_addr_t) { (addr).address + inc })
+#define uspace_addr_unwrap(addr) ((addr).address)
+#endif
+
+#define USPACE_NULL to_uspace_addr(0)
+
 /* We might implement a way to check validity of the type some day. */
 #define uspace_ptr(type) uspace_addr_t
-#define USPACE_NULL 0
+
+#define uspace_addr_eq(a, b) (uspace_addr_unwrap(a) == uspace_addr_unwrap(b))
 
 #else /* !KERNEL */
-
 typedef void *uspace_addr_t;
 #define uspace_ptr(type) type *
-
+#define to_uspace_addr(addr) ((void *) (addr))
+#define USPACE_NULL NULL
 #endif
 
 // TODO: Put this in a better location.

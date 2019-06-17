@@ -436,7 +436,7 @@ sys_errno_t sys_ipc_call_async_slow(cap_phone_handle_t handle, uspace_ptr_ipc_da
 		return ENOMEM;
 	}
 
-	errno_t rc = copy_from_uspace(&call->data.args, data + offsetof(ipc_data_t, args),
+	errno_t rc = copy_from_uspace(&call->data.args, uspace_addr_add(data, offsetof(ipc_data_t, args)),
 	    sizeof(call->data.args));
 	if (rc != EOK) {
 		kobject_put(call->kobject);
@@ -625,7 +625,7 @@ sys_errno_t sys_ipc_forward_slow(cap_call_handle_t chandle,
     cap_phone_handle_t phandle, uspace_ptr_ipc_data_t data, unsigned int mode)
 {
 	ipc_data_t newdata;
-	errno_t rc = copy_from_uspace(&newdata.args, data + offsetof(ipc_data_t, args),
+	errno_t rc = copy_from_uspace(&newdata.args, uspace_addr_add(data, offsetof(ipc_data_t, args)),
 	    sizeof(newdata.args));
 	if (rc != EOK)
 		return (sys_errno_t) rc;
@@ -717,7 +717,7 @@ sys_errno_t sys_ipc_answer_slow(cap_call_handle_t chandle, uspace_ptr_ipc_data_t
 	} else
 		saved = false;
 
-	errno_t rc = copy_from_uspace(&call->data.args, data + offsetof(ipc_data_t, args),
+	errno_t rc = copy_from_uspace(&call->data.args, uspace_addr_add(data, offsetof(ipc_data_t, args)),
 	    sizeof(call->data.args));
 	if (rc != EOK) {
 		/*

@@ -243,13 +243,13 @@ void userspace(uspace_arg_t *kernel_uarg)
 	 * memory stack and the RSE stack. Each occuppies
 	 * uspace_stack_size / 2 bytes.
 	 */
-	switch_to_userspace(kernel_uarg->uspace_entry,
-	    kernel_uarg->uspace_stack +
+	switch_to_userspace(uspace_addr_unwrap(kernel_uarg->uspace_entry),
+	    uspace_addr_unwrap(kernel_uarg->uspace_stack) +
 	    kernel_uarg->uspace_stack_size / 2 -
 	    ALIGN_UP(STACK_ITEM_SIZE, STACK_ALIGNMENT),
-	    kernel_uarg->uspace_stack +
+	    uspace_addr_unwrap(kernel_uarg->uspace_stack) +
 	    kernel_uarg->uspace_stack_size / 2,
-	    kernel_uarg->uspace_uarg, psr.value, rsc.value);
+	    uspace_addr_unwrap(kernel_uarg->uspace_uarg), psr.value, rsc.value);
 
 	while (true)
 		;

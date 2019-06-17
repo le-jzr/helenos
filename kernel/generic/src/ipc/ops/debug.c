@@ -46,7 +46,7 @@ static int request_process(call_t *call, answerbox_t *box)
 static errno_t answer_process(call_t *answer)
 {
 	if (answer->buffer) {
-		uspace_addr_t dst = ipc_get_arg1(&answer->data);
+		uspace_addr_t dst = to_uspace_addr(ipc_get_arg1(&answer->data));
 		size_t size = ipc_get_arg2(&answer->data);
 		errno_t rc;
 

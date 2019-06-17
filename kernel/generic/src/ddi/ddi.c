@@ -472,7 +472,7 @@ sys_errno_t sys_dmamem_map(size_t size, unsigned int map_flags, unsigned int fla
 		 */
 
 		uintptr_t phys;
-		errno_t rc = dmamem_map(virt_ptr, size, map_flags,
+		errno_t rc = dmamem_map(uspace_addr_unwrap(virt_ptr), size, map_flags,
 		    flags, &phys);
 
 		if (rc != EOK)
@@ -480,7 +480,7 @@ sys_errno_t sys_dmamem_map(size_t size, unsigned int map_flags, unsigned int fla
 
 		rc = copy_to_uspace(phys_ptr, &phys, sizeof(phys));
 		if (rc != EOK) {
-			dmamem_unmap(virt_ptr, size);
+			dmamem_unmap(uspace_addr_unwrap(virt_ptr), size);
 			return rc;
 		}
 	} else {

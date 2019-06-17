@@ -42,7 +42,7 @@
 
 static errno_t request_preprocess(call_t *call, phone_t *phone)
 {
-	uspace_addr_t src = ipc_get_arg1(&call->data);
+	uspace_addr_t src = to_uspace_addr(ipc_get_arg1(&call->data));
 	size_t size = ipc_get_arg2(&call->data);
 
 	if (size > DATA_XFER_LIMIT) {
@@ -76,7 +76,7 @@ static errno_t answer_preprocess(call_t *answer, ipc_data_t *olddata)
 
 	if (!ipc_get_retval(&answer->data)) {
 		/* The recipient agreed to receive data. */
-		uspace_addr_t dst = ipc_get_arg1(&answer->data);
+		uspace_addr_t dst = to_uspace_addr(ipc_get_arg1(&answer->data));
 		size_t size = ipc_get_arg2(&answer->data);
 		size_t max_size = ipc_get_arg2(olddata);
 

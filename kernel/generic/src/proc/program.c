@@ -103,7 +103,7 @@ errno_t program_create(as_t *as, uspace_addr_t entry_addr, char *name, program_t
 	}
 
 	kernel_uarg->uspace_entry = entry_addr;
-	kernel_uarg->uspace_stack = virt;
+	kernel_uarg->uspace_stack = to_uspace_addr(virt);
 	kernel_uarg->uspace_stack_size = STACK_SIZE_USER;
 	kernel_uarg->uspace_thread_function = USPACE_NULL;
 	kernel_uarg->uspace_thread_arg = USPACE_NULL;
@@ -155,7 +155,7 @@ errno_t program_create_from_image(void *image_addr, char *name, program_t *prg)
 		return ENOTSUP;
 	}
 
-	return program_create(as, ((elf_header_t *) image_addr)->e_entry,
+	return program_create(as, to_uspace_addr(((elf_header_t *) image_addr)->e_entry),
 	    name, prg);
 }
 
@@ -189,7 +189,7 @@ errno_t program_create_loader(program_t *prg, char *name)
 		return ENOENT;
 	}
 
-	return program_create(as, ((elf_header_t *) program_loader)->e_entry,
+	return program_create(as, to_uspace_addr(((elf_header_t *) program_loader)->e_entry),
 	    name, prg);
 }
 

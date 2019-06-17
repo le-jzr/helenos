@@ -155,10 +155,10 @@ void userspace(uspace_arg_t *kernel_uarg)
 	    SPSR_MODE_ARM64_EL0T);
 
 	/* Set program entry. */
-	ELR_EL1_write(kernel_uarg->uspace_entry);
+	ELR_EL1_write(uspace_addr_unwrap(kernel_uarg->uspace_entry));
 
 	/* Set user stack. */
-	SP_EL0_write(kernel_uarg->uspace_stack +
+	SP_EL0_write(uspace_addr_unwrap(kernel_uarg->uspace_stack) +
 	    kernel_uarg->uspace_stack_size);
 
 	/* Clear Thread ID register. */

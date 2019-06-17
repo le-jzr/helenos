@@ -62,8 +62,8 @@ static errno_t answer_preprocess(call_t *answer, ipc_data_t *olddata)
 
 	if (!ipc_get_retval(&answer->data)) {
 		/* The recipient agreed to send data. */
-		uspace_addr_t src = ipc_get_arg1(&answer->data);
-		uspace_addr_t dst = ipc_get_arg1(olddata);
+		uspace_addr_t src = to_uspace_addr(ipc_get_arg1(&answer->data));
+		uspace_addr_t dst = to_uspace_addr(ipc_get_arg1(olddata));
 		size_t max_size = ipc_get_arg2(olddata);
 		size_t size = ipc_get_arg2(&answer->data);
 
@@ -72,7 +72,7 @@ static errno_t answer_preprocess(call_t *answer, ipc_data_t *olddata)
 			 * Copy the destination VA so that this piece of
 			 * information is not lost.
 			 */
-			ipc_set_arg1(&answer->data, dst);
+			ipc_set_arg1(&answer->data, uspace_addr_unwrap(dst));
 
 			answer->buffer = malloc(size);
 			if (!answer->buffer) {
@@ -102,7 +102,7 @@ static errno_t answer_preprocess(call_t *answer, ipc_data_t *olddata)
 static errno_t answer_process(call_t *answer)
 {
 	if (answer->buffer) {
-		uspace_addr_t dst = ipc_get_arg1(&answer->data);
+		uspace_addr_t dst = to_uspace_addr(ipc_get_arg1(&answer->data));
 		size_t size = ipc_get_arg2(&answer->data);
 		errno_t rc;
 

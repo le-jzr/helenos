@@ -241,7 +241,7 @@ static irq_code_t *code_from_uspace(uspace_ptr_irq_code_t ucode)
 	ranges = malloc(sizeof(code->ranges[0]) * code->rangecount);
 	if (!ranges)
 		goto error;
-	rc = copy_from_uspace(ranges, (uintptr_t) code->ranges,
+	rc = copy_from_uspace(ranges, to_uspace_addr((uintptr_t) code->ranges),
 	    sizeof(code->ranges[0]) * code->rangecount);
 	if (rc != EOK)
 		goto error;
@@ -249,7 +249,7 @@ static irq_code_t *code_from_uspace(uspace_ptr_irq_code_t ucode)
 	cmds = malloc(sizeof(code->cmds[0]) * code->cmdcount);
 	if (!cmds)
 		goto error;
-	rc = copy_from_uspace(cmds, (uintptr_t) code->cmds,
+	rc = copy_from_uspace(cmds, to_uspace_addr((uintptr_t) code->cmds),
 	    sizeof(code->cmds[0]) * code->cmdcount);
 	if (rc != EOK)
 		goto error;
@@ -328,7 +328,7 @@ errno_t ipc_irq_subscribe(answerbox_t *box, inr_t inr, sysarg_t imethod,
 		return ELIMIT;
 
 	irq_code_t *code;
-	if (ucode) {
+	if (uspace_addr_unwrap(ucode)) {
 		code = code_from_uspace(ucode);
 		if (!code)
 			return EBADMEM;

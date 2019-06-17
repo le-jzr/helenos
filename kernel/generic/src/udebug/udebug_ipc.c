@@ -403,8 +403,8 @@ static void udebug_receive_mem_read(call_t *call)
 	void *buffer = NULL;
 	errno_t rc;
 
-	uspace_dst = ipc_get_arg2(&call->data);
-	uspace_src = ipc_get_arg3(&call->data);
+	uspace_dst = to_uspace_addr(ipc_get_arg2(&call->data));
+	uspace_src = to_uspace_addr(ipc_get_arg3(&call->data));
 	size = ipc_get_arg4(&call->data);
 
 	rc = udebug_mem_read(uspace_src, size, &buffer);
@@ -422,7 +422,7 @@ static void udebug_receive_mem_read(call_t *call)
 	 * same code in process_answer() can be used
 	 * (no way to distinguish method in answer)
 	 */
-	ipc_set_arg1(&call->data, uspace_dst);
+	ipc_set_arg1(&call->data, uspace_addr_unwrap(uspace_dst));
 	ipc_set_arg2(&call->data, size);
 	call->buffer = buffer;
 

@@ -68,13 +68,13 @@ bool uspace_stack_trace_context_validate(stack_trace_context_t *ctx)
 bool uspace_frame_pointer_prev(stack_trace_context_t *ctx, uintptr_t *prev)
 {
 	return !copy_from_uspace(prev,
-	    ctx->fp + sizeof(uintptr_t) * FRAME_OFFSET_FP_PREV, sizeof(*prev));
+	    to_uspace_addr(ctx->fp + sizeof(uintptr_t) * FRAME_OFFSET_FP_PREV), sizeof(*prev));
 }
 
 bool uspace_return_address_get(stack_trace_context_t *ctx, uintptr_t *ra)
 {
 	return !copy_from_uspace(ra,
-	    ctx->fp + sizeof(uintptr_t) * FRAME_OFFSET_RA, sizeof(*ra));
+	    to_uspace_addr(ctx->fp + sizeof(uintptr_t) * FRAME_OFFSET_RA), sizeof(*ra));
 }
 
 /** @}

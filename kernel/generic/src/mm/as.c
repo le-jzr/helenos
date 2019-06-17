@@ -2097,7 +2097,7 @@ sysarg_t sys_as_area_create(uintptr_t base, size_t size, unsigned int flags,
 	mem_backend_t *backend;
 	mem_backend_data_t backend_data;
 
-	if (!pager_info)
+	if (!uspace_addr_unwrap(pager_info))
 		backend = &anon_backend;
 	else {
 		backend = &user_backend;
