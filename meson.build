@@ -154,6 +154,12 @@ HELENOS_RELEASE = HELENOS_VERSION + '.' + HELENOS_PATCHLEVEL + '.' + HELENOS_SUB
 
 h_arch = meson.get_cross_property('h_arch')
 
+add_project_arguments(
+	# TODO: Remove from project arguments and only use where needed.
+	'-imacros', join_paths(meson.source_root(), 'config.h'),
+	language : [ 'c' ],
+)
+
 add_project_link_arguments(
 	cc.get_supported_link_arguments([
 		'-Wl,--gc-sections',
