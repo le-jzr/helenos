@@ -6,6 +6,7 @@
 # TODO: fix clang build
 # TODO: CONFIG_PCUT_TESTS, CONFIG_PCUT_SELF_TESTS
 # TODO: only install static libraries and headers when CONFIG_DEVEL_FILES is enabled
+# TODO: fix image size
 
 project(
     'HelenOS',
@@ -106,6 +107,7 @@ config_variables = [
 	'CONFIG_TRACE',
 	'CONFIG_UDEBUG',
 	'CONFIG_VIA_CUDA',
+	'MACHINE',
 	'MEMORY_MODEL',
 	'PROCESSOR',
 ]

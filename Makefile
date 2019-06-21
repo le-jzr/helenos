@@ -73,7 +73,9 @@ common: $(COMMON_MAKEFILE) $(CONFIG_MAKEFILE) $(CONFIG_HEADER) $(ERRNO_HEADER) b
 	PATH="$(CROSS_PATH):$$PATH" DESTDIR="$$PWD/dist" meson install --no-rebuild --only-changed -C build > build/install.log
 
 test-xcw: common export-cross
+ifeq ($(CONFIG_DEVEL_FILES),y)
 	export PATH=$$PATH:$(abspath tools/xcw/bin) && $(MAKE) -r -C tools/xcw/demo
+endif
 
 export-posix: common
 ifndef EXPORT_DIR

@@ -1,5 +1,6 @@
 #
 # Copyright (c) 2005 Martin Decky
+# Copyright (c) 2019 Jiří Zárevúcky
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -26,48 +27,49 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+kernel_c_args += [ '-mconstant-gp', '-fno-unwind-tables', '-mfixed-range=f32-f127' ]
+kernel_link_args += [ '-Wl,-EL' ]
 
-COMMON_CFLAGS += -mconstant-gp -fno-unwind-tables -mfixed-range=f32-f127
+arch_src = []
 
-AFLAGS += -mconstant-gp
-LDFLAGS += -Wl,-EL
+arch_src += files(
+	'src/start.S',
+	'src/asm.S',
+	'src/dummy.S',
+	'src/ia64.c',
+	'src/fpu_context.c',
+	'src/context.S',
+	'src/cpu/cpu.c',
+	'src/debug/stacktrace.c',
+	'src/debug/stacktrace_asm.S',
+	'src/ivt.S',
+	'src/interrupt.c',
+	'src/mm/km.c',
+	'src/mm/as.c',
+	'src/mm/frame.c',
+	'src/mm/page.c',
+	'src/mm/tlb.c',
+	'src/mm/vhpt.c',
+	'src/proc/scheduler.c',
+	'src/ddi/ddi.c',
+	'src/smc.c',
+	'src/smp/smp.c',
+	'src/drivers/it.c',
+)
 
-BITS = 64
-ENDIANESS = LE
-
-ARCH_SOURCES = \
-	arch/$(KARCH)/src/start.S \
-	arch/$(KARCH)/src/asm.S \
-	arch/$(KARCH)/src/dummy.S \
-	arch/$(KARCH)/src/ia64.c \
-	arch/$(KARCH)/src/fpu_context.c \
-	arch/$(KARCH)/src/context.S \
-	arch/$(KARCH)/src/cpu/cpu.c \
-	arch/$(KARCH)/src/debug/stacktrace.c \
-	arch/$(KARCH)/src/debug/stacktrace_asm.S \
-	arch/$(KARCH)/src/ivt.S \
-	arch/$(KARCH)/src/interrupt.c \
-	arch/$(KARCH)/src/mm/km.c \
-	arch/$(KARCH)/src/mm/as.c \
-	arch/$(KARCH)/src/mm/frame.c \
-	arch/$(KARCH)/src/mm/page.c \
-	arch/$(KARCH)/src/mm/tlb.c \
-	arch/$(KARCH)/src/mm/vhpt.c \
-	arch/$(KARCH)/src/proc/scheduler.c \
-	arch/$(KARCH)/src/ddi/ddi.c \
-	arch/$(KARCH)/src/smc.c \
-	arch/$(KARCH)/src/smp/smp.c \
-	arch/$(KARCH)/src/drivers/it.c
-
-ifeq ($(MACHINE),ski)
-	ARCH_SOURCES += arch/$(KARCH)/src/drivers/ski.c
+if MACHINE == 'ski'
+	arch_src += files('src/drivers/ski.c')
 endif
 
-ifeq ($(MACHINE),i460GX)
-	DEFS += -DI460GX
+if MACHINE == 'i460GX'
+	kernel_c_args += [ '-DI460GX' ]
 endif
 
-ARCH_AUTOCHECK_HEADERS = \
-	arch/$(KARCH)/include/arch/istate_struct.h \
-	arch/$(KARCH)/include/arch/context_struct.h
+_check_headers = [
+	'include/arch/istate_struct.h',
+	'include/arch/context_struct.h',
+]
 
+foreach h : _check_headers
+	arch_src += [ autocheck.process(h) ]
+endforeach
