@@ -84,6 +84,10 @@ if CONFIG_PL011_UART
 	_src += [ 'drivers/pl011/pl011.c' ]
 endif
 
+if CONFIG_PL050
+	_src += [ 'drivers/pl050/pl050.c' ]
+endif
+
 if CONFIG_S3C24XX_IRQC
 	_src += [ 'drivers/s3c24xx/irqc.c' ]
 endif

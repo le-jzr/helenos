@@ -1,4 +1,5 @@
 # libarch
+arch_src = []
 subdir(join_paths('arch', h_arch))
 
 c_args = [ '-fno-builtin', '-D_LIBC_SOURCE' ]

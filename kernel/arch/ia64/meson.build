@@ -30,8 +30,6 @@
 kernel_c_args += [ '-mconstant-gp', '-fno-unwind-tables', '-mfixed-range=f32-f127' ]
 kernel_link_args += [ '-Wl,-EL' ]
 
-arch_src = []
-
 arch_src += files(
 	'src/start.S',
 	'src/asm.S',

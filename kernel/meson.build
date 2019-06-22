@@ -15,6 +15,7 @@ as_prolog = ''
 kernel_c_args = []
 kernel_link_args = []
 kernel_includes = []
+arch_src = []
 
 subdir('arch' / h_arch)
 subdir('genarch')
@@ -140,7 +141,7 @@ foreach iter : iterations
 		include_directories: kernel_includes,
 		implicit_include_directories: false,
 		c_args: kernel_c_args,
-		link_args: kernel_link_args + [
+		link_args: kernel_c_args + kernel_link_args + [
 			'-Wl,-Map,' + kernel_map_path,
 		],
 		link_depends: kernel_ldscript,

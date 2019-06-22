@@ -1,6 +1,5 @@
 #
-# Copyright (c) 2005 Martin Decky
-# Copyright (c) 2019 Jiří Zárevúcky
+# Copyright (c) 2007 Jakub Jermar, Michal Kebrt
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,69 +26,60 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# TODO: Red Zone is only a problem if we allow interrupts to land on an active
-#       stack. Using separate stack for interrupts and ensuring that we never
-#       enable interrupts on an interrupt stack would allow us to get rid of
-#       the argument.
 
-kernel_c_args += [ '-mno-sse', '-mno-sse2', '-mcmodel=' + MEMORY_MODEL, '-mno-red-zone', '-fno-unwind-tables', '-fno-omit-frame-pointer' ]
+atsign = '%'
 
-# TODO: fix this
-kernel_link_args += [ '-Wl,--no-gc-sections' ]
+kernel_c_args += [ '-fno-omit-frame-pointer', '-mapcs-frame', '-mno-unaligned-access', '-mfpu=vfpv3' ]
 
-if PROCESSOR == 'opteron'
-	kernel_c_args += '-march=opteron'
+if CONFIG_FPU
+	# This is necessary to allow vmsr insn and fpexc manipulation
+	# Use vfp32 to allow context save/restore of d16-d31 regs.
+	kernel_c_args += [ '-mfloat-abi=hard', '-mfpu=vfp3' ]
 endif
 
 arch_src += files(
-	'src/amd64.c',
+	'src/start.S',
 	'src/asm.S',
-	'src/bios/bios.c',
-	'src/boot/memmap.c',
-	'src/boot/multiboot2.S',
-	'src/boot/multiboot.S',
+	'src/eabi.S',
+	'src/exc_handler.S',
+	'src/arm32.c',
+	'src/machine_func.c',
 	'src/context.S',
+	'src/dummy.S',
 	'src/cpu/cpu.c',
-	'src/ddi/ddi.c',
-	'src/debug/stacktrace_asm.S',
-	'src/debug/stacktrace.c',
-	'src/delay.S',
-	'src/drivers/i8254.c',
-	'src/fpu_context.c',
 	'src/interrupt.c',
-	'src/kseg.c',
+	'src/exception.c',
+	'src/userspace.c',
+	'src/smc.c',
+	'src/debug/stacktrace.c',
+	'src/debug/stacktrace_asm.S',
+	'src/mm/km.c',
 	'src/mm/as.c',
 	'src/mm/frame.c',
-	'src/mm/km.c',
 	'src/mm/page.c',
 	'src/mm/tlb.c',
-	'src/pm.c',
-	'src/proc/scheduler.c',
-	'src/proc/task.c',
-	'src/proc/thread.c',
-	'src/smc.c',
-	'src/syscall.c',
-	'src/userspace.c',
-	'src/vreg.c',
+	'src/mm/page_fault.c',
+	'src/atomic.c',
+	'src/ras.c',
 )
 
-if CONFIG_SMP
-	arch_src += files(
-		'src/smp/apic.c',
-		'src/smp/ap.S',
-		'src/smp/ipi.c',
-		'src/smp/mps.c',
-		'src/smp/smp.c',
-	)
+if CONFIG_FPU
+	arch_src += files('src/fpu_context.c', 'src/fpu.S')
 endif
 
-_check_headers = [
-	'include/arch/boot/memmap_struct.h',
-	'include/arch/context_struct.h',
-	'include/arch/istate_struct.h',
-	'include/arch/kseg_struct.h',
-]
+if MACHINE == 'gta02'
+	arch_src += files('src/mach/gta02/gta02.c')
 
-foreach h : _check_headers
-	arch_src += [ autocheck.process(h) ]
-endforeach
+elif MACHINE == 'integratorcp'
+	arch_src += files('src/mach/integratorcp/integratorcp.c')
+
+elif MACHINE == 'beagleboardxm'
+	arch_src += files('src/mach/beagleboardxm/beagleboardxm.c')
+
+elif MACHINE == 'beaglebone'
+	arch_src += files('src/mach/beaglebone/beaglebone.c')
+
+elif MACHINE == 'raspberrypi'
+	arch_src += files('src/mach/raspberrypi/raspberrypi.c')
+
+endif
