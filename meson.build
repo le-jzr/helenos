@@ -61,12 +61,14 @@ config_variables = [
 	'CONFIG_BUILD_SHARED_LIBS',
 	'CONFIG_DEBUG',
 	'CONFIG_DEVEL_FILES',
+	'CONFIG_FPU',
 	'CONFIG_LINE_DEBUG',
 	'CONFIG_RTLD',
 	'CONFIG_STRIP_BINARIES',
 	'CONFIG_UBSAN',
 	'CONFIG_USE_SHARED_LIBS',
 	'OPTIMIZATION',
+	'PROCESSOR',
 	'RDFMT',
 
 	# Kernel only
@@ -96,6 +98,7 @@ config_variables = [
 	'CONFIG_PAGE_PT',
 	'CONFIG_PC_KBD',
 	'CONFIG_PL011_UART',
+	'CONFIG_PL050',
 	'CONFIG_S3C24XX_IRQC',
 	'CONFIG_S3C24XX_UART',
 	'CONFIG_SMP',
@@ -109,7 +112,6 @@ config_variables = [
 	'CONFIG_VIA_CUDA',
 	'MACHINE',
 	'MEMORY_MODEL',
-	'PROCESSOR',
 ]
 
 foreach varname : config_variables
@@ -121,7 +123,7 @@ foreach varname : config_variables
 		continue
 	endif
 
-	value = result.stdout().strip().split('=')[1].strip()
+	value = result.stdout().split('\n')[0].strip().split('=')[1].strip()
 	if value == 'y'
 		value = true
 	elif value == 'n'
@@ -170,6 +172,20 @@ add_project_link_arguments(
 	'-Wl,--fatal-warnings',
 	language : [ 'c', 'cpp' ],
 )
+
+if h_arch == 'arm32'
+	add_project_arguments(
+		'-mcpu=' + '-'.join(PROCESSOR.split('_')),
+		CONFIG_FPU ? '-mfloat-abi=hard' : [],
+		language : [ 'c', 'cpp' ],
+	)
+
+	add_project_link_arguments(
+		'-mcpu=' + '-'.join(PROCESSOR.split('_')),
+		CONFIG_FPU ? '-mfloat-abi=hard' : [],
+		language : [ 'c', 'cpp' ],
+	)
+endif
 
 # TODO: enable more warnings
 # FIXME: -fno-builtin-strftime works around seemingly spurious format warning.
