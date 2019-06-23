@@ -13,8 +13,6 @@ project(
     default_options : ['buildtype=plain', 'c_std=gnu11', 'cpp_std=c++17', 'warning_level=3', 'werror=false', 'b_staticpic=false', 'default_library=shared', 'prefix=/' ],
 )
 
-meson.add_install_script('install.sh')
-
 cc = meson.get_compiler('c')
 basename = find_program('basename')
 dirname = find_program('dirname')
@@ -158,6 +156,8 @@ endforeach
 HELENOS_RELEASE = HELENOS_VERSION + '.' + HELENOS_PATCHLEVEL + '.' + HELENOS_SUBLEVEL
 
 h_arch = meson.get_cross_property('h_arch')
+
+meson.add_install_script('install.sh', CONFIG_DEVEL_FILES.to_string())
 
 add_project_arguments(
 	# TODO: Remove from project arguments and only use where needed.
