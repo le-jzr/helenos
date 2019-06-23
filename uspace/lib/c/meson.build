@@ -15,6 +15,8 @@ incdirs = [
 
 includes += include_directories(incdirs, is_system: true)
 
+allow_shared = true
+
 # FIXME: symlinks from uspace to kernel will break in future Meson version
 #        we should instead move the duplicated library parts into a shared location.
 

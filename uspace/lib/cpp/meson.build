@@ -1,4 +1,5 @@
 language = 'cpp'
+allow_shared = true
 src = files(
 	'src/condition_variable.cpp',
 	'src/exception.cpp',
