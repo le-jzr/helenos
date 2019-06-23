@@ -234,6 +234,10 @@ foreach l : libs
 	})
 endforeach
 
+if not CONFIG_PCUT_TESTS
+	subdir_done()
+endif
+
 # Test binaries
 foreach test : testfiles
 	_testname = test['name']

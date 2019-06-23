@@ -13,4 +13,6 @@ src = files(
 	'src/run.c',
 )
 
-subdir('tests')
+if CONFIG_PCUT_SELF_TESTS
+	subdir('tests')
+endif
