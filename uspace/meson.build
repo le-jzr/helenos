@@ -114,7 +114,9 @@ foreach appdirs : dirs
 
 	# Binaries in the 'drv' subdirectory link libdrv by default.
 
-	if dir.split('/')[0] == 'drv'
+	is_drv = (dir.split('/')[0] == 'drv')
+
+	if is_drv
 		deps += [ 'drv' ]
 	endif
 
@@ -142,12 +144,12 @@ foreach appdirs : dirs
 
 	# Build test executable, if any
 
-	if test_src.length() > 0
+	if CONFIG_PCUT_TESTS and test_src.length() > 0
 		bin_targets += {
 			'src': test_src,
 			'dirname': _dirname,
-			'basename': 'test-' + _basename,
-			'install_dir': 'test' / installdir,
+			'basename': 'test-' + installdir.underscorify() + (is_drv ? '' : ('_' + _basename)),
+			'install_dir': 'test',
 			'includes': includes,
 			'dependencies': [ _deps, libpcut.get('any') ],
 			'c_args': c_args,

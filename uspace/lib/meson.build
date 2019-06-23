@@ -255,7 +255,7 @@ foreach test : testfiles
 		dependencies: [ get_variable('lib' + _libname).get('any'), libpcut.get('any') ],
 		objects: startfiles,
 		install: true,
-		install_dir: 'test' / 'lib',
+		install_dir: 'test',
 		link_args: _ldargs,
 	)
 
@@ -266,7 +266,7 @@ foreach test : testfiles
 			output: _test_binname + '.disasm',
 			capture: true,
 			install: install_debug_files,
-			install_dir: 'debug' / 'test' / 'lib',
+			install_dir: 'debug' / 'test',
 		)
 	endif
 endforeach
