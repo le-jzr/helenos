@@ -179,6 +179,8 @@ kernel_disasm = custom_target(kernel_name + '.disasm',
 	input: kernel_elf,
 	output: kernel_name + '.disasm',
 	capture: true,
-	install: true,
+	build_by_default: true,
+	# TODO: Add configuration option for installing debug files
+	install: false,
 	install_dir: 'debug' / 'kernel',
 )
