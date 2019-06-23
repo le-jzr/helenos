@@ -5,10 +5,12 @@
 
 	echo "######## Installing library map files ########"
 
-	# TODO: only install when enabled
+	# TODO: add configuration option to install debug files
 
-	cd ${MESON_BUILD_ROOT}/uspace
-	find -name '*.map' -a -path './lib/*' | sed 's:^\./::' | xargs --verbose -I'@' install -C -D -m644 -T '@' "${MESON_INSTALL_DESTDIR_PREFIX}debug/"'@'
+	if false; then
+		cd ${MESON_BUILD_ROOT}/uspace
+		find -name '*.map' -a -path './lib/*' | sed 's:^\./::' | xargs --verbose -I'@' install -C -D -m644 -T '@' "${MESON_INSTALL_DESTDIR_PREFIX}debug/"'@'
+	fi
 
 	# Install library headers that are mixed in with source files (no separate 'include' subdir).
 	# The properly separated headers are installed by the meson script.
