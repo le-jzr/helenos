@@ -143,6 +143,9 @@ foreach l : libs
 		_static_deps += get_variable('lib' + s).get('static')
 	endforeach
 
+	install_static_lib = install_devel_files
+	install_shared_lib = allow_shared
+
 	if src.length() > 0
 		_lib = library(l, src,
 			# TODO: Include private headers using #include "quoted",
@@ -152,7 +155,7 @@ foreach l : libs
 			c_args: c_args,
 			link_args: link_args,
 			version: version,
-			install: true,
+			install: always_static ? install_static_lib : install_shared_lib,
 			install_dir: 'lib',
 		)
 
@@ -177,7 +180,7 @@ foreach l : libs
 				dependencies: _static_deps,
 				c_args: c_args,
 				link_args: link_args,
-				install: install_devel_files,
+				install: install_static_lib,
 				install_dir: 'lib',
 			)
 		endif
