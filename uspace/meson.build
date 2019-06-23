@@ -5,7 +5,6 @@ install_nonessential_data = not CONFIG_BAREBONE
 # TODO: Allow installing debug files.
 # This is currently disabled due to boot image size restrictions.
 install_debug_files = false
-install_devel_files = CONFIG_DEVEL_FILES
 
 subdir('lib')
 subdir('app')

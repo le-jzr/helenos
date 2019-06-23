@@ -4,6 +4,16 @@ always_static = (get_option('default_library') == 'static')
 # Used in a few places where we generate custom assembly.
 as_prolog = ''
 
+# Which libraries are installed when CONFIG_DEVEL_FILES is enabled
+installed_libs = [
+	'c',
+	'math',
+	'gui',
+	'draw',
+	'softrend',
+	'posix',
+]
+
 # IMPORTANT: Dependencies must be listed before libs that depend on them.
 libs = [
 	'c',
@@ -111,7 +121,7 @@ foreach l : libs
 		if run_command('[', '-d', incdir, ']').returncode() == 0
 			includes += include_directories(incdir)
 
-			if install_devel_files
+			if CONFIG_DEVEL_FILES and installed_libs.contains(l)
 				install_subdir(l / 'include', install_dir: 'include' / 'lib' + l, strip_directory: true)
 			endif
 		else
@@ -143,7 +153,7 @@ foreach l : libs
 		_static_deps += get_variable('lib' + s).get('static')
 	endforeach
 
-	install_static_lib = install_devel_files
+	install_static_lib = CONFIG_DEVEL_FILES and installed_libs.contains(l)
 	install_shared_lib = allow_shared
 
 	if src.length() > 0
