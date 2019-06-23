@@ -264,6 +264,7 @@ w_flags = {
 foreach lang : [ 'c', 'cpp' ]
 	extra_cflags = meson.get_compiler(lang).get_supported_arguments(w_flags.get(lang))
 	add_project_arguments(extra_cflags, language : [ lang ])
+	add_project_link_arguments(extra_cflags, language : [ lang ])
 endforeach
 
 subdir('kernel')

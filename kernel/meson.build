@@ -125,7 +125,7 @@ else
 endif
 
 # Empty symbol map for first iteration.
-symbol_map_S = custom_target('empty_map.S',
+kernel_map_S = custom_target('empty_map.S',
 	output: 'empty_map.S',
 	capture: true,
 	command: [ 'echo', as_prolog + symtab_section ],
@@ -137,7 +137,7 @@ foreach iter : iterations
 	kernel_map_name = kernel_name + '.map'
 	kernel_map_path = meson.current_build_dir() / kernel_map_name
 
-	kernel_elf = executable(kernel_name + '.elf', symbol_map_S,
+	kernel_elf = executable(kernel_name + '.elf', kernel_map_S,
 		include_directories: kernel_includes,
 		implicit_include_directories: false,
 		c_args: kernel_c_args,
