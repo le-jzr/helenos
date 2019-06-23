@@ -146,79 +146,107 @@ foreach l : libs
 	link_args += [ '-Wl,-Map,' + mapfile ]
 
 	# Convert strings to dependency objects
-	_deps = []
+	# TODO: this dependency business is way too convoluted due to issues in current Meson
+	_any_deps = []
 	_static_deps = []
+	_shared_deps = []
+	_include_deps = []
 	foreach s : deps
-		_deps += get_variable('lib' + s).get('shared')
+		_any_deps += get_variable('lib' + s).get('any')
 		_static_deps += get_variable('lib' + s).get('static')
+		if not always_static
+			_shared_deps += get_variable('lib' + s).get('shared')
+		endif
+		_include_deps += get_variable('lib' + s).get('include')
 	endforeach
 
 	install_static_lib = CONFIG_DEVEL_FILES and installed_libs.contains(l)
 	install_shared_lib = allow_shared
 
 	if src.length() > 0
-		_lib = library(l, src,
-			# TODO: Include private headers using #include "quoted",
-			#       and get rid of private_includes.
-			include_directories: [ private_includes, includes ],
-			dependencies: _deps,
-			c_args: c_args,
-			link_args: link_args,
-			version: version,
-			install: always_static ? install_static_lib : install_shared_lib,
-			install_dir: 'lib',
-		)
-
-		if disassemble and not always_static
-			custom_target('lib' + l + '.disasm',
-				command: [ objdump, '-S', '@INPUT@' ],
-				input: _lib,
-				output: 'lib' + l + '.disasm',
-				capture: true,
-				install: install_debug_files,
-				install_dir: join_paths('debug', 'lib'),
-			)
-		endif
-
-		if always_static
-			_static_lib = _lib
-		else
-			_static_lib = static_library(l, src,
+		if not always_static
+			_shared_lib = shared_library(l, src,
 				# TODO: Include private headers using #include "quoted",
 				#       and get rid of private_includes.
 				include_directories: [ private_includes, includes ],
-				dependencies: _static_deps,
+				dependencies: _shared_deps,
 				c_args: c_args,
 				link_args: link_args,
-				install: install_static_lib,
+				version: version,
+				build_by_default: true,
+				install: install_shared_lib,
 				install_dir: 'lib',
+			)
+
+			if disassemble
+				custom_target('lib' + l + '.disasm',
+					command: [ objdump, '-S', '@INPUT@' ],
+					input: _shared_lib,
+					output: 'lib' + l + '.disasm',
+					capture: true,
+					build_by_default: true,
+					install: install_debug_files,
+					install_dir: join_paths('debug', 'lib'),
+				)
+			endif
+
+			_shared_dep = declare_dependency(
+				link_with: _shared_lib,
+				# TODO: Always use `include` subdirectory for public headers,
+				#       and ditch the variable.
+				include_directories: includes,
+				dependencies: _shared_deps,
 			)
 		endif
 
-		_dep = declare_dependency(
-			link_with: _lib,
+		_static_lib = static_library(l, src,
+			# TODO: Include private headers using #include "quoted",
+			#       and get rid of private_includes.
+			include_directories: [ private_includes, includes ],
+			dependencies: _include_deps,
+			c_args: c_args,
+			link_args: link_args,
+			install: install_static_lib,
+			install_dir: 'lib',
+		)
+
+		_static_dep = declare_dependency(
+			link_with: _static_lib,
 			# TODO: Always use `include` subdirectory for public headers,
 			#       and ditch the variable.
 			include_directories: includes,
-			dependencies: _deps,
+			dependencies: _static_deps,
 		)
 
-		if always_static
-			_static_dep = _dep
-		else
-			_static_dep = declare_dependency(
+		if always_static or not allow_shared
+			_any_dep = declare_dependency(
 				link_with: _static_lib,
 				# TODO: Always use `include` subdirectory for public headers,
 				#       and ditch the variable.
 				include_directories: includes,
-				dependencies: _static_deps,
+				dependencies: _any_deps,
+			)
+		else
+			_any_dep = declare_dependency(
+				link_with: _shared_lib,
+				# TODO: Always use `include` subdirectory for public headers,
+				#       and ditch the variable.
+				include_directories: includes,
+				dependencies: _any_deps,
 			)
 		endif
+
+		_include_dep = declare_dependency(
+			# TODO: Always use `include` subdirectory for public headers,
+			#       and ditch the variable.
+			include_directories: includes,
+			dependencies: _include_deps,
+		)
 	else
 		# Header-only library.
-		_dep = declare_dependency(
+		_any_dep = declare_dependency(
 			include_directories: includes,
-			dependencies: _deps,
+			dependencies: _any_deps,
 		)
 		_static_dep = declare_dependency(
 			include_directories: includes,
@@ -234,16 +262,11 @@ foreach l : libs
 		} ]
 	endif
 
-	_shared = _dep
-
-	if not allow_shared
-		_dep = _static_dep
-	endif
-
 	set_variable('lib' + l, {
-		'any': _dep,
-		'shared': _shared,
+		'any': _any_dep,
 		'static': _static_dep,
+		'shared': _shared_dep,
+		'include': _include_dep,
 	})
 endforeach
 
