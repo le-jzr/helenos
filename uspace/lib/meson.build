@@ -163,6 +163,8 @@ foreach l : libs
 	install_static_lib = CONFIG_DEVEL_FILES and installed_libs.contains(l)
 	install_shared_lib = allow_shared
 
+	_shared_dep = disabler()
+
 	if src.length() > 0
 		if not always_static
 			_shared_lib = shared_library(l, src,

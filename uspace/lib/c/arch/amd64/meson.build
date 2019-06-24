@@ -1,4 +1,4 @@
-arch_src = [ autocheck.process('include/libarch/fibril_context.h') ]
+arch_src += [ autocheck.process('include/libarch/fibril_context.h') ]
 
 arch_src += files(
 	'src/entryjmp.S',
