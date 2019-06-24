@@ -4,8 +4,6 @@
 # TODO: -D__$(ENDIANESS)__ in cross
 # TODO: CONFIG_BUILD_SHARED_LIBS
 # TODO: fix clang build
-# TODO: only install static libraries and headers when CONFIG_DEVEL_FILES is enabled
-# TODO: fix image size
 
 project(
     'HelenOS',
