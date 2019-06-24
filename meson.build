@@ -196,6 +196,26 @@ elif h_arch == 'ia32'
 #		add_project_arguments('-march=' + '-'.join(PROCESSOR.split('_')), language : [ 'c', 'cpp' ])
 #		add_project_link_arguments('-march=' + '-'.join(PROCESSOR.split('_')), language : [ 'c', 'cpp' ])
 #	endif
+
+elif h_arch == 'mips32'
+
+	if MACHINE == 'msim'
+		add_project_arguments('-march=r4000', language : [ 'c', 'cpp' ])
+		add_project_link_arguments('-march=r4000', language : [ 'c', 'cpp' ])
+
+	elif MACHINE == 'bmalta'
+		add_project_arguments('-march=4kc', language : [ 'c', 'cpp' ])
+		add_project_link_arguments('-march=4kc', language : [ 'c', 'cpp' ])
+
+	elif MACHINE == 'lmalta'
+		add_project_arguments('-march=4kc', language : [ 'c', 'cpp' ])
+		add_project_link_arguments('-march=4kc', language : [ 'c', 'cpp' ])
+
+	else
+		error('Unknown machine')
+
+	endif
+
 endif
 
 # TODO: enable more warnings

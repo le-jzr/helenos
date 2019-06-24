@@ -26,60 +26,56 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-COMMON_CFLAGS += -msoft-float -mno-abicalls -G 0 -fno-zero-initialized-in-bss -mabi=32
-AS_PROLOG = .module softfloat;
+kernel_c_args += [
+	'-msoft-float',
+	'-mno-abicalls',
+	'-G', '0',
+	'-fno-zero-initialized-in-bss',
+	'-mabi=32',
+]
 
-BITS = 32
+as_prolog = '.module softfloat;'
 
-## Accepted MACHINEs
-#
+arch_src += files(
+	'src/start.S',
+	'src/context.S',
+	'src/mips32.c',
+	'src/asm.S',
+	'src/exception.c',
+	'src/interrupt.c',
+	'src/cache.c',
+	'src/debugger.c',
+	'src/cpu/cpu.c',
+	'src/debug/stacktrace.c',
+	'src/debug/stacktrace_asm.S',
+	'src/mm/km.c',
+	'src/mm/frame.c',
+	'src/mm/page.c',
+	'src/mm/tlb.c',
+	'src/mm/as.c',
+	'src/fpu_context.c',
+	'src/smc.c',
+	'src/smp/smp.c',
+	'src/machine_func.c',
+)
 
-ifeq ($(MACHINE),msim)
-	ENDIANESS = LE
-	COMMON_CFLAGS += -march=r4000
-endif
-ifeq ($(MACHINE),bmalta)
-	ENDIANESS = BE
-	COMMON_CFLAGS += -D__BE__ -march=4kc
-endif
-ifeq ($(MACHINE),lmalta)
-	ENDIANESS = LE
-	COMMON_CFLAGS += -march=4kc
-endif
+if MACHINE == 'lmalta' or MACHINE == 'bmalta'
+	arch_src += files('src/mach/malta/malta.c')
 
-ARCH_SOURCES = \
-	arch/$(KARCH)/src/start.S \
-	arch/$(KARCH)/src/context.S \
-	arch/$(KARCH)/src/mips32.c \
-	arch/$(KARCH)/src/asm.S \
-	arch/$(KARCH)/src/exception.c \
-	arch/$(KARCH)/src/interrupt.c \
-	arch/$(KARCH)/src/cache.c \
-	arch/$(KARCH)/src/debugger.c \
-	arch/$(KARCH)/src/cpu/cpu.c \
-	arch/$(KARCH)/src/debug/stacktrace.c \
-	arch/$(KARCH)/src/debug/stacktrace_asm.S \
-	arch/$(KARCH)/src/mm/km.c \
-	arch/$(KARCH)/src/mm/frame.c \
-	arch/$(KARCH)/src/mm/page.c \
-	arch/$(KARCH)/src/mm/tlb.c \
-	arch/$(KARCH)/src/mm/as.c \
-	arch/$(KARCH)/src/fpu_context.c \
-	arch/$(KARCH)/src/smc.c \
-	arch/$(KARCH)/src/smp/smp.c \
-	arch/$(KARCH)/src/machine_func.c
+elif MACHINE == 'msim'
+	arch_src += files(
+		'src/mach/msim/msim.c',
+		'src/mach/msim/dorder.c',
+	)
 
-ifeq ($(MACHINE),$(filter lmalta bmalta,$(MACHINE)))
-	ARCH_SOURCES += arch/$(KARCH)/src/mach/malta/malta.c
 endif
 
-ifeq ($(MACHINE),msim)
-	ARCH_SOURCES += \
-		arch/$(KARCH)/src/mach/msim/msim.c \
-		arch/$(KARCH)/src/mach/msim/dorder.c
-endif
+_check_headers = [
+	'include/arch/istate_struct.h',
+	'include/arch/context_struct.h',
+	'include/arch/fpu_context_struct.h',
+]
 
-ARCH_AUTOCHECK_HEADERS = \
-	arch/$(KARCH)/include/arch/istate_struct.h \
-	arch/$(KARCH)/include/arch/context_struct.h \
-	arch/$(KARCH)/include/arch/fpu_context_struct.h
+foreach h : _check_headers
+	arch_src += [ autocheck.process(h) ]
+endforeach
