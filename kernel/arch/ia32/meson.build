@@ -26,17 +26,54 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-ifeq ($(PROCESSOR),i486)
-	COMMON_CFLAGS += -march=i486
-else
-	COMMON_CFLAGS += -march=pentium
-endif
+kernel_c_args += [ '-mno-mmx', '-mno-sse', '-mno-sse2', '-mno-sse3', '-mno-3dnow' ]
 
-# XXX: This architecture requires unoptimized TLS pointer access,
-#      as with the GCC option `-mno-tls-direct-seg-refs`.
-#      The `i686-helenos` target defaults to this behavior.
+# TODO: fix this
+kernel_link_args += [ '-Wl,--no-gc-sections' ]
 
-COMMON_CFLAGS += -mno-tls-direct-seg-refs -fno-omit-frame-pointer
-LDFLAGS += -Wl,--gc-sections
+arch_src += files(
+	'src/context.S',
+	'src/debug/stacktrace.c',
+	'src/debug/stacktrace_asm.S',
+	'src/delay.S',
+	'src/asm.S',
+	'src/proc/scheduler.c',
+	'src/proc/task.c',
+	'src/proc/thread.c',
+	'src/bios/bios.c',
+	'src/smp/ap.S',
+	'src/smp/apic.c',
+	'src/smp/mps.c',
+	'src/smp/smp.c',
+	'src/atomic.S',
+	'src/smp/ipi.c',
+	'src/ia32.c',
+	'src/vreg.c',
+	'src/interrupt.c',
+	'src/pm.c',
+	'src/userspace.c',
+	'src/smc.c',
+	'src/cpu/cpu.c',
+	'src/mm/km.c',
+	'src/mm/as.c',
+	'src/mm/frame.c',
+	'src/mm/page.c',
+	'src/mm/tlb.c',
+	'src/ddi/ddi.c',
+	'src/drivers/i8254.c',
+	'src/boot/multiboot.S',
+	'src/boot/multiboot2.S',
+	'src/boot/memmap.c',
+	'src/fpu_context.c',
+	'src/syscall.c',
+)
 
+_check_headers = [
+	'include/arch/istate_struct.h',
+	'include/arch/context_struct.h',
+	'include/arch/boot/memmap_struct.h',
+]
 
+foreach h : _check_headers
+	arch_src += [ autocheck.process(h) ]
+endforeach

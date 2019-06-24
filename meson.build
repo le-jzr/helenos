@@ -186,6 +186,16 @@ if h_arch == 'arm32'
 		CONFIG_FPU ? '-mfloat-abi=hard' : [],
 		language : [ 'c', 'cpp' ],
 	)
+
+elif h_arch == 'ia32'
+	if PROCESSOR == 'core'
+		# FIXME
+		add_project_arguments('-march=prescott', language : [ 'c', 'cpp' ])
+		add_project_link_arguments('-march=prescott', language : [ 'c', 'cpp' ])
+	else
+		add_project_arguments('-march=' + '-'.join(PROCESSOR.split('_')), language : [ 'c', 'cpp' ])
+		add_project_link_arguments('-march=' + '-'.join(PROCESSOR.split('_')), language : [ 'c', 'cpp' ])
+	endif
 endif
 
 # TODO: enable more warnings

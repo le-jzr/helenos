@@ -32,7 +32,7 @@ INIT_FILES := $(INIT_FILES) $(addsuffix .gz,$(INIT_FILES))
 $(INITRD).img:
 	rm -rf $(DIST_PATH).initrd
 	cp -R $(DIST_PATH) $(DIST_PATH).initrd
-	rm $(INIT_FILES)
+	rm -f $(INIT_FILES)
 	rm -rf $(DIST_PATH).initrd/boot
 ifeq ($(RDFMT),tmpfs)
 	tar -c -f $@ -C $(DIST_PATH).initrd .
