@@ -6,6 +6,8 @@ install_nonessential_data = not CONFIG_BAREBONE
 # This is currently disabled due to boot image size restrictions.
 install_debug_files = false
 
+rd_essential = []
+
 subdir('lib')
 subdir('app')
 subdir('srv')
@@ -22,12 +24,12 @@ init = [
 	'srv/vfs',
 ]
 
-essential = [
+rd_essential += init
+
+rd_essential += [
 	'app/bdsh',
 	'app/getterm',
 	'app/kio',
-	'app/vlaunch',
-	'app/vterm',
 
 	'srv/devman',
 	'srv/fs/locfs',
@@ -41,6 +43,13 @@ essential = [
 	'drv/root/virt',
 	'drv/fb/kfb',
 ]
+
+if CONFIG_FB
+	rd_essential += [
+		'app/vlaunch',
+		'app/vterm',
+	]
+endif
 
 dirs = []
 
@@ -89,6 +98,8 @@ foreach appdirs : dirs
 	dir = appdirs.get('subdir')
 	installdir = appdirs.get('installdir')
 
+	install = CONFIG_BAREBONE ? rd_essential.contains(dir) : true
+
 	# basename/dirname will be is useful later.
 	_basename = run_command(basename, dir, check: true).stdout().strip()
 	_dirname = run_command(dirname, dir, check: true).stdout().strip()
@@ -133,6 +144,7 @@ foreach appdirs : dirs
 			'src': src,
 			'dirname': _dirname,
 			'basename': _basename,
+			'install': install,
 			'install_dir': installdir,
 			'includes': includes,
 			'dependencies': _deps,
@@ -143,11 +155,12 @@ foreach appdirs : dirs
 
 	# Build test executable, if any
 
-	if CONFIG_PCUT_TESTS and test_src.length() > 0
+	if test_src.length() > 0
 		bin_targets += {
 			'src': test_src,
 			'dirname': _dirname,
 			'basename': 'test-' + installdir.underscorify() + (is_drv ? '' : ('_' + _basename)),
+			'install': install and CONFIG_PCUT_TESTS,
 			'install_dir': 'test',
 			'includes': includes,
 			'dependencies': [ _deps, libpcut.get('any') ],
@@ -163,9 +176,15 @@ foreach tst : bin_targets
 
 	_install_dir = tst.get('install_dir').split('/')
 	_install_dir += tst.get('basename')
-	_install_name = 'install@' + '$'.join(_install_dir)
+	_install = tst.get('install')
 
-	if install_debug_files
+	if _install
+		_install_name = 'install@' + '$'.join(_install_dir)
+	else
+		_install_name = '_'.join(_install_dir)
+	endif
+
+	if _install and install_debug_files
 		_debug_name = 'install@' + '$'.join([ 'debug' ] + _install_dir)
 	else
 		_debug_name = '_'.join(_install_dir)
@@ -185,6 +204,7 @@ foreach tst : bin_targets
 		implicit_include_directories: false,
 		install: false,
 		#install_dir: tst.get('install_dir'),
+		build_by_default: true,
 	)
 
 	if disassemble

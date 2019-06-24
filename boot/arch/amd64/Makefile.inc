@@ -26,44 +26,6 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-RD_SRVS_ESSENTIAL += \
-	audio/hound \
-	devman
-
-RD_DRVS_ESSENTIAL += \
-	intctl/apic \
-	intctl/i8259 \
-	platform/pc \
-	block/ata_bd \
-	bus/pci/pciintel \
-	bus/isa \
-	audio/sb16 \
-	char/i8042 \
-	hid/ps2mouse \
-	hid/xtkbd
-
-RD_DRVS_NON_ESSENTIAL += \
-	audio/hdaudio \
-	char/ns8250 \
-	char/pc-lpt \
-	time/cmos-rtc \
-	bus/usb/ehci\
-	bus/usb/ohci \
-	bus/usb/uhci \
-	bus/usb/usbdiag \
-	bus/usb/usbflbk \
-	bus/usb/usbhub \
-	bus/usb/usbmid \
-	bus/usb/vhc \
-	bus/usb/xhci \
-	block/usbmast \
-	hid/usbhid
-
-RD_APPS_ESSENTIAL += \
-	edit \
-	mixerctl \
-	wavplay
-
 POST_OUTPUT = $(ROOT_PATH)/image.iso
 BUILD = Makefile.empty
 POSTBUILD = Makefile.grub
