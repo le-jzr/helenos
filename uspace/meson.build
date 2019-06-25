@@ -74,12 +74,14 @@ foreach drv : drvs
 	_dirname = run_command(dirname, drv, check: true).stdout().strip()
 
 	dirs += {
-		'subdir': join_paths('drv', drv),
+		'subdir': 'drv' / drv,
 		'installdir': 'drv' / _basename,
 	}
 
 	# Install driver metadata.
-	install_data('drv' / drv / _basename + '.ma', install_dir: 'drv' / _basename)
+	if not CONFIG_BAREBONE or rd_essential.contains('drv' / drv)
+		install_data('drv' / drv / _basename + '.ma', install_dir: 'drv' / _basename)
+	endif
 endforeach
 
 bin_targets = []
@@ -98,7 +100,7 @@ foreach appdirs : dirs
 	dir = appdirs.get('subdir')
 	installdir = appdirs.get('installdir')
 
-	install = CONFIG_BAREBONE ? rd_essential.contains(dir) : true
+	install = not CONFIG_BAREBONE or rd_essential.contains(dir)
 
 	# basename/dirname will be is useful later.
 	_basename = run_command(basename, dir, check: true).stdout().strip()
