@@ -26,6 +26,13 @@ kernel_include_dirs = include_directories(
 	'test',
 )
 
+if meson.is_cross_build()
+	_bits = meson.get_cross_property('bits')
+else
+	# FIXME: This doesn't work when cross-compiling.
+	_bits = cc.sizeof('long') * 8
+endif
+
 kernel_defs = [
 	'-imacros', meson.build_root() / 'config.h',
 	'-D_HELENOS_SOURCE',
@@ -33,7 +40,7 @@ kernel_defs = [
 	'-DRELEASE=' + HELENOS_RELEASE,
 	'-DCOPYRIGHT=' + HELENOS_COPYRIGHT,
 	'-DNAME=' + HELENOS_NAME,
-	'-D__@0@_BITS__'.format(meson.get_cross_property('bits')),
+	'-D__@0@_BITS__'.format(_bits),
 ]
 
 # Preprocess linker script using C preprocessor.

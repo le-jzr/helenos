@@ -331,6 +331,7 @@ def infer_verify_choices(config, rules):
 			config[varname] = default
 
 		if not varname in config:
+			print("Missing variable " + varname)
 			return False
 
 	return True

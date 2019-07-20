@@ -53,6 +53,10 @@ uspace_lib_install_script_text = []
 subdir('kernel')
 subdir('uspace')
 
+if not meson.is_cross_build()
+	subdir_done()
+endif
+
 subdir('meson/part/exports')
 subdir('meson/part/initrd')
 
