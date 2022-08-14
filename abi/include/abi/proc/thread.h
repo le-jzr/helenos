@@ -49,12 +49,10 @@ typedef enum {
 	Sleeping,
 	/** State of threads in a run queue. */
 	Ready,
-	/** Threads are in this state before they are first readied. */
-	Entering,
+	/** Thread is not currently running, and is waiting to be readied. */
+	Suspended,
 	/** After a thread calls thread_exit(), it is put into Exiting state. */
 	Exiting,
-	/** Threads that were not detached but exited are Lingering. */
-	Lingering
 } state_t;
 
 #endif

@@ -278,7 +278,7 @@ ipl_t waitq_sleep_prepare(waitq_t *wq)
 restart:
 	ipl = interrupts_disable();
 
-	if (THREAD) {  /* Needed during system initiailzation */
+	if (THREAD) {  /* Needed during system initialization */
 		/*
 		 * Busy waiting for a delayed timeout.
 		 * This is an important fix for the race condition between
@@ -546,7 +546,10 @@ void _waitq_wakeup_unsafe(waitq_t *wq, wakeup_mode_t mode)
 
 loop:
 	if (list_empty(&wq->sleepers)) {
-		if (mode != WAKEUP_ALL) {
+		if (mode == WAKEUP_ALL_AND_FUTURE) {
+			// FIXME: this can technically fail if we get two billion sleeps after the wakeup call.
+			wq->missed_wakeups = INT_MAX;
+		} else if (mode != WAKEUP_ALL) {
 			wq->missed_wakeups++;
 		}
 

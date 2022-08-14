@@ -50,9 +50,8 @@ static const char *thread_states[] = {
 	"Running",
 	"Sleeping",
 	"Ready",
-	"Entering",
+	"Suspended",
 	"Exiting",
-	"Lingering"
 };
 
 /** Get CPUs statistics
@@ -313,7 +312,7 @@ void stats_print_load_fragment(load_t upper, unsigned int dec_length)
 
 const char *thread_get_state(state_t state)
 {
-	if (state <= Lingering)
+	if (state <= Exiting)
 		return thread_states[state];
 
 	return thread_states[Invalid];

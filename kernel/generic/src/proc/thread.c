@@ -75,9 +75,8 @@ const char *thread_states[] = {
 	"Running",
 	"Sleeping",
 	"Ready",
-	"Entering",
+	"Suspended",
 	"Exiting",
-	"Lingering"
 };
 
 /** Lock protecting the @c threads ordered dictionary .
@@ -93,6 +92,9 @@ IRQ_SPINLOCK_INITIALIZE(threads_lock);
  * guaranteed to exist as long as the @c threads_lock is held.
  *
  * Members are of type thread_t.
+ *
+ * This structure does not own references to the thread_t structures, so any references acquired through it are
+ * weak, and must not leave threads_lock critical section unless strengthened via thread_try_ref().
  */
 odict_t threads;
 
@@ -274,7 +276,7 @@ static void before_thread_is_ready(thread_t *thread)
 
 /** Make thread ready
  *
- * Switch thread to the ready state.
+ * Switch thread to the ready state. Consumes reference passed by the caller.
  *
  * @param thread Thread to make ready.
  *
@@ -283,7 +285,7 @@ void thread_ready(thread_t *thread)
 {
 	irq_spinlock_lock(&thread->lock, true);
 
-	assert(thread->state != Ready);
+	assert(thread->state == Running || thread->state == Suspended || thread->state == Sleeping);
 
 	before_thread_is_ready(thread);
 
@@ -345,6 +347,8 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	if (!thread)
 		return NULL;
 
+	refcount_init(&thread->refcount);
+
 	if (thread_create_arch(thread, flags) != EOK) {
 		slab_free(thread_cache, thread);
 		return NULL;
@@ -384,7 +388,7 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	    ((flags & THREAD_FLAG_USPACE) == THREAD_FLAG_USPACE);
 
 	thread->nomigrate = 0;
-	thread->state = Entering;
+	thread->state = Suspended;
 
 	timeout_initialize(&thread->sleep_timeout);
 	thread->sleep_interruptible = false;
@@ -396,7 +400,6 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	thread->in_copy_to_uspace = false;
 
 	thread->interrupted = false;
-	thread->detached = false;
 	waitq_initialize(&thread->join_wq);
 
 	thread->task = task;
@@ -427,10 +430,12 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
  *                in interrupts-restore mode.
  *
  */
-void thread_destroy(thread_t *thread, bool irq_res)
+static void thread_destroy(void *obj)
 {
-	assert(irq_spinlock_locked(&thread->lock));
-	assert((thread->state == Exiting) || (thread->state == Lingering));
+	thread_t *thread = (thread_t *) obj;
+
+	irq_spinlock_lock(&thread->lock, true);
+	assert(thread->state == Suspended || thread->state == Exiting);
 	assert(thread->task);
 	assert(thread->cpu);
 
@@ -449,13 +454,20 @@ void thread_destroy(thread_t *thread, bool irq_res)
 	 * Detach from the containing task.
 	 */
 	list_remove(&thread->th_link);
-	irq_spinlock_unlock(&thread->task->lock, irq_res);
+	irq_spinlock_unlock(&thread->task->lock, true);
 
 	/*
 	 * Drop the reference to the containing task.
 	 */
 	task_release(thread->task);
 	slab_free(thread_cache, thread);
+}
+
+void thread_put(thread_t *thread)
+{
+	if (refcount_down(&thread->refcount)) {
+		thread_destroy(thread);
+	}
 }
 
 /** Make the thread visible to the system.
@@ -481,6 +493,7 @@ void thread_attach(thread_t *thread, task_t *task)
 	if (thread->uspace)
 		atomic_inc(&task->lifecount);
 
+	// this list holds weak references, so we don't inc
 	list_append(&thread->th_link, &task->threads);
 
 	irq_spinlock_pass(&task->lock, &threads_lock);
@@ -631,28 +644,8 @@ void thread_sleep(uint32_t sec)
 	}
 }
 
-errno_t thread_join(thread_t *thread)
-{
-	if (thread == THREAD)
-		return EINVAL;
-
-	/*
-	 * Since thread join can only be called once on an undetached thread,
-	 * the thread pointer is guaranteed to be still valid.
-	 */
-
-	irq_spinlock_lock(&thread->lock, true);
-	assert(!thread->detached);
-	irq_spinlock_unlock(&thread->lock, true);
-
-	return waitq_sleep(&thread->join_wq);
-
-	// FIXME: join should deallocate the thread.
-	//        Current code calls detach after join, that's contrary to how
-	//        join is used in other threading APIs.
-}
-
 /** Wait for another thread to exit.
+ * The thread continues to exist after the call returns, and needs to be dropped using thread_put().
  *
  * @param thread Thread to join on exit.
  * @param usec   Timeout in microseconds.
@@ -672,45 +665,14 @@ errno_t thread_join_timeout(thread_t *thread, uint32_t usec)
 	 */
 
 	irq_spinlock_lock(&thread->lock, true);
-	assert(!thread->detached);
+	state_t state = thread->state;
 	irq_spinlock_unlock(&thread->lock, true);
 
-	return waitq_sleep_timeout(&thread->join_wq, usec);
-
-	// FIXME: join should deallocate the thread.
-	//        Current code calls detach after join, that's contrary to how
-	//        join is used in other threading APIs.
-}
-
-/** Detach thread.
- *
- * Mark the thread as detached. If the thread is already
- * in the Lingering state, deallocate its resources.
- *
- * @param thread Thread to be detached.
- *
- */
-void thread_detach(thread_t *thread)
-{
-	/*
-	 * Since the thread is expected not to be already detached,
-	 * pointer to it must be still valid.
-	 */
-	irq_spinlock_lock(&thread->lock, true);
-	assert(!thread->detached);
-
-	if (thread->state == Lingering) {
-		/*
-		 * Unlock &thread->lock and restore
-		 * interrupts in thread_destroy().
-		 */
-		thread_destroy(thread, true);
-		return;
+	if (state == Exiting) {
+		return EOK;
 	} else {
-		thread->detached = true;
+		return waitq_sleep_timeout(&thread->join_wq, usec);
 	}
-
-	irq_spinlock_unlock(&thread->lock, true);
 }
 
 /** Thread usleep
@@ -848,6 +810,10 @@ void thread_update_accounting(bool user)
  *
  * The threads_lock must be already held by the caller of this function and
  * interrupts must be disabled.
+ *
+ * The returned reference is weak.
+ * If the caller needs to keep it, thread_try_ref() must be used to upgrade to a strong reference
+ * _before_ threads_lock is released.
  *
  * @param id Thread ID.
  *

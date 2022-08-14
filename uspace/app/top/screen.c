@@ -203,7 +203,6 @@ static inline void print_thread_summary(data_t *data)
 	size_t running = 0;
 	size_t ready = 0;
 	size_t sleeping = 0;
-	size_t lingering = 0;
 	size_t other = 0;
 	size_t invalid = 0;
 
@@ -221,10 +220,7 @@ static inline void print_thread_summary(data_t *data)
 		case Sleeping:
 			sleeping++;
 			break;
-		case Lingering:
-			lingering++;
-			break;
-		case Entering:
+		case Suspended:
 		case Exiting:
 			other++;
 			break;
@@ -234,8 +230,8 @@ static inline void print_thread_summary(data_t *data)
 	}
 
 	printf("threads: %zu total, %zu running, %zu ready, "
-	    "%zu sleeping, %zu lingering, %zu other, %zu invalid",
-	    total, running, ready, sleeping, lingering, other, invalid);
+	    "%zu sleeping, %zu other, %zu invalid",
+	    total, running, ready, sleeping, other, invalid);
 	screen_newline();
 }
 
