@@ -150,7 +150,9 @@ typedef struct thread {
 	/** Waitq for thread_join_timeout(). */
 	waitq_t join_wq;
 
-	fpu_context_t *saved_fpu_context;
+#ifdef CONFIG_FPU
+	fpu_context_t fpu_context;
+#endif
 	bool fpu_context_exists;
 
 	/*
