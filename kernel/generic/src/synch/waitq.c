@@ -195,7 +195,12 @@ grab_locks:
 
 errno_t waitq_sleep(waitq_t *wq)
 {
-	return waitq_sleep_timeout(wq, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE, NULL);
+	return _waitq_sleep_timeout(wq, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE, NULL);
+}
+
+errno_t waitq_sleep_timeout(waitq_t *wq, uint32_t usec)
+{
+	return _waitq_sleep_timeout(wq, usec, SYNCH_FLAGS_NON_BLOCKING, NULL);
 }
 
 /** Sleep until either wakeup, timeout or interruption occurs
@@ -241,7 +246,7 @@ errno_t waitq_sleep(waitq_t *wq)
  *              the wakeup was already pending.
  *
  */
-errno_t waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags, bool *blocked)
+errno_t _waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags, bool *blocked)
 {
 	assert((!PREEMPTION_DISABLED) || (PARAM_NON_BLOCKING(flags, usec)));
 

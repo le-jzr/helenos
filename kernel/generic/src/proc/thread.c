@@ -661,7 +661,7 @@ errno_t thread_join(thread_t *thread)
  * @return An error code from errno.h or an error code from synch.h.
  *
  */
-errno_t thread_join_timeout(thread_t *thread, uint32_t usec, unsigned int flags)
+errno_t thread_join_timeout(thread_t *thread, uint32_t usec)
 {
 	if (thread == THREAD)
 		return EINVAL;
@@ -675,7 +675,7 @@ errno_t thread_join_timeout(thread_t *thread, uint32_t usec, unsigned int flags)
 	assert(!thread->detached);
 	irq_spinlock_unlock(&thread->lock, true);
 
-	return waitq_sleep_timeout(&thread->join_wq, usec, flags, NULL);
+	return waitq_sleep_timeout(&thread->join_wq, usec);
 
 	// FIXME: join should deallocate the thread.
 	//        Current code calls detach after join, that's contrary to how
@@ -726,7 +726,7 @@ void thread_usleep(uint32_t usec)
 
 	waitq_initialize(&wq);
 
-	(void) waitq_sleep_timeout(&wq, usec, SYNCH_FLAGS_NON_BLOCKING, NULL);
+	(void) waitq_sleep_timeout(&wq, usec);
 }
 
 static void thread_print(thread_t *thread, bool additional)

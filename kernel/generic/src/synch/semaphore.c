@@ -71,7 +71,7 @@ bool semaphore_try_down(semaphore_t *sem)
  */
 errno_t semaphore_down_timeout(semaphore_t *sem, uint32_t usec)
 {
-	errno_t rc = waitq_sleep_timeout(&sem->wq, usec, SYNCH_FLAGS_NON_BLOCKING, NULL);
+	errno_t rc = waitq_sleep_timeout(&sem->wq, usec);
 	assert(rc == EOK || rc == ETIMEOUT);
 	return rc;
 }

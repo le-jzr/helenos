@@ -239,7 +239,7 @@ extern void thread_sleep(uint32_t);
 extern void thread_usleep(uint32_t);
 
 extern errno_t thread_join(thread_t *);
-extern errno_t thread_join_timeout(thread_t *, uint32_t, unsigned int);
+extern errno_t thread_join_timeout(thread_t *, uint32_t);
 extern void thread_detach(thread_t *);
 
 extern void thread_print_list(bool);
