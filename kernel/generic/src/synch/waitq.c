@@ -435,6 +435,20 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 	return EOK;
 }
 
+bool waitq_try_down(waitq_t *wq)
+{
+       irq_spinlock_lock(&wq->lock, true);
+
+       bool success = wq->missed_wakeups > 0;
+       if (success)
+               wq->missed_wakeups--;
+
+       irq_spinlock_unlock(&wq->lock, true);
+
+       return success;
+}
+
+
 /** Wake up first thread sleeping in a wait queue
  *
  * Wake up first thread sleeping in a wait queue. This is the SMP- and IRQ-safe

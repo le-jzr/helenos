@@ -55,6 +55,11 @@ void semaphore_initialize(semaphore_t *sem, int val)
 	waitq_count_set(&sem->wq, val);
 }
 
+errno_t _semaphore_down_timeout(semaphore_t *sem, uint32_t usec, unsigned flags)
+{
+	return waitq_sleep_timeout(&sem->wq, usec, flags, NULL);
+}
+
 /** Semaphore down
  *
  * Semaphore down.
@@ -70,9 +75,14 @@ void semaphore_initialize(semaphore_t *sem, int val)
  * @return See comment for waitq_sleep_timeout().
  *
  */
-errno_t _semaphore_down_timeout(semaphore_t *sem, uint32_t usec, unsigned int flags)
+errno_t semaphore_down_timeout(semaphore_t *sem, uint32_t usec)
 {
-	return waitq_sleep_timeout(&sem->wq, usec, flags, NULL);
+	return waitq_sleep_timeout(&sem->wq, usec, SYNCH_FLAGS_NON_BLOCKING, NULL);
+}
+
+errno_t semaphore_down(semaphore_t *sem)
+{
+	return waitq_sleep(&sem->wq);
 }
 
 /** Semaphore up

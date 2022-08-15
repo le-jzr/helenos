@@ -73,6 +73,7 @@ struct thread;
 extern void waitq_initialize(waitq_t *);
 extern errno_t waitq_sleep(waitq_t *);
 extern errno_t waitq_sleep_timeout(waitq_t *, uint32_t, unsigned int, bool *);
+extern errno_t waitq_sleep(waitq_t *);
 extern ipl_t waitq_sleep_prepare(waitq_t *);
 extern errno_t waitq_sleep_unsafe(waitq_t *, bool *);
 extern errno_t waitq_sleep_timeout_unsafe(waitq_t *, uint32_t, unsigned int, bool *);
@@ -82,6 +83,8 @@ extern void _waitq_wakeup_unsafe(waitq_t *, wakeup_mode_t);
 extern void waitq_interrupt_sleep(struct thread *);
 extern int waitq_count_get(waitq_t *);
 extern void waitq_count_set(waitq_t *, int val);
+
+extern bool waitq_try_down(waitq_t *);
 
 #endif
 

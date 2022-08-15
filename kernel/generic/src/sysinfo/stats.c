@@ -148,7 +148,7 @@ static size_t get_task_virtmem(as_t *as)
 	 * object, return inexact statistics by skipping the respective object.
 	 */
 
-	if (mutex_trylock(&as->lock) != EOK)
+	if (!mutex_try_lock(&as->lock))
 		return 0;
 
 	size_t pages = 0;
@@ -156,7 +156,7 @@ static size_t get_task_virtmem(as_t *as)
 	/* Walk areas in the address space and count pages */
 	as_area_t *area = as_area_first(as);
 	while (area != NULL) {
-		if (mutex_trylock(&area->lock) != EOK)
+		if (!mutex_try_lock(&area->lock))
 			continue;
 
 		pages += area->pages;
@@ -185,7 +185,7 @@ static size_t get_task_resmem(as_t *as)
 	 * object, return inexact statistics by skipping the respective object.
 	 */
 
-	if (mutex_trylock(&as->lock) != EOK)
+	if (!mutex_try_lock(&as->lock))
 		return 0;
 
 	size_t pages = 0;
@@ -193,7 +193,7 @@ static size_t get_task_resmem(as_t *as)
 	/* Walk areas in the address space and count pages */
 	as_area_t *area = as_area_first(as);
 	while (area != NULL) {
-		if (mutex_trylock(&area->lock) != EOK)
+		if (!mutex_try_lock(&area->lock))
 			continue;
 
 		pages += area->used_space.pages;

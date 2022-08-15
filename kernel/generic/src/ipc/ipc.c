@@ -660,7 +660,7 @@ restart_phones:
 	while (!list_empty(&box->connected_phones)) {
 		phone = list_get_instance(list_first(&box->connected_phones),
 		    phone_t, link);
-		if (mutex_trylock(&phone->lock) != EOK) {
+		if (!mutex_try_lock(&phone->lock)) {
 			irq_spinlock_unlock(&box->lock, true);
 			DEADLOCK_PROBE(p_phonelck, DEADLOCK_THRESHOLD);
 			goto restart_phones;
