@@ -86,7 +86,7 @@ bool mutex_try_lock(mutex_t *mtx)
 	return success;
 }
 
-static errno_t mutex_lock_active(mutex_t *mtx)
+static void mutex_lock_active(mutex_t *mtx)
 {
 	assert((mtx->type == MUTEX_ACTIVE) || !THREAD);
 
@@ -107,28 +107,24 @@ static errno_t mutex_lock_active(mutex_t *mtx)
 
 	if (deadlock_reported)
 		printf("cpu%u: not deadlocked\n", CPU->id);
-
-	return EOK;
 }
 
-errno_t mutex_lock(mutex_t *mtx)
+void mutex_lock(mutex_t *mtx)
 {
 	if (mtx->type == MUTEX_RECURSIVE && mtx->owner == THREAD) {
 		assert(THREAD);
 		mtx->nesting++;
-		return EOK;
+		return;
 	}
 
 	if (mtx->type == MUTEX_ACTIVE || !THREAD) {
-		return mutex_lock_active(mtx);
+		mutex_lock_active(mtx);
+		return;
 	}
 
-	errno_t rc = semaphore_down(&mtx->sem);
-	if (rc == EOK) {
-		mtx->owner = THREAD;
-		mtx->nesting = 1;
-	}
-	return rc;
+	semaphore_down(&mtx->sem);
+	mtx->owner = THREAD;
+	mtx->nesting = 1;
 }
 
 /** Acquire mutex with timeout.
