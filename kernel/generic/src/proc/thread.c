@@ -68,6 +68,7 @@
 #include <syscall/copy.h>
 #include <errno.h>
 #include <debug.h>
+#include <halt.h>
 
 /** Thread states */
 const char *thread_states[] = {
@@ -77,6 +78,12 @@ const char *thread_states[] = {
 	"Ready",
 	"Suspended",
 	"Exiting",
+};
+
+enum sleep_state {
+	SLEEP_INITIAL,
+	SLEEP_ASLEEP,
+	SLEEP_WOKE,
 };
 
 /** Lock protecting the @c threads ordered dictionary .
@@ -374,6 +381,8 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	thread->in_copy_to_uspace = false;
 
 	thread->interrupted = false;
+	thread->sleep_pad = SLEEP_INITIAL;
+
 	waitq_initialize(&thread->join_wq);
 
 	thread->task = task;
@@ -556,6 +565,74 @@ void thread_interrupt(thread_t *thread, bool irq_dis)
 
 	if (sleeping)
 		waitq_interrupt_sleep(thread);
+
+	thread_wakeup(thread_ref(thread));
+}
+
+/** Suspends this thread's execution until thread_wakeup() is called on it.
+ *
+ * The way this should normally be used is that the current thread stores
+ * a reference to itself in a synchronized structure (such as waitq),
+ * after which it calls this function.
+ * The thread must not hold any spinlocks when entering this function.
+ *
+ * The thread doing the wakeup will acquire the thread's reference from said
+ * synchronized structure and calls thread_wakeup() on it.
+ *
+ * Notably, there can be more than one thread performing wakeup.
+ * The number of performed calls to thread_wakeup(), or their relative
+ * ordering with thread_wait(), does not matter.
+ *
+ * Upon exiting thread_wait(), the calling thread must ensure that
+ * all lingering references that may be used to call thread_wakeup()
+ * are removed from their respective structures, after which it must
+ * call thread_wait_reset() to prepare the bookkeeping structures
+ * for the next sleep.
+ *
+ * Alternatively, thread_wait_reset() may be called before those references
+ * are created. So long as there's at least one reset call while
+ * the thread is not in danger of racing with wakeupers,
+ * the exact details are not important.
+ */
+void thread_wait(void)
+{
+	assert(THREAD != NULL);
+
+	ipl_t ipl = interrupts_disable();
+
+	if (atomic_load(&haltstate))
+		halt();
+
+	/* Lock here to prevent a race between entering the scheduler and another thread rescheduling this thread. */
+	irq_spinlock_lock(&THREAD->lock, false);
+
+	int expected = SLEEP_INITIAL;
+
+	/* Only set SLEEP_ASLEEP in sleep pad if it's still in initial state */
+	while (!atomic_compare_exchange_weak(&THREAD->sleep_pad, &expected, SLEEP_ASLEEP) && expected == SLEEP_INITIAL)
+		;
+
+	if (expected == SLEEP_WOKE) {
+		/* Return immediately. */
+		irq_spinlock_unlock(&THREAD->lock, false);
+		interrupts_restore(ipl);
+	} else {
+		THREAD->state = Sleeping;
+		scheduler_locked(ipl);
+	}
+}
+
+// Consumes reference.
+void thread_wakeup(thread_t *thread)
+{
+	int state = atomic_exchange(&THREAD->sleep_pad, SLEEP_WOKE);
+
+	// Only one thread gets to do this.
+	if (state == SLEEP_ASLEEP) {
+		thread_ready(thread);
+	} else {
+		thread_put(thread);
+	}
 }
 
 /** Prevent the current thread from being migrated to another processor. */

@@ -81,9 +81,11 @@ typedef struct thread {
 	/** Link to @c threads ordered dictionary. */
 	odlink_t lthreads;
 
+	atomic_int sleep_pad;
+
 	/** Lock protecting thread structure.
 	 *
-	 * Protects the whole thread structure except list links above.
+	 * Protects the whole thread structure except fields listed above.
 	 */
 	IRQ_SPINLOCK_DECLARE(lock);
 
@@ -145,7 +147,7 @@ typedef struct thread {
 	 * If true, the thread will not go to sleep at all and will call
 	 * thread_exit() before returning to userspace.
 	 */
-	bool interrupted;
+	atomic_bool interrupted;
 
 	/** Waitq for thread_join_timeout(). */
 	waitq_t join_wq;
@@ -224,6 +226,11 @@ extern void thread_attach(thread_t *, task_t *);
 extern void thread_ready(thread_t *);
 extern void thread_exit(void) __attribute__((noreturn));
 extern void thread_interrupt(thread_t *, bool);
+
+extern void thread_wait(void);
+extern void thread_wait_timeout(uint32_t usecs);
+extern void thread_wait_reset(void);
+extern void thread_wakeup(thread_t *);
 
 static inline thread_t *thread_ref(thread_t *thread)
 {
