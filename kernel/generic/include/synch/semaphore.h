@@ -44,13 +44,9 @@ typedef struct {
 	waitq_t wq;
 } semaphore_t;
 
-static inline bool semaphore_try_down(semaphore_t *s)
-{
-	return waitq_try_down(&s->wq);
-}
-
 extern void semaphore_initialize(semaphore_t *, int);
 extern errno_t semaphore_down_timeout(semaphore_t *, uint32_t);
+extern bool semaphore_try_down(semaphore_t *);
 extern void semaphore_down(semaphore_t *);
 extern void semaphore_up(semaphore_t *);
 extern int semaphore_count_get(semaphore_t *);
