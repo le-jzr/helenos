@@ -622,6 +622,46 @@ void thread_wait(void)
 	}
 }
 
+static void thread_wait_timeout_callback(void *arg)
+{
+	thread_t *thread = arg;
+	thread_wakeup(thread);
+	thread->timeout_done = true;
+}
+
+/**
+ * Returns true if timeout fired, which is a necessary condition
+ * for it to have been waken up by the timeout, but it still might have
+ * been something else.
+ */
+bool thread_wait_timeout(uint32_t usec)
+{
+	assert(THREAD != NULL);
+
+	if (THREAD->sleep_pad != SLEEP_INITIAL) {
+		return false;
+	}
+
+	THREAD->timeout_done = false;
+
+	timeout_t timeout;
+	timeout_initialize(&timeout);
+	timeout_register(&timeout, usec, thread_wait_timeout_callback, THREAD);
+
+	thread_wait();
+
+	bool fired = !timeout_unregister(&timeout);
+
+	if (fired) {
+		/* Timeout fired. We have to wait until we are certain it has finished executing. */
+
+		while (!THREAD->timeout_done)
+			;
+	}
+
+	return fired;
+}
+
 // Consumes reference.
 void thread_wakeup(thread_t *thread)
 {
@@ -702,6 +742,27 @@ errno_t thread_join_timeout(thread_t *thread, uint32_t usec)
 		return EOK;
 	} else {
 		return waitq_sleep_timeout(&thread->join_wq, usec);
+	}
+}
+
+errno_t thread_join(thread_t *thread)
+{
+	if (thread == THREAD)
+		return EINVAL;
+
+	/*
+	 * Since thread join can only be called once on an undetached thread,
+	 * the thread pointer is guaranteed to be still valid.
+	 */
+
+	irq_spinlock_lock(&thread->lock, true);
+	state_t state = thread->state;
+	irq_spinlock_unlock(&thread->lock, true);
+
+	if (state == Exiting) {
+		return EOK;
+	} else {
+		return waitq_sleep(&thread->join_wq);
 	}
 }
 
