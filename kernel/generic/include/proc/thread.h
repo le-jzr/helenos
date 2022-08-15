@@ -223,8 +223,7 @@ extern void thread_wire(thread_t *, cpu_t *);
 extern void thread_attach(thread_t *, task_t *);
 extern void thread_ready(thread_t *);
 extern void thread_exit(void) __attribute__((noreturn));
-extern void thread_interrupt(thread_t *);
-extern bool thread_interrupted(thread_t *);
+extern void thread_interrupt(thread_t *, bool);
 
 static inline thread_t *thread_ref(thread_t *thread)
 {
