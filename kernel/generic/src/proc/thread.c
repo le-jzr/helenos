@@ -631,6 +631,27 @@ void thread_sleep(uint32_t sec)
 	}
 }
 
+errno_t thread_join(thread_t *thread)
+{
+	if (thread == THREAD)
+		return EINVAL;
+
+	/*
+	 * Since thread join can only be called once on an undetached thread,
+	 * the thread pointer is guaranteed to be still valid.
+	 */
+
+	irq_spinlock_lock(&thread->lock, true);
+	assert(!thread->detached);
+	irq_spinlock_unlock(&thread->lock, true);
+
+	return waitq_sleep(&thread->join_wq);
+
+	// FIXME: join should deallocate the thread.
+	//        Current code calls detach after join, that's contrary to how
+	//        join is used in other threading APIs.
+}
+
 /** Wait for another thread to exit.
  *
  * @param thread Thread to join on exit.
