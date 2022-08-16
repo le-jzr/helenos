@@ -90,14 +90,6 @@ grab_locks:
 
 	waitq_t *wq;
 	if ((wq = thread->sleep_queue)) {  /* Assignment */
-		if (rc == EINTR && !(thread->sleep_interruptible)) {
-			/*
-			 * The sleep cannot be interrupted.
-			 */
-			irq_spinlock_unlock(&thread->lock, false);
-			return;
-		}
-
 		if (!irq_spinlock_trylock(&wq->lock)) {
 			/* Avoid deadlock */
 			irq_spinlock_unlock(&thread->lock, false);
@@ -319,34 +311,20 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 	 */
 	irq_spinlock_lock(&THREAD->lock, false);
 
-	timeout_t timeout;
-	timeout_initialize(&timeout);
-
 	/**
 	 * If true, and this thread's sleep returns without a wakeup
 	 * (timed out or interrupted), waitq ignores the next wakeup.
 	 * This is necessary for futex to be able to handle those conditions.
 	 */
-
 	bool sleep_composable = (flags & SYNCH_FLAGS_FUTEX);
+	bool interruptible = (flags & SYNCH_FLAGS_INTERRUPTIBLE);
 
-	if (flags & SYNCH_FLAGS_INTERRUPTIBLE) {
-		/*
-		 * If the thread was already interrupted,
-		 * don't go to sleep at all.
-		 */
+	if (interruptible) {
+		/* If the thread was already interrupted, don't go to sleep at all. */
 		if (THREAD->interrupted) {
 			irq_spinlock_unlock(&THREAD->lock, false);
 			return EINTR;
 		}
-
-		THREAD->sleep_interruptible = true;
-	} else {
-		THREAD->sleep_interruptible = false;
-	}
-
-	if (usec) {
-		timeout_register(&timeout, (uint64_t) usec, waitq_sleep_timed_out, THREAD);
 	}
 
 	list_append(&THREAD->wq_link, &wq->sleepers);
@@ -366,24 +344,40 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 
 	irq_spinlock_unlock(&THREAD->lock, false);
 
-	/* wq->lock is released in scheduler_separated_stack() */
-	scheduler();
+	deadline_t deadline = timeout_deadline_in_usec(usec);
 
-	if (usec) {
-		timeout_unregister(&timeout);
-	}
+	while (true) {
+		timeout_t timeout;
+		timeout_initialize(&timeout);
 
-	errno_t rc = THREAD->sleep_result;
-
-	if (rc != EOK) {
-		if (sleep_composable) {
-			irq_spinlock_lock(&wq->lock, false);
-			wq->wakeup_balance--;
-			irq_spinlock_unlock(&wq->lock, false);
+		if (usec) {
+			timeout_register(&timeout, deadline, waitq_sleep_timed_out, THREAD);
 		}
+
+		/* wq->lock is released in scheduler_separated_stack() */
+		scheduler();
+
+		if (usec) {
+			timeout_unregister(&timeout);
+		}
+
+		errno_t rc = THREAD->sleep_result;
+
+		if (rc == EINTR && !interruptible)
+			continue;
+
+		if (rc != EOK) {
+			if (sleep_composable) {
+				irq_spinlock_lock(&wq->lock, false);
+				wq->wakeup_balance--;
+				irq_spinlock_unlock(&wq->lock, false);
+			}
+		}
+
+		return rc;
 	}
 
-	return rc;
+	unreachable();
 }
 
 bool waitq_try_down(waitq_t *wq)

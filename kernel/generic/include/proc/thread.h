@@ -104,9 +104,6 @@ typedef struct thread {
 
 	volatile errno_t sleep_result;
 
-	/** If true, the thread can be interrupted from sleep. */
-	bool sleep_interruptible;
-
 	/** Wait queue in which this thread sleeps. */
 	_Atomic (waitq_t *) sleep_queue;
 
