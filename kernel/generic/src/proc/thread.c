@@ -982,15 +982,13 @@ thread_t *thread_next(thread_t *cur)
 void thread_stack_trace(thread_id_t thread_id)
 {
 	irq_spinlock_lock(&threads_lock, true);
+	thread_t *thread = thread_try_ref(thread_find_by_id(thread_id));
+	irq_spinlock_unlock(&threads_lock, true);
 
-	thread_t *thread = thread_find_by_id(thread_id);
 	if (thread == NULL) {
 		printf("No such thread.\n");
-		irq_spinlock_unlock(&threads_lock, true);
 		return;
 	}
-
-	irq_spinlock_lock(&thread->lock, false);
 
 	/*
 	 * Schedule a stack trace to be printed
@@ -1004,6 +1002,8 @@ void thread_stack_trace(thread_id_t thread_id)
 	 * is probably justifiable.
 	 */
 
+	irq_spinlock_lock(&thread->lock, true);
+
 	bool sleeping = false;
 	istate_t *istate = thread->udebug.uspace_state;
 	if (istate != NULL) {
@@ -1014,12 +1014,12 @@ void thread_stack_trace(thread_id_t thread_id)
 	} else
 		printf("Thread interrupt state not available.\n");
 
-	irq_spinlock_unlock(&thread->lock, false);
+	irq_spinlock_unlock(&thread->lock, true);
 
 	if (sleeping)
 		waitq_interrupt_sleep(thread);
 
-	irq_spinlock_unlock(&threads_lock, true);
+	thread_put(thread);
 }
 
 #endif /* CONFIG_UDEBUG */
