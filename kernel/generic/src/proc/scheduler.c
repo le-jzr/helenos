@@ -266,34 +266,34 @@ loop:
  */
 static void relink_rq(int start)
 {
-	list_t list;
+	if (CPU->current_clock_tick < CPU->relink_deadline)
+		return;
 
+	list_t list;
 	list_initialize(&list);
+
 	irq_spinlock_lock(&CPU->lock, false);
 
-	if (CPU->needs_relink > NEEDS_RELINK_MAX) {
-		int i;
-		for (i = start; i < RQ_COUNT - 1; i++) {
-			/* Remember and empty rq[i + 1] */
+	for (int i = start; i < RQ_COUNT - 1; i++) {
+		/* Remember and empty rq[i + 1] */
 
-			irq_spinlock_lock(&CPU->rq[i + 1].lock, false);
-			list_concat(&list, &CPU->rq[i + 1].rq);
-			size_t n = CPU->rq[i + 1].n;
-			CPU->rq[i + 1].n = 0;
-			irq_spinlock_unlock(&CPU->rq[i + 1].lock, false);
+		irq_spinlock_lock(&CPU->rq[i + 1].lock, false);
+		list_concat(&list, &CPU->rq[i + 1].rq);
+		size_t n = CPU->rq[i + 1].n;
+		CPU->rq[i + 1].n = 0;
+		irq_spinlock_unlock(&CPU->rq[i + 1].lock, false);
 
-			/* Append rq[i + 1] to rq[i] */
+		/* Append rq[i + 1] to rq[i] */
 
-			irq_spinlock_lock(&CPU->rq[i].lock, false);
-			list_concat(&CPU->rq[i].rq, &list);
-			CPU->rq[i].n += n;
-			irq_spinlock_unlock(&CPU->rq[i].lock, false);
-		}
-
-		CPU->needs_relink = 0;
+		irq_spinlock_lock(&CPU->rq[i].lock, false);
+		list_concat(&CPU->rq[i].rq, &list);
+		CPU->rq[i].n += n;
+		irq_spinlock_unlock(&CPU->rq[i].lock, false);
 	}
 
 	irq_spinlock_unlock(&CPU->lock, false);
+
+	CPU->relink_deadline = CPU->current_clock_tick + NEEDS_RELINK_MAX;
 }
 
 void scheduler(void) {
@@ -713,9 +713,16 @@ void sched_print_list(void)
 
 		irq_spinlock_lock(&cpus[cpu].lock, true);
 
-		printf("cpu%u: address=%p, nrdy=%zu, needs_relink=%zu\n",
+		/* We're not accessing this from itself, so the value might be slightly out-of-date,
+		 * but this is for debug printout so we don't really mind.
+		 */
+		uint64_t clock_time = cpus[cpu].current_clock_tick;
+		uint64_t relink_deadline = cpus[cpu].relink_deadline;
+		int needs_relink = relink_deadline - clock_time;
+
+		printf("cpu%u: address=%p, nrdy=%zu, needs_relink=%d\n",
 		    cpus[cpu].id, &cpus[cpu], atomic_load(&cpus[cpu].nrdy),
-		    cpus[cpu].needs_relink);
+		    needs_relink);
 
 		unsigned int i;
 		for (i = 0; i < RQ_COUNT; i++) {
