@@ -408,9 +408,17 @@ bool waitq_try_down(waitq_t *wq)
  */
 void waitq_wakeup(waitq_t *wq, wakeup_mode_t mode)
 {
-	irq_spinlock_lock(&wq->lock, true);
-	_waitq_wakeup_unsafe(wq, mode);
-	irq_spinlock_unlock(&wq->lock, true);
+	switch (mode) {
+	case WAKEUP_FIRST:
+		waitq_wake_one(wq);
+		break;
+	case WAKEUP_ALL:
+		waitq_wake_all(wq);
+		break;
+	case WAKEUP_ALL_AND_FUTURE:
+		waitq_close(wq);
+		break;
+	}
 }
 
 /** If there is a wakeup in progress actively waits for it to complete.
@@ -487,50 +495,6 @@ static void _wake_one(waitq_t *wq)
 	thread_ready(thread);
 }
 
-/** Internal SMP- and IRQ-unsafe version of waitq_wakeup()
- *
- * This is the internal SMP- and IRQ-unsafe version of waitq_wakeup(). It
- * assumes wq->lock is already locked and interrupts are already disabled.
- *
- * @param wq   Pointer to wait queue.
- * @param mode If mode is WAKEUP_FIRST, then the longest waiting
- *             thread, if any, is woken up. If mode is WAKEUP_ALL, then
- *             all waiting threads, if any, are woken up. If there are
- *             no waiting threads to be woken up, the missed wakeup is
- *             recorded in the wait queue.
- *
- */
-void _waitq_wakeup_unsafe(waitq_t *wq, wakeup_mode_t mode)
-{
-	assert(interrupts_disabled());
-	assert(irq_spinlock_locked(&wq->lock));
-
-	if (wq->wakeup_balance < 0) {
-		if (mode == WAKEUP_FIRST) {
-			wq->wakeup_balance++;
-			return;
-		}
-		wq->wakeup_balance = 0;
-	}
-
-loop:
-	if (list_empty(&wq->sleepers)) {
-		if (mode == WAKEUP_ALL_AND_FUTURE) {
-			// FIXME: this can technically fail if we get two billion sleeps after the wakeup call.
-			wq->wakeup_balance = INT_MAX;
-		} else if (mode != WAKEUP_ALL) {
-			wq->wakeup_balance++;
-		}
-
-		return;
-	}
-
-	_wake_one(wq);
-
-	if (mode == WAKEUP_ALL)
-		goto loop;
-}
-
 void waitq_wake_one(waitq_t *wq)
 {
 	irq_spinlock_lock(&wq->lock, true);
@@ -547,6 +511,15 @@ static void _wake_all(waitq_t *wq)
 {
 	while (!list_empty(&wq->sleepers))
 		_wake_one(wq);
+}
+
+void waitq_close(waitq_t *wq)
+{
+	irq_spinlock_lock(&wq->lock, true);
+	// FIXME: this can technically fail if we get two billion sleeps after the close call.
+	wq->wakeup_balance = INT_MAX;
+	_wake_all(wq);
+	irq_spinlock_unlock(&wq->lock, true);
 }
 
 void waitq_wake_all(waitq_t *wq)
