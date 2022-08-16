@@ -565,7 +565,7 @@ void thread_interrupt(thread_t *thread, bool irq_dis)
 	if (sleeping)
 		waitq_interrupt_sleep(thread);
 
-	thread_wakeup(thread_ref(thread));
+	thread_wakeup(thread);
 }
 
 /** Suspends this thread's execution until thread_wakeup() is called on it.

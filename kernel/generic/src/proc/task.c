@@ -535,7 +535,11 @@ static void task_kill_internal(task_t *task)
 	 */
 
 	list_foreach(task->threads, th_link, thread_t, thread) {
-		thread_interrupt(thread, false);
+		thread_t *thr = thread_try_ref(thread);
+		if (thr)
+			thread_interrupt(thr, false);
+
+		// If NULL, the thread is already getting destroyed concurrently with this.
 	}
 
 	irq_spinlock_unlock(&threads_lock, false);
