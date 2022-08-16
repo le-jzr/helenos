@@ -149,8 +149,6 @@ typedef struct thread {
 	 */
 	atomic_bool interrupted;
 
-	atomic_bool timeout_done;
-
 	/** Waitq for thread_join_timeout(). */
 	waitq_t join_wq;
 

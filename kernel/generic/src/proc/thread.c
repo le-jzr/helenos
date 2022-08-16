@@ -623,9 +623,7 @@ void thread_wait(void)
 
 static void thread_wait_timeout_callback(void *arg)
 {
-	thread_t *thread = arg;
-	thread_wakeup(thread);
-	thread->timeout_done = true;
+	thread_wakeup(arg);
 }
 
 /**
@@ -641,24 +639,13 @@ bool thread_wait_timeout(uint32_t usec)
 		return false;
 	}
 
-	THREAD->timeout_done = false;
-
 	timeout_t timeout;
 	timeout_initialize(&timeout);
 	timeout_register(&timeout, usec, thread_wait_timeout_callback, THREAD);
 
 	thread_wait();
 
-	bool fired = !timeout_unregister(&timeout);
-
-	if (fired) {
-		/* Timeout fired. We have to wait until we are certain it has finished executing. */
-
-		while (!THREAD->timeout_done)
-			;
-	}
-
-	return fired;
+	return !timeout_unregister(&timeout);
 }
 
 // Consumes reference.

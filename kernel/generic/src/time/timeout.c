@@ -93,6 +93,7 @@ void timeout_register(timeout_t *timeout, uint64_t time,
 	timeout->deadline = CPU->current_clock_tick + us2ticks(time);
 	timeout->handler = handler;
 	timeout->arg = arg;
+	atomic_store_explicit(&timeout->finished, false, memory_order_relaxed);
 
 	/* Insert timeout into the active timeouts list according to timeout->deadline. */
 
@@ -134,6 +135,13 @@ bool timeout_unregister(timeout_t *timeout)
 	}
 
 	irq_spinlock_unlock(&timeout->cpu->timeoutlock, true);
+
+	if (!success) {
+		// Timeout was fired, we need to wait for the callback to finish.
+		while (!atomic_load_explicit(&timeout->finished, memory_order_acquire))
+			spin_loop_body();
+	}
+
 	return success;
 }
 

@@ -43,6 +43,13 @@
 
 #ifdef CONFIG_SMP
 
+static inline void spin_loop_body(void)
+{
+#ifdef ARCH_SPIN_HINT
+	ARCH_SPIN_HINT();
+#endif
+}
+
 typedef struct spinlock {
 	atomic_flag flag;
 
@@ -107,7 +114,7 @@ _NO_TRACE static inline void spinlock_lock(spinlock_t *lock)
 	preemption_disable();
 	while (atomic_flag_test_and_set_explicit(&lock->flag,
 	    memory_order_acquire))
-		;
+		spin_loop_body();
 }
 
 /** Release spinlock
