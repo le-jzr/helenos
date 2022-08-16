@@ -143,6 +143,10 @@ void timeout_register_deadline(timeout_t *timeout, deadline_t deadline,
  */
 bool timeout_unregister(timeout_t *timeout)
 {
+	// The timeout fired and finished already, don't need to check timeout list.
+	if (atomic_load_explicit(&timeout->finished, memory_order_acquire))
+		return false;
+
 	assert(timeout->cpu);
 
 	irq_spinlock_lock(&timeout->cpu->timeoutlock, true);
@@ -155,7 +159,7 @@ bool timeout_unregister(timeout_t *timeout)
 	irq_spinlock_unlock(&timeout->cpu->timeoutlock, true);
 
 	if (!success) {
-		// Timeout was fired, we need to wait for the callback to finish.
+		// Timeout was fired, but didn't finish yet. We need to wait for the callback to finish.
 		while (!atomic_load_explicit(&timeout->finished, memory_order_acquire))
 			spin_loop_body();
 	}

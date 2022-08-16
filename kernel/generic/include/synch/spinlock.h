@@ -41,14 +41,14 @@
 #include <preemption.h>
 #include <arch/asm.h>
 
-#ifdef CONFIG_SMP
-
 static inline void spin_loop_body(void)
 {
 #ifdef ARCH_SPIN_HINT
 	ARCH_SPIN_HINT();
 #endif
 }
+
+#ifdef CONFIG_SMP
 
 typedef struct spinlock {
 	atomic_flag flag;
