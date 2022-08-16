@@ -75,6 +75,54 @@ void waitq_initialize(waitq_t *wq)
 	list_initialize(&wq->sleepers);
 }
 
+static void _waitq_wakeup_internal(thread_t *thread, errno_t rc)
+{
+	bool do_wakeup = false;
+	DEADLOCK_PROBE_INIT(p_wqlock);
+
+	/*
+	 * The thread is quaranteed to exist because
+	 * threads_lock is held.
+	 */
+
+grab_locks:
+	irq_spinlock_lock(&thread->lock, false);
+
+	waitq_t *wq;
+	if ((wq = thread->sleep_queue)) {  /* Assignment */
+		if (rc == EINTR && !(thread->sleep_interruptible)) {
+			/*
+			 * The sleep cannot be interrupted.
+			 */
+			irq_spinlock_unlock(&thread->lock, false);
+			return;
+		}
+
+		if (!irq_spinlock_trylock(&wq->lock)) {
+			/* Avoid deadlock */
+			irq_spinlock_unlock(&thread->lock, false);
+			DEADLOCK_PROBE(p_wqlock, DEADLOCK_THRESHOLD);
+			goto grab_locks;
+		}
+
+		if (link_in_use(&thread->wq_link)) {
+			list_remove(&thread->wq_link);
+			thread->sleep_result = rc;
+			if (thread->sleep_composable)
+				wq->ignore_wakeups++;
+			do_wakeup = true;
+			thread->sleep_queue = NULL;
+		}
+
+		irq_spinlock_unlock(&wq->lock, false);
+	}
+
+	irq_spinlock_unlock(&thread->lock, false);
+
+	if (do_wakeup)
+		thread_ready(thread);
+}
+
 /** Handle timeout during waitq_sleep_timeout() call
  *
  * This routine is called when waitq_sleep_timeout() times out.
@@ -90,39 +138,7 @@ void waitq_initialize(waitq_t *wq)
  */
 void waitq_sleep_timed_out(void *data)
 {
-	thread_t *thread = (thread_t *) data;
-	bool do_wakeup = false;
-	DEADLOCK_PROBE_INIT(p_wqlock);
-
-	irq_spinlock_lock(&threads_lock, false);
-
-grab_locks:
-	irq_spinlock_lock(&thread->lock, false);
-
-	waitq_t *wq;
-	if ((wq = thread->sleep_queue)) {  /* Assignment */
-		if (!irq_spinlock_trylock(&wq->lock)) {
-			irq_spinlock_unlock(&thread->lock, false);
-			DEADLOCK_PROBE(p_wqlock, DEADLOCK_THRESHOLD);
-			/* Avoid deadlock */
-			goto grab_locks;
-		}
-
-		list_remove(&thread->wq_link);
-		thread->saved_context = thread->sleep_timeout_context;
-		do_wakeup = true;
-		if (thread->sleep_composable)
-			wq->ignore_wakeups++;
-		thread->sleep_queue = NULL;
-		irq_spinlock_unlock(&wq->lock, false);
-	}
-
-	irq_spinlock_unlock(&thread->lock, false);
-
-	if (do_wakeup)
-		thread_ready(thread);
-
-	irq_spinlock_unlock(&threads_lock, false);
+	_waitq_wakeup_internal(data, ETIMEOUT);
 }
 
 /** Interrupt sleeping thread.
@@ -139,47 +155,7 @@ grab_locks:
  */
 void waitq_interrupt_sleep(thread_t *thread)
 {
-	bool do_wakeup = false;
-	DEADLOCK_PROBE_INIT(p_wqlock);
-
-	/*
-	 * The thread is quaranteed to exist because
-	 * threads_lock is held.
-	 */
-
-grab_locks:
-	irq_spinlock_lock(&thread->lock, false);
-
-	waitq_t *wq;
-	if ((wq = thread->sleep_queue)) {  /* Assignment */
-		if (!(thread->sleep_interruptible)) {
-			/*
-			 * The sleep cannot be interrupted.
-			 */
-			irq_spinlock_unlock(&thread->lock, false);
-			return;
-		}
-
-		if (!irq_spinlock_trylock(&wq->lock)) {
-			/* Avoid deadlock */
-			irq_spinlock_unlock(&thread->lock, false);
-			DEADLOCK_PROBE(p_wqlock, DEADLOCK_THRESHOLD);
-			goto grab_locks;
-		}
-
-		list_remove(&thread->wq_link);
-		thread->saved_context = thread->sleep_interruption_context;
-		if (thread->sleep_composable)
-			wq->ignore_wakeups++;
-		do_wakeup = true;
-		thread->sleep_queue = NULL;
-		irq_spinlock_unlock(&wq->lock, false);
-	}
-
-	irq_spinlock_unlock(&thread->lock, false);
-
-	if (do_wakeup)
-		thread_ready(thread);
+	_waitq_wakeup_internal(thread, EINTR);
 }
 
 #define PARAM_NON_BLOCKING(flags, usec) \
@@ -360,32 +336,12 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 			return EINTR;
 		}
 
-		/*
-		 * Set context that will be restored if the sleep
-		 * of this thread is ever interrupted.
-		 */
 		THREAD->sleep_interruptible = true;
-		if (!context_save(&THREAD->sleep_interruption_context)) {
-			/* Short emulation of scheduler() return code. */
-			THREAD->last_cycle = get_cycle();
-			irq_spinlock_unlock(&THREAD->lock, false);
-			if (usec) {
-				timeout_unregister(&timeout);
-			}
-			return EINTR;
-		}
-	} else
+	} else {
 		THREAD->sleep_interruptible = false;
+	}
 
 	if (usec) {
-		/* We use the timeout variant. */
-		if (!context_save(&THREAD->sleep_timeout_context)) {
-			/* Short emulation of scheduler() return code. */
-			THREAD->last_cycle = get_cycle();
-			irq_spinlock_unlock(&THREAD->lock, false);
-			return ETIMEOUT;
-		}
-
 		timeout_register(&timeout, (uint64_t) usec, waitq_sleep_timed_out, THREAD);
 	}
 
@@ -413,7 +369,7 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		timeout_unregister(&timeout);
 	}
 
-	return EOK;
+	return THREAD->sleep_result;
 }
 
 bool waitq_try_down(waitq_t *wq)
@@ -556,6 +512,7 @@ loop:
 	irq_spinlock_lock(&thread->lock, false);
 	list_remove(&thread->wq_link);
 
+	thread->sleep_result = EOK;
 	thread->sleep_queue = NULL;
 	irq_spinlock_unlock(&thread->lock, false);
 

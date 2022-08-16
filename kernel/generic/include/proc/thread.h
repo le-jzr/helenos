@@ -102,17 +102,7 @@ typedef struct thread {
 	 */
 	context_t saved_context;
 
-	/**
-	 * From here, the stored timeout context
-	 * is restored when sleep times out.
-	 */
-	context_t sleep_timeout_context;
-
-	/**
-	 * From here, the stored interruption context
-	 * is restored when sleep is interrupted.
-	 */
-	context_t sleep_interruption_context;
+	volatile errno_t sleep_result;
 
 	/** If true, the thread can be interrupted from sleep. */
 	bool sleep_interruptible;
