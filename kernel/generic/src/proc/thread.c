@@ -631,7 +631,7 @@ static void thread_wait_timeout_callback(void *arg)
  * for it to have been waken up by the timeout, but it still might have
  * been something else.
  */
-bool thread_wait_timeout(uint32_t usec)
+bool thread_wait_until(deadline_t deadline)
 {
 	assert(THREAD != NULL);
 
@@ -641,7 +641,7 @@ bool thread_wait_timeout(uint32_t usec)
 
 	timeout_t timeout;
 	timeout_initialize(&timeout);
-	timeout_register(&timeout, usec, thread_wait_timeout_callback, THREAD);
+	timeout_register_deadline(&timeout, deadline, thread_wait_timeout_callback, THREAD);
 
 	thread_wait();
 

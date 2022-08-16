@@ -225,7 +225,7 @@ extern void thread_exit(void) __attribute__((noreturn));
 extern void thread_interrupt(thread_t *, bool);
 
 extern void thread_wait(void);
-extern bool thread_wait_timeout(uint32_t usecs);
+extern bool thread_wait_until(deadline_t);
 extern void thread_wait_reset(void);
 extern void thread_wakeup(thread_t *);
 
