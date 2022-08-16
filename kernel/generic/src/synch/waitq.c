@@ -109,7 +109,7 @@ grab_locks:
 			list_remove(&thread->wq_link);
 			thread->sleep_result = rc;
 			if (thread->sleep_composable)
-				wq->ignore_wakeups++;
+				wq->wakeup_balance--;
 			do_wakeup = true;
 			thread->sleep_queue = NULL;
 		}
@@ -305,8 +305,8 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 	*blocked = false;
 
 	/* Checks whether to go to sleep at all */
-	if (wq->missed_wakeups) {
-		wq->missed_wakeups--;
+	if (wq->wakeup_balance > 0) {
+		wq->wakeup_balance--;
 		return EOK;
 	} else {
 		if (PARAM_NON_BLOCKING(flags, usec)) {
@@ -376,9 +376,9 @@ bool waitq_try_down(waitq_t *wq)
 {
        irq_spinlock_lock(&wq->lock, true);
 
-       bool success = wq->missed_wakeups > 0;
+       bool success = wq->wakeup_balance > 0;
        if (success)
-               wq->missed_wakeups--;
+               wq->wakeup_balance--;
 
        irq_spinlock_unlock(&wq->lock, true);
 
@@ -468,21 +468,21 @@ void _waitq_wakeup_unsafe(waitq_t *wq, wakeup_mode_t mode)
 	assert(interrupts_disabled());
 	assert(irq_spinlock_locked(&wq->lock));
 
-	if (wq->ignore_wakeups > 0) {
+	if (wq->wakeup_balance < 0) {
 		if (mode == WAKEUP_FIRST) {
-			wq->ignore_wakeups--;
+			wq->wakeup_balance++;
 			return;
 		}
-		wq->ignore_wakeups = 0;
+		wq->wakeup_balance = 0;
 	}
 
 loop:
 	if (list_empty(&wq->sleepers)) {
 		if (mode == WAKEUP_ALL_AND_FUTURE) {
 			// FIXME: this can technically fail if we get two billion sleeps after the wakeup call.
-			wq->missed_wakeups = INT_MAX;
+			wq->wakeup_balance = INT_MAX;
 		} else if (mode != WAKEUP_ALL) {
-			wq->missed_wakeups++;
+			wq->wakeup_balance++;
 		}
 
 		return;
@@ -532,10 +532,10 @@ int waitq_count_get(waitq_t *wq)
 	int cnt;
 
 	irq_spinlock_lock(&wq->lock, true);
-	cnt = wq->missed_wakeups;
+	cnt = wq->wakeup_balance;
 	irq_spinlock_unlock(&wq->lock, true);
 
-	return cnt;
+	return cnt < 0 ? 0 : cnt;
 }
 
 /** Set the missed wakeups count.
@@ -546,7 +546,7 @@ int waitq_count_get(waitq_t *wq)
 void waitq_count_set(waitq_t *wq, int val)
 {
 	irq_spinlock_lock(&wq->lock, true);
-	wq->missed_wakeups = val;
+	wq->wakeup_balance = val;
 	irq_spinlock_unlock(&wq->lock, true);
 }
 

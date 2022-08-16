@@ -57,13 +57,10 @@ typedef struct waitq {
 	IRQ_SPINLOCK_DECLARE(lock);
 
 	/**
-	 * Number of waitq_wakeup() calls that didn't find a thread to wake up.
-	 *
+	 * If negative, number of wakeups that are to be ignored (necessary for futex operation).
+	 * If positive, number of wakeups that weren't able to wake a thread.
 	 */
-	int missed_wakeups;
-
-	/** Number of wakeups that need to be ignored due to futex timeout. */
-	int ignore_wakeups;
+	int wakeup_balance;
 
 	/** List of sleeping threads for which there was no missed_wakeup. */
 	list_t sleepers;
