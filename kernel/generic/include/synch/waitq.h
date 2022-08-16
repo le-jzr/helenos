@@ -79,6 +79,10 @@ extern void waitq_sleep_finish(waitq_t *, bool, ipl_t);
 extern void waitq_wakeup(waitq_t *, wakeup_mode_t);
 extern void _waitq_wakeup_unsafe(waitq_t *, wakeup_mode_t);
 extern void waitq_interrupt_sleep(struct thread *);
+
+extern void waitq_wake_one(waitq_t *);
+extern void waitq_wake_all(waitq_t *);
+extern void waitq_close(waitq_t *);
 extern int waitq_count_get(waitq_t *);
 extern void waitq_count_set(waitq_t *, int val);
 

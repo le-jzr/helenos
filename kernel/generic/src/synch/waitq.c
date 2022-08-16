@@ -456,49 +456,9 @@ static void waitq_complete_wakeup(waitq_t *wq)
 	irq_spinlock_unlock(&wq->lock, false);
 }
 
-/** Internal SMP- and IRQ-unsafe version of waitq_wakeup()
- *
- * This is the internal SMP- and IRQ-unsafe version of waitq_wakeup(). It
- * assumes wq->lock is already locked and interrupts are already disabled.
- *
- * @param wq   Pointer to wait queue.
- * @param mode If mode is WAKEUP_FIRST, then the longest waiting
- *             thread, if any, is woken up. If mode is WAKEUP_ALL, then
- *             all waiting threads, if any, are woken up. If there are
- *             no waiting threads to be woken up, the missed wakeup is
- *             recorded in the wait queue.
- *
- */
-void _waitq_wakeup_unsafe(waitq_t *wq, wakeup_mode_t mode)
+static void _wake_one(waitq_t *wq)
 {
-	size_t count = 0;
-
-	assert(interrupts_disabled());
-	assert(irq_spinlock_locked(&wq->lock));
-
-	if (wq->wakeup_balance < 0) {
-		if (mode == WAKEUP_FIRST) {
-			wq->wakeup_balance++;
-			return;
-		}
-		wq->wakeup_balance = 0;
-	}
-
-loop:
-	if (list_empty(&wq->sleepers)) {
-		if (mode == WAKEUP_ALL_AND_FUTURE) {
-			// FIXME: this can technically fail if we get two billion sleeps after the wakeup call.
-			wq->wakeup_balance = INT_MAX;
-		} else if (mode != WAKEUP_ALL) {
-			wq->wakeup_balance++;
-		}
-
-		return;
-	}
-
-	count++;
-	thread_t *thread = list_get_instance(list_first(&wq->sleepers),
-	    thread_t, wq_link);
+	thread_t *thread = list_get_instance(list_first(&wq->sleepers), thread_t, wq_link);
 
 	/*
 	 * Lock the thread prior to removing it from the wq.
@@ -525,9 +485,76 @@ loop:
 	irq_spinlock_unlock(&thread->lock, false);
 
 	thread_ready(thread);
+}
+
+/** Internal SMP- and IRQ-unsafe version of waitq_wakeup()
+ *
+ * This is the internal SMP- and IRQ-unsafe version of waitq_wakeup(). It
+ * assumes wq->lock is already locked and interrupts are already disabled.
+ *
+ * @param wq   Pointer to wait queue.
+ * @param mode If mode is WAKEUP_FIRST, then the longest waiting
+ *             thread, if any, is woken up. If mode is WAKEUP_ALL, then
+ *             all waiting threads, if any, are woken up. If there are
+ *             no waiting threads to be woken up, the missed wakeup is
+ *             recorded in the wait queue.
+ *
+ */
+void _waitq_wakeup_unsafe(waitq_t *wq, wakeup_mode_t mode)
+{
+	assert(interrupts_disabled());
+	assert(irq_spinlock_locked(&wq->lock));
+
+	if (wq->wakeup_balance < 0) {
+		if (mode == WAKEUP_FIRST) {
+			wq->wakeup_balance++;
+			return;
+		}
+		wq->wakeup_balance = 0;
+	}
+
+loop:
+	if (list_empty(&wq->sleepers)) {
+		if (mode == WAKEUP_ALL_AND_FUTURE) {
+			// FIXME: this can technically fail if we get two billion sleeps after the wakeup call.
+			wq->wakeup_balance = INT_MAX;
+		} else if (mode != WAKEUP_ALL) {
+			wq->wakeup_balance++;
+		}
+
+		return;
+	}
+
+	_wake_one(wq);
 
 	if (mode == WAKEUP_ALL)
 		goto loop;
+}
+
+void waitq_wake_one(waitq_t *wq)
+{
+	irq_spinlock_lock(&wq->lock, true);
+
+	if (wq->wakeup_balance < 0 || list_empty(&wq->sleepers))
+		wq->wakeup_balance++;
+	else
+		_wake_one(wq);
+
+	irq_spinlock_unlock(&wq->lock, true);
+}
+
+static void _wake_all(waitq_t *wq)
+{
+	while (!list_empty(&wq->sleepers))
+		_wake_one(wq);
+}
+
+void waitq_wake_all(waitq_t *wq)
+{
+	irq_spinlock_lock(&wq->lock, true);
+	wq->wakeup_balance = 0;
+	_wake_all(wq);
+	irq_spinlock_unlock(&wq->lock, true);
 }
 
 /** Get the missed wakeups count.
