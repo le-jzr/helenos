@@ -108,8 +108,6 @@ grab_locks:
 		if (link_in_use(&thread->wq_link)) {
 			list_remove(&thread->wq_link);
 			thread->sleep_result = rc;
-			if (thread->sleep_composable)
-				wq->wakeup_balance--;
 			do_wakeup = true;
 			thread->sleep_queue = NULL;
 		}
@@ -324,7 +322,13 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 	timeout_t timeout;
 	timeout_initialize(&timeout);
 
-	THREAD->sleep_composable = (flags & SYNCH_FLAGS_FUTEX);
+	/**
+	 * If true, and this thread's sleep returns without a wakeup
+	 * (timed out or interrupted), waitq ignores the next wakeup.
+	 * This is necessary for futex to be able to handle those conditions.
+	 */
+
+	bool sleep_composable = (flags & SYNCH_FLAGS_FUTEX);
 
 	if (flags & SYNCH_FLAGS_INTERRUPTIBLE) {
 		/*
@@ -369,7 +373,17 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		timeout_unregister(&timeout);
 	}
 
-	return THREAD->sleep_result;
+	errno_t rc = THREAD->sleep_result;
+
+	if (rc != EOK) {
+		if (sleep_composable) {
+			irq_spinlock_lock(&wq->lock, false);
+			wq->wakeup_balance--;
+			irq_spinlock_unlock(&wq->lock, false);
+		}
+	}
+
+	return rc;
 }
 
 bool waitq_try_down(waitq_t *wq)
