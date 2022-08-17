@@ -110,7 +110,7 @@ grab_locks:
 	irq_spinlock_unlock(&thread->lock, false);
 
 	if (do_wakeup)
-		thread_ready(thread);
+		thread_wakeup(thread);
 }
 
 /** Handle timeout during waitq_sleep_timeout() call
@@ -327,6 +327,7 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		}
 	}
 
+	thread_wait_reset();
 	list_append(&THREAD->wq_link, &wq->sleepers);
 
 	/*
@@ -355,7 +356,7 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		}
 
 		/* wq->lock is released in scheduler_separated_stack() */
-		scheduler();
+		thread_wait();
 
 		if (usec) {
 			timeout_unregister(&timeout);
@@ -494,7 +495,7 @@ static void _wake_one(waitq_t *wq)
 	thread->sleep_queue = NULL;
 	irq_spinlock_unlock(&thread->lock, false);
 
-	thread_ready(thread);
+	thread_wakeup(thread);
 }
 
 void waitq_wake_one(waitq_t *wq)
