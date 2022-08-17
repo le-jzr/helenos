@@ -363,8 +363,10 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 
 		errno_t rc = THREAD->sleep_result;
 
-		if (rc == EINTR && !interruptible)
+		if (rc == EINTR && !interruptible) {
+			irq_spinlock_lock(&wq->lock, false);
 			continue;
+		}
 
 		if (rc != EOK) {
 			if (sleep_composable) {
