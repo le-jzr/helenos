@@ -412,6 +412,7 @@ void scheduler_separated_stack(void)
 
 		switch (THREAD->state) {
 		case Running:
+			THREAD->state = Suspended;
 			irq_spinlock_unlock(&THREAD->lock, false);
 			thread_ready(THREAD);
 			break;

@@ -266,7 +266,7 @@ void thread_ready(thread_t *thread)
 {
 	irq_spinlock_lock(&thread->lock, true);
 
-	assert(thread->state == Running || thread->state == Suspended || thread->state == Sleeping);
+	assert(thread->state == Suspended || thread->state == Sleeping);
 
 	before_thread_is_ready(thread);
 
@@ -637,7 +637,7 @@ bool thread_wait_until(deadline_t deadline)
 	return !timeout_unregister(&timeout);
 }
 
-// Consumes reference.
+// Expects reference borrowed from the sleeping thread.
 void thread_wakeup(thread_t *thread)
 {
 	int state = atomic_exchange(&THREAD->sleep_pad, SLEEP_WOKE);
@@ -645,8 +645,6 @@ void thread_wakeup(thread_t *thread)
 	// Only one thread gets to do this.
 	if (state == SLEEP_ASLEEP) {
 		thread_ready(thread);
-	} else {
-		thread_put(thread);
 	}
 }
 
