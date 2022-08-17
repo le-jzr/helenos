@@ -123,6 +123,7 @@ _NO_TRACE static inline void spinlock_lock(spinlock_t *lock)
  */
 _NO_TRACE static inline void spinlock_unlock(spinlock_t *lock)
 {
+	assert(atomic_flag_test_and_set_explicit(&lock->flag, memory_order_relaxed));
 	atomic_flag_clear_explicit(&lock->flag, memory_order_release);
 	preemption_enable();
 }
