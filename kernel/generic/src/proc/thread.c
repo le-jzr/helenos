@@ -532,13 +532,9 @@ void thread_exit(void)
  * are woken up with a return code of EINTR if the
  * blocking call was interruptable. See waitq_sleep_timeout().
  *
- * The caller must guarantee the thread object is valid during the entire
- * function, eg by holding the threads_lock lock.
- *
  * Interrupted threads automatically exit when returning back to user space.
  *
- * @param thread A valid thread object. The caller must guarantee it
- *               will remain valid until thread_interrupt() exits.
+ * @param thread A valid thread object.
  */
 void thread_interrupt(thread_t *thread, bool irq_dis)
 {
@@ -553,8 +549,6 @@ void thread_interrupt(thread_t *thread, bool irq_dis)
 
 	if (sleeping)
 		waitq_interrupt_sleep(thread);
-
-	thread_wakeup(thread);
 }
 
 /** Suspends this thread's execution until thread_wakeup() is called on it.
@@ -600,9 +594,12 @@ void thread_wait(void)
 	while (!atomic_compare_exchange_weak(&THREAD->sleep_pad, &expected, SLEEP_ASLEEP) && expected == SLEEP_INITIAL)
 		;
 
+	assert (expected != SLEEP_WOKE);
+
 	if (expected == SLEEP_WOKE) {
 		/* Return immediately. */
 		irq_spinlock_unlock(&THREAD->lock, false);
+		irq_spinlock_unlock(&THREAD->sleep_queue->lock, false);
 		interrupts_restore(ipl);
 	} else {
 		THREAD->state = Sleeping;
@@ -613,6 +610,12 @@ void thread_wait(void)
 static void thread_wait_timeout_callback(void *arg)
 {
 	thread_wakeup(arg);
+}
+
+void thread_wait_reset(void)
+{
+	assert(THREAD != NULL);
+	atomic_store_explicit(&THREAD->sleep_pad, SLEEP_INITIAL, memory_order_relaxed);
 }
 
 /**
@@ -640,7 +643,9 @@ bool thread_wait_until(deadline_t deadline)
 // Expects reference borrowed from the sleeping thread.
 void thread_wakeup(thread_t *thread)
 {
-	int state = atomic_exchange(&THREAD->sleep_pad, SLEEP_WOKE);
+	int state = atomic_exchange(&thread->sleep_pad, SLEEP_WOKE);
+
+	assert(state == SLEEP_ASLEEP);
 
 	// Only one thread gets to do this.
 	if (state == SLEEP_ASLEEP) {
