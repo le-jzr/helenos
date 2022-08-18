@@ -83,6 +83,18 @@ typedef struct thread {
 
 	atomic_int sleep_pad;
 
+	/** Wait queue in which this thread sleeps. Used for debug printouts. */
+	_Atomic (waitq_t *) sleep_queue;
+
+	/**
+	 * If true, the thread will not go to sleep at all and will call
+	 * thread_exit() before returning to userspace.
+	 */
+	volatile bool interrupted;
+
+	/** Waitq for thread_join_timeout(). */
+	waitq_t join_wq;
+
 	/** Lock protecting thread structure.
 	 *
 	 * Protects the whole thread structure except fields listed above.
@@ -102,9 +114,6 @@ typedef struct thread {
 	 */
 	context_t saved_context;
 
-	/** Wait queue in which this thread sleeps. Used for debug printouts. */
-	_Atomic (waitq_t *) sleep_queue;
-
 	/**
 	 * True if this thread is executing copy_from_uspace().
 	 * False otherwise.
@@ -116,15 +125,6 @@ typedef struct thread {
 	 * False otherwise.
 	 */
 	bool in_copy_to_uspace;
-
-	/**
-	 * If true, the thread will not go to sleep at all and will call
-	 * thread_exit() before returning to userspace.
-	 */
-	volatile bool interrupted;
-
-	/** Waitq for thread_join_timeout(). */
-	waitq_t join_wq;
 
 #ifdef CONFIG_FPU
 	fpu_context_t fpu_context;

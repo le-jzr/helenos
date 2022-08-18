@@ -384,12 +384,10 @@ sys_errno_t sys_task_set_name(const uspace_ptr_char uspace_name, size_t name_len
 
 	irq_spinlock_lock(&tasks_lock, true);
 	irq_spinlock_lock(&TASK->lock, false);
-	irq_spinlock_lock(&threads_lock, false);
 
 	/* Set task name */
 	str_cpy(TASK->name, TASK_NAME_BUFLEN, namebuf);
 
-	irq_spinlock_unlock(&threads_lock, false);
 	irq_spinlock_unlock(&TASK->lock, false);
 	irq_spinlock_unlock(&tasks_lock, true);
 
@@ -528,7 +526,6 @@ void task_get_accounting(task_t *task, uint64_t *ucycles, uint64_t *kcycles)
 static void task_kill_internal(task_t *task)
 {
 	irq_spinlock_lock(&task->lock, false);
-	irq_spinlock_lock(&threads_lock, false);
 
 	/*
 	 * Interrupt all threads.
@@ -538,7 +535,6 @@ static void task_kill_internal(task_t *task)
 		thread_interrupt(thread, false);
 	}
 
-	irq_spinlock_unlock(&threads_lock, false);
 	irq_spinlock_unlock(&task->lock, false);
 }
 

@@ -415,12 +415,18 @@ static void thread_destroy(void *obj)
 
 	assert(thread->task);
 
+	ipl_t ipl = interrupts_disable();
+
 	// Remove both weak references.
-	irq_spinlock_lock(&thread->task->lock, true);
+	irq_spinlock_lock(&thread->task->lock, false);
 	list_remove(&thread->th_link);
-	irq_spinlock_pass(&thread->task->lock, &threads_lock);
+	irq_spinlock_unlock(&thread->task->lock, false);
+
+	irq_spinlock_lock(&threads_lock, false);
 	odict_remove(&thread->lthreads);
-	irq_spinlock_pass(&threads_lock, &thread->lock);
+	irq_spinlock_unlock(&threads_lock, false);
+
+	irq_spinlock_lock(&thread->lock, false);
 
 	assert(thread->state == Suspended || thread->state == Exiting);
 	assert(thread->cpu);
@@ -430,7 +436,9 @@ static void thread_destroy(void *obj)
 		thread->cpu->fpu_owner = NULL;
 	irq_spinlock_unlock(&thread->cpu->lock, false);
 
-	irq_spinlock_unlock(&thread->lock, true);
+	irq_spinlock_unlock(&thread->lock, false);
+
+	interrupts_restore(ipl);
 
 	/*
 	 * Drop the reference to the containing task.
@@ -459,10 +467,12 @@ void thread_put(thread_t *thread)
  */
 void thread_attach(thread_t *thread, task_t *task)
 {
+	ipl_t ipl = interrupts_disable();
+
 	/*
 	 * Attach to the specified task.
 	 */
-	irq_spinlock_lock(&task->lock, true);
+	irq_spinlock_lock(&task->lock, false);
 
 	/* Hold a reference to the task. */
 	task_hold(task);
@@ -474,13 +484,16 @@ void thread_attach(thread_t *thread, task_t *task)
 	// this list holds weak references, so we don't inc
 	list_append(&thread->th_link, &task->threads);
 
-	irq_spinlock_pass(&task->lock, &threads_lock);
+	irq_spinlock_unlock(&task->lock, false);
 
 	/*
 	 * Register this thread in the system-wide dictionary.
 	 */
+	irq_spinlock_lock(&threads_lock, false);
 	odict_insert(&thread->lthreads, &threads, NULL);
-	irq_spinlock_unlock(&threads_lock, true);
+	irq_spinlock_unlock(&threads_lock, false);
+
+	interrupts_restore(ipl);
 }
 
 /** Terminate thread.
@@ -789,7 +802,7 @@ void thread_print_list(bool additional)
 {
 	thread_t *thread;
 
-	/* Messing with thread structures, avoid deadlock */
+	/* Accessing system-wide threads list through thread_first()/thread_next(). */
 	irq_spinlock_lock(&threads_lock, true);
 
 	if (sizeof(void *) <= 4) {

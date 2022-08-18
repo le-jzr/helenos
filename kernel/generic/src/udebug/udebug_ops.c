@@ -91,8 +91,17 @@ static errno_t _thread_op_begin(thread_t *thread, bool being_go)
 		return ENOENT;
 	}
 
-	/* thread->lock is enough to ensure the thread's existence */
-	irq_spinlock_exchange(&threads_lock, &thread->lock);
+	/* Try to strengthen the reference. */
+	thread = thread_try_ref(thread);
+
+	irq_spinlock_unlock(&threads_lock, true);
+
+	if (!thread) {
+		mutex_unlock(&TASK->udebug.lock);
+		return ENOENT;
+	}
+
+	irq_spinlock_lock(&thread->lock, true);
 
 	/* Verify that 'thread' is a userspace thread. */
 	if (!thread->uspace) {
@@ -110,22 +119,17 @@ static errno_t _thread_op_begin(thread_t *thread, bool being_go)
 		return ENOENT;
 	}
 
-	/*
-	 * Since the thread has active == true, TASK->udebug.lock
-	 * is enough to ensure its existence and that active remains
-	 * true.
-	 *
-	 */
-	irq_spinlock_unlock(&thread->lock, true);
-
-	/* Only mutex TASK->udebug.lock left. */
-
 	/* Now verify that the thread belongs to the current task. */
 	if (thread->task != TASK) {
 		/* No such thread belonging this task */
+		irq_spinlock_unlock(&thread->lock, true);
 		mutex_unlock(&TASK->udebug.lock);
 		return ENOENT;
 	}
+
+	irq_spinlock_unlock(&thread->lock, true);
+
+	/* Only mutex TASK->udebug.lock left. */
 
 	/*
 	 * Now we need to grab the thread's debug lock for synchronization
@@ -152,6 +156,9 @@ static errno_t _thread_op_begin(thread_t *thread, bool being_go)
 static void _thread_op_end(thread_t *thread)
 {
 	mutex_unlock(&thread->udebug.lock);
+
+	/* Drop reference from _thread_op_begin() */
+	thread_put(thread);
 }
 
 /** Begin debugging the current task.

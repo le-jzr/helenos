@@ -331,7 +331,7 @@ static void produce_stats_thread(thread_t *thread, stats_thread_t *stats_thread)
 static void *get_stats_threads(struct sysinfo_item *item, size_t *size,
     bool dry_run, void *data)
 {
-	/* Messing with threads structures, avoid deadlock */
+	/* Messing with threads structures */
 	irq_spinlock_lock(&threads_lock, true);
 
 	/* Count the threads */
@@ -596,7 +596,7 @@ static sysinfo_return_t get_stats_thread(const char *name, bool dry_run,
 	if (str_uint64_t(name, NULL, 0, true, &thread_id) != EOK)
 		return ret;
 
-	/* Messing with threads structures, avoid deadlock */
+	/* Messing with threads structures */
 	irq_spinlock_lock(&threads_lock, true);
 
 	thread_t *thread = thread_find_by_id(thread_id);
