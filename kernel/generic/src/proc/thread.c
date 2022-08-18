@@ -538,8 +538,6 @@ void thread_exit(void)
  */
 void thread_interrupt(thread_t *thread, bool irq_dis)
 {
-	assert(thread != NULL);
-	thread->interrupted = true;
 	waitq_interrupt_sleep(thread);
 }
 
@@ -604,7 +602,11 @@ static void thread_wait_timeout_callback(void *arg)
 void thread_wait_reset(void)
 {
 	assert(THREAD != NULL);
-	atomic_store_explicit(&THREAD->sleep_pad, SLEEP_INITIAL, memory_order_relaxed);
+	// This is an exchange rather than a store so that we can use the acquire semantic,
+	// which is needed to ensure that code after this function sees memory ops made
+	// before thread_wakeup() in other thread, if that wakeup was reset by this operation.
+	// Needed to make sure we can't miss thread being interrupted.
+	(void) atomic_exchange_explicit(&THREAD->sleep_pad, SLEEP_INITIAL, memory_order_acquire);
 }
 
 /**

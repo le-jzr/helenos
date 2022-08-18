@@ -81,13 +81,6 @@ void waitq_initialize_with_count(waitq_t *wq, int count)
 	wq->wakeup_balance = count;
 }
 
-/** Handle timeout during waitq_sleep_timeout() call
- */
-static void waitq_sleep_timed_out(void *data)
-{
-	thread_wakeup(data);
-}
-
 /** Interrupt sleeping thread.
  *
  * This routine attempts to interrupt a thread from its sleep in
@@ -99,6 +92,8 @@ static void waitq_sleep_timed_out(void *data)
  */
 void waitq_interrupt_sleep(thread_t *thread)
 {
+	assert(thread != NULL);
+	thread->interrupted = true;
 	thread_wakeup(thread);
 }
 
@@ -222,41 +217,34 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		goto exit;
 	}
 
-	bool interrupted = interruptible && THREAD->interrupted;
-
-	/* If the thread was already interrupted, don't go to sleep at all. */
-	if (interrupted) {
-		rc = EINTR;
-		goto exit;
-	}
-
 	atomic_store_explicit(&THREAD->sleep_queue, wq, memory_order_relaxed);
-	thread_wait_reset();
 
 	/* This thread_t field is synchronized exclusively via
 	 * waitq lock of the waitq currently listing it.
 	 */
 	list_append(&THREAD->wq_link, &wq->sleepers);
 
-	deadline_t deadline = timeout_deadline_in_usec(usec);
+	deadline_t deadline = usec ? timeout_deadline_in_usec(usec) : 0;
 
 	while (true) {
-		bool timed_out = false;
+		/* reset has acquire semantic, to ensure that THREAD->interrupted
+		 * written before a wakeup is seen after this
+		 */
+		thread_wait_reset();
 
-		timeout_t timeout;
-		timeout_initialize(&timeout);
+		if (interruptible && THREAD->interrupted) {
+			rc = EINTR;
+			goto exit;
+		}
 
 		irq_spinlock_unlock(&wq->lock, false);
 
-		if (usec) {
-			timeout_register(&timeout, deadline, waitq_sleep_timed_out, THREAD);
-		}
+		bool timed_out = false;
 
-		/* wq->lock is released in scheduler_separated_stack() */
-		thread_wait();
-
-		if (usec) {
-			timed_out = timeout_unregister(&timeout);
+		if (deadline) {
+			timed_out = thread_wait_until(deadline);
+		} else {
+			thread_wait();
 		}
 
 		/*
@@ -269,30 +257,28 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		 */
 		irq_spinlock_lock(&wq->lock, false);
 
-		if (link_in_use(&THREAD->wq_link)) {
-			list_remove(&THREAD->wq_link);
-
-			if (timed_out)
-				rc = ETIMEOUT;
-			else
-				rc = EINTR;
-		} else {
+		if (!link_in_use(&THREAD->wq_link)) {
 			rc = EOK;
+			goto exit;
 		}
 
-		if (rc != EINTR || interruptible)
+		if (timed_out) {
+			rc = ETIMEOUT;
 			goto exit;
+		}
+
+		// Interrupted.
 	}
 
 exit:
-	if (rc != EOK && sleep_composable) {
+	list_remove(&THREAD->wq_link);
+
+	if (rc != EOK && sleep_composable)
 		wq->wakeup_balance--;
-	}
 
 	atomic_store_explicit(&THREAD->sleep_queue, NULL, memory_order_relaxed);
-
 	irq_spinlock_unlock(&wq->lock, false);
-	interrupts_restore(guard->ipl);
+	interrupts_restore(guard.ipl);
 	return rc;
 }
 
