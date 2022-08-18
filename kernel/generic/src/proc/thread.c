@@ -370,7 +370,7 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	thread->nomigrate = 0;
 	thread->state = Suspended;
 
-	thread->sleep_queue = NULL;
+	atomic_store_explicit(&thread->sleep_queue, NULL, memory_order_relaxed);
 
 	thread->in_copy_from_uspace = false;
 	thread->in_copy_to_uspace = false;

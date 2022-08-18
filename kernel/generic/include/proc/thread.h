@@ -102,7 +102,7 @@ typedef struct thread {
 	 */
 	context_t saved_context;
 
-	/** Wait queue in which this thread sleeps. */
+	/** Wait queue in which this thread sleeps. Used for debug printouts. */
 	_Atomic (waitq_t *) sleep_queue;
 
 	/**
