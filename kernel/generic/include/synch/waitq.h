@@ -64,6 +64,8 @@ typedef struct waitq {
 
 	/** List of sleeping threads for which there was no missed_wakeup. */
 	list_t sleepers;
+
+	bool closed;
 } waitq_t;
 
 struct thread;
@@ -82,6 +84,7 @@ extern void waitq_interrupt_sleep(struct thread *);
 
 extern void waitq_wake_one(waitq_t *);
 extern void waitq_wake_all(waitq_t *);
+extern void waitq_signal(waitq_t *);
 extern void waitq_close(waitq_t *);
 extern int waitq_count_get(waitq_t *);
 extern void waitq_count_set(waitq_t *, int val);

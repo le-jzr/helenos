@@ -294,6 +294,11 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 {
 	*blocked = false;
 
+	if (wq->closed) {
+		irq_spinlock_unlock(&wq->lock, true);
+		return EOK;
+	}
+
 	/* Checks whether to go to sleep at all */
 	if (wq->wakeup_balance > 0) {
 		wq->wakeup_balance--;
@@ -385,15 +390,15 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 
 bool waitq_try_down(waitq_t *wq)
 {
-       irq_spinlock_lock(&wq->lock, true);
+	irq_spinlock_lock(&wq->lock, true);
 
-       bool success = wq->wakeup_balance > 0;
-       if (success)
-               wq->wakeup_balance--;
+	bool success = wq->closed || wq->wakeup_balance > 0;
+	if (wq->wakeup_balance > 0)
+		wq->wakeup_balance--;
 
-       irq_spinlock_unlock(&wq->lock, true);
+	irq_spinlock_unlock(&wq->lock, true);
 
-       return success;
+	return success;
 }
 
 
@@ -498,11 +503,34 @@ static void _wake_one(waitq_t *wq)
 	thread_wakeup(thread);
 }
 
+/**
+ * Meant for implementing condvar signal.
+ * Always wakes one thread if there are any sleeping,
+ * has no effect if no threads are waiting for wakeup.
+ */
+void waitq_signal(waitq_t *wq)
+{
+	irq_spinlock_lock(&wq->lock, true);
+
+	if (!list_empty(&wq->sleepers))
+		_wake_one(wq);
+
+	irq_spinlock_unlock(&wq->lock, true);
+}
+
+/**
+ * Wakes up one thread sleeping on this waitq.
+ * If there are no threads waiting, saves the wakeup so that the next sleep
+ * returns immediately. If a previous failure in sleep created a wakeup debt
+ * (see SYNCH_FLAGS_FUTEX) this debt is annulled and no thread is woken up.
+ */
 void waitq_wake_one(waitq_t *wq)
 {
 	irq_spinlock_lock(&wq->lock, true);
 
-	if (wq->wakeup_balance < 0 || list_empty(&wq->sleepers))
+	if (wq-> closed)
+		;
+	else if (wq->wakeup_balance < 0 || list_empty(&wq->sleepers))
 		wq->wakeup_balance++;
 	else
 		_wake_one(wq);
@@ -516,15 +544,22 @@ static void _wake_all(waitq_t *wq)
 		_wake_one(wq);
 }
 
+/**
+ * Wakes up all threads currently waiting on this waitq
+ * and makes all future sleeps return instantly.
+ */
 void waitq_close(waitq_t *wq)
 {
 	irq_spinlock_lock(&wq->lock, true);
-	// FIXME: this can technically fail if we get two billion sleeps after the close call.
-	wq->wakeup_balance = INT_MAX;
+	wq->wakeup_balance = 0;
+	wq->closed = true;
 	_wake_all(wq);
 	irq_spinlock_unlock(&wq->lock, true);
 }
 
+/**
+ * Wakes up all threads currently waiting on this waitq
+ */
 void waitq_wake_all(waitq_t *wq)
 {
 	irq_spinlock_lock(&wq->lock, true);
