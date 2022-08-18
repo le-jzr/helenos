@@ -65,6 +65,7 @@ typedef struct waitq {
 struct thread;
 
 extern void waitq_initialize(waitq_t *);
+extern void waitq_initialize_with_count(waitq_t *, int count);
 extern errno_t _waitq_sleep_timeout(waitq_t *, uint32_t, unsigned int);
 extern errno_t waitq_sleep(waitq_t *);
 extern errno_t waitq_sleep_timeout(waitq_t *, uint32_t);
@@ -79,7 +80,6 @@ extern void waitq_signal(waitq_t *);
 extern void waitq_close(waitq_t *);
 
 extern int waitq_count_get(waitq_t *);
-extern void waitq_count_set(waitq_t *, int val);
 
 extern bool waitq_try_down(waitq_t *);
 

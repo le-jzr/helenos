@@ -72,6 +72,15 @@ void waitq_initialize(waitq_t *wq)
 	list_initialize(&wq->sleepers);
 }
 
+/**
+ * Initialize wait queue with an initial number of queued wakeups (or a wakeup debt if negative).rrrr
+ */
+void waitq_initialize_with_count(waitq_t *wq, int count)
+{
+	waitq_initialize(wq);
+	wq->wakeup_balance = count;
+}
+
 static void _waitq_wakeup_internal(thread_t *thread, errno_t rc)
 {
 	bool do_wakeup = false;
@@ -451,18 +460,6 @@ int waitq_count_get(waitq_t *wq)
 	irq_spinlock_unlock(&wq->lock, true);
 
 	return cnt < 0 ? 0 : cnt;
-}
-
-/** Set the missed wakeups count.
- *
- * @param wq	Pointer to wait queue.
- * @param val	New value of the missed_wakeups count.
- */
-void waitq_count_set(waitq_t *wq, int val)
-{
-	irq_spinlock_lock(&wq->lock, true);
-	wq->wakeup_balance = val;
-	irq_spinlock_unlock(&wq->lock, true);
 }
 
 /** @}

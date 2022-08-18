@@ -51,9 +51,7 @@
  */
 void semaphore_initialize(semaphore_t *sem, int val)
 {
-	waitq_initialize(&sem->wq);
-	if (val != 0)
-		waitq_count_set(&sem->wq, val);
+	waitq_initialize_with_count(&sem->wq, val);
 }
 
 bool semaphore_try_down(semaphore_t *sem)
