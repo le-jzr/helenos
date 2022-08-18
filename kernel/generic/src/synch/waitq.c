@@ -222,9 +222,7 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		goto exit;
 	}
 
-	irq_spinlock_lock(&THREAD->lock, false);
 	bool interrupted = interruptible && THREAD->interrupted;
-	irq_spinlock_unlock(&THREAD->lock, false);
 
 	/* If the thread was already interrupted, don't go to sleep at all. */
 	if (interrupted) {

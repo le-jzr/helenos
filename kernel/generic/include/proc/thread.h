@@ -121,7 +121,7 @@ typedef struct thread {
 	 * If true, the thread will not go to sleep at all and will call
 	 * thread_exit() before returning to userspace.
 	 */
-	atomic_bool interrupted;
+	volatile bool interrupted;
 
 	/** Waitq for thread_join_timeout(). */
 	waitq_t join_wq;

@@ -539,16 +539,8 @@ void thread_exit(void)
 void thread_interrupt(thread_t *thread, bool irq_dis)
 {
 	assert(thread != NULL);
-
-	irq_spinlock_lock(&thread->lock, irq_dis);
-
 	thread->interrupted = true;
-	bool sleeping = (thread->state == Sleeping);
-
-	irq_spinlock_unlock(&thread->lock, irq_dis);
-
-	if (sleeping)
-		waitq_interrupt_sleep(thread);
+	waitq_interrupt_sleep(thread);
 }
 
 /** Suspends this thread's execution until thread_wakeup() is called on it.
