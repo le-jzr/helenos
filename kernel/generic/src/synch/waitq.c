@@ -446,21 +446,5 @@ void waitq_wake_all(waitq_t *wq)
 	irq_spinlock_unlock(&wq->lock, true);
 }
 
-/** Get the missed wakeups count.
- *
- * @param wq	Pointer to wait queue.
- * @return	The wait queue's missed_wakeups count.
- */
-int waitq_count_get(waitq_t *wq)
-{
-	int cnt;
-
-	irq_spinlock_lock(&wq->lock, true);
-	cnt = wq->wakeup_balance;
-	irq_spinlock_unlock(&wq->lock, true);
-
-	return cnt < 0 ? 0 : cnt;
-}
-
 /** @}
  */

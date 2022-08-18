@@ -92,16 +92,5 @@ void semaphore_up(semaphore_t *sem)
 	waitq_wake_one(&sem->wq);
 }
 
-/** Get the semaphore counter value.
- *
- * @param sem		Semaphore.
- * @return		The number of threads that can down the semaphore
- * 			without blocking.
- */
-int semaphore_count_get(semaphore_t *sem)
-{
-	return waitq_count_get(&sem->wq);
-}
-
 /** @}
  */

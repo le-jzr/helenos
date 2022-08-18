@@ -79,8 +79,6 @@ extern void waitq_wake_all(waitq_t *);
 extern void waitq_signal(waitq_t *);
 extern void waitq_close(waitq_t *);
 
-extern int waitq_count_get(waitq_t *);
-
 extern bool waitq_try_down(waitq_t *);
 
 #endif
