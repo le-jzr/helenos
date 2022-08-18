@@ -71,9 +71,9 @@ typedef enum {
 typedef struct thread {
 	atomic_refcount_t refcount;
 
-	// owned reference that transfers to the running thread when it's scheduled
+	// reference borrowed from the thread listed
 	link_t rq_link;  /**< Run queue link. */
-	// owned reference in a wait queue
+	// reference borrowed from the thread listed
 	link_t wq_link;  /**< Wait queue link. */
 	// weak references synchronized via task_t::lock
 	link_t th_link;  /**< Links to threads within containing task. */

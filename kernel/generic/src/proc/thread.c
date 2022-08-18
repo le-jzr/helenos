@@ -618,7 +618,7 @@ bool thread_wait_until(deadline_t deadline)
 {
 	assert(THREAD != NULL);
 
-	if (THREAD->sleep_pad != SLEEP_INITIAL) {
+	if (atomic_load_explicit(&THREAD->sleep_pad, memory_order_acquire) != SLEEP_INITIAL) {
 		return false;
 	}
 
@@ -631,13 +631,13 @@ bool thread_wait_until(deadline_t deadline)
 	return !timeout_unregister(&timeout);
 }
 
-// Expects reference borrowed from the sleeping thread.
 void thread_wakeup(thread_t *thread)
 {
 	int state = atomic_exchange(&thread->sleep_pad, SLEEP_WOKE);
-
-	// Only one thread gets to do this.
 	if (state == SLEEP_ASLEEP) {
+		// Only one thread gets to do this.
+		// The reference consumed here is the reference implicitly passed to the waking thread
+		// by the sleeper in thread_wait().
 		thread_ready(thread);
 	}
 }
@@ -980,7 +980,7 @@ void thread_stack_trace(thread_id_t thread_id)
 	irq_spinlock_unlock(&thread->lock, true);
 
 	if (sleeping)
-		waitq_interrupt_sleep(thread);
+		thread_wakeup(thread);
 
 	thread_put(thread);
 }

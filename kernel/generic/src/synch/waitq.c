@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2001-2004 Jakub Jermar
+ * Copyright (c) 2022 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -174,8 +175,7 @@ errno_t waitq_sleep_unsafe(waitq_t *wq, wait_guard_t guard)
 /** Internal implementation of waitq_sleep_timeout().
  *
  * This function implements logic of sleeping in a wait queue.
- * This call must be preceded by a call to waitq_sleep_prepare()
- * and followed by a call to waitq_sleep_finish().
+ * This call must be preceded by a call to waitq_sleep_prepare().
  *
  * @param wq    See waitq_sleep_timeout().
  * @param usec  See waitq_sleep_timeout().
@@ -224,7 +224,8 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 	 */
 	list_append(&THREAD->wq_link, &wq->sleepers);
 
-	deadline_t deadline = usec ? timeout_deadline_in_usec(usec) : 0;
+	// Needs to be run when interrupts are still disabled.
+	deadline_t deadline = usec > 0 ? timeout_deadline_in_usec(usec) : 0;
 
 	while (true) {
 		/* reset has acquire semantic, to ensure that THREAD->interrupted
@@ -258,6 +259,7 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		irq_spinlock_lock(&wq->lock, false);
 
 		if (!link_in_use(&THREAD->wq_link)) {
+			// We were woken up by the desired event in addition to timeout/interruption. Return success.
 			rc = EOK;
 			goto exit;
 		}
