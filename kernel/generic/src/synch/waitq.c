@@ -160,21 +160,14 @@ errno_t waitq_sleep_timeout(waitq_t *wq, uint32_t usec)
 
 /** Sleep until either wakeup, timeout or interruption occurs
  *
- * This is a sleep implementation which allows itself to time out or to be
- * interrupted from the sleep, restoring a failover context.
- *
  * Sleepers are organised in a FIFO fashion in a structure called wait queue.
  *
- * This function is really basic in that other functions as waitq_sleep()
- * and all the *_timeout() functions use it.
+ * Other functions as waitq_sleep() and all the *_timeout() functions are
+ * implemented using this function.
  *
  * @param wq    Pointer to wait queue.
  * @param usec  Timeout in microseconds.
  * @param flags Specify mode of the sleep.
- *
- * @param[out] blocked  On return, regardless of the return code,
- *                      `*blocked` is set to `true` iff the thread went to
- *                      sleep.
  *
  * The sleep can be interrupted only if the
  * SYNCH_FLAGS_INTERRUPTIBLE bit is specified in flags.
@@ -189,16 +182,11 @@ errno_t waitq_sleep_timeout(waitq_t *wq, uint32_t usec)
  * If usec is zero and the SYNCH_FLAGS_NON_BLOCKING bit is set in flags, the
  * call will immediately return, reporting either success or failure.
  *
- * @return EAGAIN, meaning that the sleep failed because it was requested
- *                 as SYNCH_FLAGS_NON_BLOCKING, but there was no pending wakeup.
- * @return ETIMEOUT, meaning that the sleep timed out.
- * @return EINTR, meaning that somebody interrupted the sleeping
- *         thread. Check the value of `*blocked` to see if the thread slept,
- *         or if a pending interrupt forced it to return immediately.
+ * @return ETIMEOUT, meaning that the sleep timed out, or a nonblocking call
+ *                   returned unsuccessfully.
+ * @return EINTR, meaning that somebody interrupted the sleeping thread.
  * @return EOK, meaning that none of the above conditions occured, and the
- *              thread was woken up successfuly by `waitq_wakeup()`. Check
- *              the value of `*blocked` to see if the thread slept or if
- *              the wakeup was already pending.
+ *              thread was woken up successfuly by `waitq_wake_*()`.
  *
  */
 errno_t _waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags)
