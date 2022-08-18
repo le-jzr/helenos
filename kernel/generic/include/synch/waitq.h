@@ -40,12 +40,6 @@
 #include <abi/synch.h>
 #include <adt/list.h>
 
-typedef enum {
-	WAKEUP_FIRST = 0,
-	WAKEUP_ALL,
-	WAKEUP_ALL_AND_FUTURE,
-} wakeup_mode_t;
-
 /** Wait queue structure.
  *
  */
