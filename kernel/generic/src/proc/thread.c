@@ -594,12 +594,9 @@ void thread_wait(void)
 	while (!atomic_compare_exchange_weak(&THREAD->sleep_pad, &expected, SLEEP_ASLEEP) && expected == SLEEP_INITIAL)
 		;
 
-	assert (expected != SLEEP_WOKE);
-
 	if (expected == SLEEP_WOKE) {
 		/* Return immediately. */
 		irq_spinlock_unlock(&THREAD->lock, false);
-		irq_spinlock_unlock(&THREAD->sleep_queue->lock, false);
 		interrupts_restore(ipl);
 	} else {
 		THREAD->state = Sleeping;
@@ -644,8 +641,6 @@ bool thread_wait_until(deadline_t deadline)
 void thread_wakeup(thread_t *thread)
 {
 	int state = atomic_exchange(&thread->sleep_pad, SLEEP_WOKE);
-
-	assert(state == SLEEP_ASLEEP);
 
 	// Only one thread gets to do this.
 	if (state == SLEEP_ASLEEP) {

@@ -431,14 +431,6 @@ void scheduler_separated_stack(void)
 			 * Prefer the thread after it's woken up.
 			 */
 			THREAD->priority = -1;
-
-			/*
-			 * We need to release wq->lock which we locked in
-			 * waitq_sleep(). Address of wq->lock is kept in
-			 * THREAD->sleep_queue.
-			 */
-			irq_spinlock_unlock(&THREAD->sleep_queue->lock, false);
-
 			irq_spinlock_unlock(&THREAD->lock, false);
 			break;
 

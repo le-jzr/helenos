@@ -289,6 +289,8 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		timeout_t timeout;
 		timeout_initialize(&timeout);
 
+		irq_spinlock_unlock(&wq->lock, false);
+
 		if (usec) {
 			timeout_register(&timeout, deadline, waitq_sleep_timed_out, THREAD);
 		}
