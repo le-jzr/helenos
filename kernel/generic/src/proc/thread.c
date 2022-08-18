@@ -693,7 +693,7 @@ void thread_sleep(uint32_t sec)
 }
 
 /** Wait for another thread to exit.
- * The thread continues to exist after the call returns, and needs to be dropped using thread_put().
+ * This function does not destroy the thread. Reference counting handles that.
  *
  * @param thread Thread to join on exit.
  * @param usec   Timeout in microseconds.
@@ -706,11 +706,6 @@ errno_t thread_join_timeout(thread_t *thread, uint32_t usec)
 {
 	if (thread == THREAD)
 		return EINVAL;
-
-	/*
-	 * Since thread join can only be called once on an undetached thread,
-	 * the thread pointer is guaranteed to be still valid.
-	 */
 
 	irq_spinlock_lock(&thread->lock, true);
 	state_t state = thread->state;
