@@ -142,7 +142,7 @@ void mutex_lock(mutex_t *mtx)
 errno_t mutex_lock_timeout(mutex_t *mtx, uint32_t usec)
 {
 	if (usec == 0)
-		return mutex_try_lock(mtx) ? EOK : EWOULDBLOCK;
+		return mutex_try_lock(mtx) ? EOK : ETIMEOUT;
 
 	assert(mtx->type != MUTEX_ACTIVE);
 	assert(THREAD);
