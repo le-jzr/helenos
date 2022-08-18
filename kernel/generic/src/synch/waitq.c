@@ -266,7 +266,9 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 
 		rc = EOK;
 		goto exit;
-	} else if (PARAM_NON_BLOCKING(flags, usec)) {
+	}
+
+	if (PARAM_NON_BLOCKING(flags, usec)) {
 		/* Return immediately instead of going to sleep */
 		rc = ETIMEOUT;
 		goto exit;
@@ -277,9 +279,6 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 	bool interrupted = interruptible && THREAD->interrupted;
 
 	if (!interrupted) {
-		thread_wait_reset();
-		list_append(&THREAD->wq_link, &wq->sleepers);
-
 		/* Suspend execution. */
 		THREAD->sleep_queue = wq;
 	}
@@ -291,6 +290,9 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		rc = EINTR;
 		goto exit;
 	}
+
+	thread_wait_reset();
+	list_append(&THREAD->wq_link, &wq->sleepers);
 
 	deadline_t deadline = timeout_deadline_in_usec(usec);
 
@@ -353,6 +355,7 @@ bool waitq_try_down(waitq_t *wq)
 static void _wake_one(waitq_t *wq)
 {
 	thread_t *thread = list_get_instance(list_first(&wq->sleepers), thread_t, wq_link);
+	list_remove(&thread->wq_link);
 
 	/*
 	 * Lock the thread prior to removing it from the wq.
@@ -372,8 +375,6 @@ static void _wake_one(waitq_t *wq)
 	 *
 	 */
 	irq_spinlock_lock(&thread->lock, false);
-	list_remove(&thread->wq_link);
-
 	thread->sleep_result = EOK;
 	thread->sleep_queue = NULL;
 	irq_spinlock_unlock(&thread->lock, false);
