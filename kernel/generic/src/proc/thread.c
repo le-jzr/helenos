@@ -830,23 +830,27 @@ void thread_print_list(bool additional)
 	irq_spinlock_unlock(&threads_lock, true);
 }
 
-/** Check whether thread exists.
- *
- * Note that threads_lock must be already held and
- * interrupts must be already disabled.
- *
- * @param thread Pointer to thread.
- *
- * @return True if thread t is known to the system, false otherwise.
- *
- */
-bool thread_exists(thread_t *thread)
+static bool thread_exists(thread_t *thread)
 {
-	assert(interrupts_disabled());
-	assert(irq_spinlock_locked(&threads_lock));
-
 	odlink_t *odlink = odict_find_eq(&threads, thread, NULL);
 	return odlink != NULL;
+}
+
+/** Check whether the thread exists, and if so, return a reference to it.
+ */
+thread_t *thread_try_get(thread_t *thread) {
+	irq_spinlock_lock(&threads_lock, true);
+
+	if (thread_exists(thread)) {
+		/* Try to strengthen the reference. */
+		thread = thread_try_ref(thread);
+	} else {
+		thread = NULL;
+	}
+
+	irq_spinlock_unlock(&threads_lock, true);
+
+	return thread;
 }
 
 /** Update accounting of current thread.

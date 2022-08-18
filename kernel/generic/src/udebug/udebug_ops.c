@@ -82,19 +82,7 @@ static errno_t _thread_op_begin(thread_t *thread, bool being_go)
 {
 	mutex_lock(&TASK->udebug.lock);
 
-	/* thread_exists() must be called with threads_lock held */
-	irq_spinlock_lock(&threads_lock, true);
-
-	if (!thread_exists(thread)) {
-		irq_spinlock_unlock(&threads_lock, true);
-		mutex_unlock(&TASK->udebug.lock);
-		return ENOENT;
-	}
-
-	/* Try to strengthen the reference. */
-	thread = thread_try_ref(thread);
-
-	irq_spinlock_unlock(&threads_lock, true);
+	thread = thread_try_get(thread);
 
 	if (!thread) {
 		mutex_unlock(&TASK->udebug.lock);

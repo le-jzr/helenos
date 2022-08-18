@@ -243,7 +243,8 @@ extern size_t thread_count(void);
 extern thread_t *thread_first(void);
 extern thread_t *thread_next(thread_t *);
 extern void thread_update_accounting(bool);
-extern bool thread_exists(thread_t *);
+
+extern thread_t *thread_try_get(thread_t *);
 
 extern void thread_migration_disable(void);
 extern void thread_migration_enable(void);
