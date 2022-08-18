@@ -271,7 +271,7 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		goto exit;
 	} else if (PARAM_NON_BLOCKING(flags, usec)) {
 		/* Return immediately instead of going to sleep */
-		rc = EAGAIN;
+		rc = ETIMEOUT;
 		goto exit;
 	}
 
