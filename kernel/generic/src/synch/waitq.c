@@ -351,34 +351,6 @@ bool waitq_try_down(waitq_t *wq)
 	return success;
 }
 
-
-/** Wake up first thread sleeping in a wait queue
- *
- * Wake up first thread sleeping in a wait queue. This is the SMP- and IRQ-safe
- * wrapper meant for general use.
- *
- * Besides its 'normal' wakeup operation, it attempts to unregister possible
- * timeout.
- *
- * @param wq   Pointer to wait queue.
- * @param mode Wakeup mode.
- *
- */
-void waitq_wakeup(waitq_t *wq, wakeup_mode_t mode)
-{
-	switch (mode) {
-	case WAKEUP_FIRST:
-		waitq_wake_one(wq);
-		break;
-	case WAKEUP_ALL:
-		waitq_wake_all(wq);
-		break;
-	case WAKEUP_ALL_AND_FUTURE:
-		waitq_close(wq);
-		break;
-	}
-}
-
 static void _wake_one(waitq_t *wq)
 {
 	thread_t *thread = list_get_instance(list_first(&wq->sleepers), thread_t, wq_link);

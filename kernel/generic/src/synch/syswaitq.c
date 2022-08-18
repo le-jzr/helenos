@@ -182,7 +182,7 @@ sys_errno_t sys_waitq_wakeup(cap_waitq_handle_t whandle)
 	if (!kobj)
 		return (sys_errno_t) ENOENT;
 
-	waitq_wakeup(kobj->waitq, WAKEUP_FIRST);
+	waitq_wake_one(kobj->waitq);
 
 	kobject_put(kobj);
 	return (sys_errno_t) EOK;

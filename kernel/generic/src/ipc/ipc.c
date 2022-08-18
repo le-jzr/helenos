@@ -325,7 +325,7 @@ void _ipc_answer_free_call(call_t *call, bool selflocked)
 	if (do_lock)
 		irq_spinlock_unlock(&callerbox->lock, true);
 
-	waitq_wakeup(&callerbox->wq, WAKEUP_FIRST);
+	waitq_wake_one(&callerbox->wq);
 }
 
 /** Answer a message which is in a callee queue.
@@ -415,7 +415,7 @@ static void _ipc_call(phone_t *phone, answerbox_t *box, call_t *call,
 	list_append(&call->ab_link, &box->calls);
 	irq_spinlock_unlock(&box->lock, true);
 
-	waitq_wakeup(&box->wq, WAKEUP_FIRST);
+	waitq_wake_one(&box->wq);
 }
 
 /** Send an asynchronous request using a phone to an answerbox.

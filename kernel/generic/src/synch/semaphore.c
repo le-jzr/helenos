@@ -91,7 +91,7 @@ void semaphore_down(semaphore_t *sem)
  */
 void semaphore_up(semaphore_t *sem)
 {
-	waitq_wakeup(&sem->wq, WAKEUP_FIRST);
+	waitq_wake_one(&sem->wq);
 }
 
 /** Get the semaphore counter value.
