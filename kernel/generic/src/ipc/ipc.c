@@ -554,7 +554,7 @@ errno_t ipc_wait_for_call(answerbox_t *box, uint32_t usec, unsigned int flags,
 	uint64_t call_cnt = 0;
 	errno_t rc;
 
-	rc = _waitq_sleep_timeout(&box->wq, usec, flags, NULL);
+	rc = _waitq_sleep_timeout(&box->wq, usec, flags);
 	if (rc != EOK)
 		return rc;
 

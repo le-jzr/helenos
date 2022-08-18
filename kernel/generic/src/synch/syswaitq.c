@@ -159,7 +159,7 @@ sys_errno_t sys_waitq_sleep(cap_waitq_handle_t whandle, uint32_t timeout,
 #endif
 
 	errno_t rc = _waitq_sleep_timeout(kobj->waitq, timeout,
-	    SYNCH_FLAGS_INTERRUPTIBLE | flags, NULL);
+	    SYNCH_FLAGS_INTERRUPTIBLE | flags);
 
 #ifdef CONFIG_UDEBUG
 	udebug_stoppable_end();

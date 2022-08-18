@@ -153,12 +153,12 @@ void waitq_interrupt_sleep(thread_t *thread)
 
 errno_t waitq_sleep(waitq_t *wq)
 {
-	return _waitq_sleep_timeout(wq, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE, NULL);
+	return _waitq_sleep_timeout(wq, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE);
 }
 
 errno_t waitq_sleep_timeout(waitq_t *wq, uint32_t usec)
 {
-	return _waitq_sleep_timeout(wq, usec, SYNCH_FLAGS_NON_BLOCKING, NULL);
+	return _waitq_sleep_timeout(wq, usec, SYNCH_FLAGS_NON_BLOCKING);
 }
 
 /** Sleep until either wakeup, timeout or interruption occurs
@@ -204,7 +204,7 @@ errno_t waitq_sleep_timeout(waitq_t *wq, uint32_t usec)
  *              the wakeup was already pending.
  *
  */
-errno_t _waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags, bool *blocked)
+errno_t _waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags)
 {
 	assert((!PREEMPTION_DISABLED) || (PARAM_NON_BLOCKING(flags, usec)));
 
@@ -212,10 +212,6 @@ errno_t _waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags, boo
 	bool nblocked;
 	errno_t rc = waitq_sleep_timeout_unsafe(wq, usec, flags, &nblocked);
 	waitq_sleep_finish(wq, nblocked, ipl);
-
-	if (blocked != NULL) {
-		*blocked = nblocked;
-	}
 	return rc;
 }
 
