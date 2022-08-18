@@ -104,8 +104,6 @@ grab_locks:
 		}
 
 		if (link_in_use(&thread->wq_link)) {
-			list_remove(&thread->wq_link);
-			thread->sleep_result = rc;
 			do_wakeup = true;
 			thread->sleep_queue = NULL;
 		}
@@ -297,6 +295,8 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 	deadline_t deadline = timeout_deadline_in_usec(usec);
 
 	while (true) {
+		bool timed_out = false;
+
 		timeout_t timeout;
 		timeout_initialize(&timeout);
 
@@ -310,7 +310,7 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		thread_wait();
 
 		if (usec) {
-			timeout_unregister(&timeout);
+			timed_out = timeout_unregister(&timeout);
 		}
 
 		/*
@@ -323,7 +323,16 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		 */
 		irq_spinlock_lock(&wq->lock, false);
 
-		rc = THREAD->sleep_result;
+		if (link_in_use(&THREAD->wq_link)) {
+			list_remove(&THREAD->wq_link);
+
+			if (timed_out)
+				rc = ETIMEOUT;
+			else
+				rc = EINTR;
+		} else {
+			rc = EOK;
+		}
 
 		if (rc != EINTR || interruptible)
 			goto exit;
@@ -375,7 +384,6 @@ static void _wake_one(waitq_t *wq)
 	 *
 	 */
 	irq_spinlock_lock(&thread->lock, false);
-	thread->sleep_result = EOK;
 	thread->sleep_queue = NULL;
 	irq_spinlock_unlock(&thread->lock, false);
 

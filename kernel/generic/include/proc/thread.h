@@ -102,8 +102,6 @@ typedef struct thread {
 	 */
 	context_t saved_context;
 
-	volatile errno_t sleep_result;
-
 	/** Wait queue in which this thread sleeps. */
 	_Atomic (waitq_t *) sleep_queue;
 
