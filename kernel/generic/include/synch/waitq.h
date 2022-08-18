@@ -62,6 +62,10 @@ typedef struct waitq {
 	bool closed;
 } waitq_t;
 
+typedef struct wait_guard {
+	ipl_t ipl;
+} wait_guard_t;
+
 struct thread;
 
 extern void waitq_initialize(waitq_t *);
@@ -69,9 +73,9 @@ extern void waitq_initialize_with_count(waitq_t *, int count);
 extern errno_t _waitq_sleep_timeout(waitq_t *, uint32_t, unsigned int);
 extern errno_t waitq_sleep(waitq_t *);
 extern errno_t waitq_sleep_timeout(waitq_t *, uint32_t);
-extern ipl_t waitq_sleep_prepare(waitq_t *);
-extern errno_t waitq_sleep_unsafe(waitq_t *, ipl_t);
-extern errno_t waitq_sleep_timeout_unsafe(waitq_t *, uint32_t, unsigned int, ipl_t);
+extern wait_guard_t waitq_sleep_prepare(waitq_t *);
+extern errno_t waitq_sleep_unsafe(waitq_t *, wait_guard_t);
+extern errno_t waitq_sleep_timeout_unsafe(waitq_t *, uint32_t, unsigned int, wait_guard_t);
 extern void waitq_interrupt_sleep(struct thread *);
 
 extern void waitq_wake_one(waitq_t *);

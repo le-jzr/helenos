@@ -149,9 +149,7 @@ errno_t waitq_sleep_timeout(waitq_t *wq, uint32_t usec)
 errno_t _waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags)
 {
 	assert((!PREEMPTION_DISABLED) || (PARAM_NON_BLOCKING(flags, usec)));
-
-	ipl_t ipl = waitq_sleep_prepare(wq);
-	return waitq_sleep_timeout_unsafe(wq, usec, flags, ipl);
+	return waitq_sleep_timeout_unsafe(wq, usec, flags, waitq_sleep_prepare(wq));
 }
 
 /** Prepare to sleep in a waitq.
@@ -164,16 +162,18 @@ errno_t _waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags)
  * @return Interrupt level as it existed on entry to this function.
  *
  */
-ipl_t waitq_sleep_prepare(waitq_t *wq)
+wait_guard_t waitq_sleep_prepare(waitq_t *wq)
 {
 	ipl_t ipl = interrupts_disable();
 	irq_spinlock_lock(&wq->lock, false);
-	return ipl;
+	return (wait_guard_t) {
+		.ipl = ipl,
+	};
 }
 
-errno_t waitq_sleep_unsafe(waitq_t *wq, ipl_t ipl)
+errno_t waitq_sleep_unsafe(waitq_t *wq, wait_guard_t guard)
 {
-	return waitq_sleep_timeout_unsafe(wq, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE, ipl);
+	return waitq_sleep_timeout_unsafe(wq, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE, guard);
 }
 
 /** Internal implementation of waitq_sleep_timeout().
@@ -191,7 +191,7 @@ errno_t waitq_sleep_unsafe(waitq_t *wq, ipl_t ipl)
  * @return See waitq_sleep_timeout().
  *
  */
-errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flags, ipl_t ipl)
+errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flags, wait_guard_t guard)
 {
 	errno_t rc;
 
@@ -292,7 +292,7 @@ exit:
 	atomic_store_explicit(&THREAD->sleep_queue, NULL, memory_order_relaxed);
 
 	irq_spinlock_unlock(&wq->lock, false);
-	interrupts_restore(ipl);
+	interrupts_restore(guard->ipl);
 	return rc;
 }
 

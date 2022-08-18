@@ -80,12 +80,12 @@ void condvar_broadcast(condvar_t *cv)
  */
 errno_t condvar_wait_timeout(condvar_t *cv, mutex_t *mtx, uint32_t usec)
 {
-	ipl_t ipl = waitq_sleep_prepare(&cv->wq);
+	wait_guard_t guard = waitq_sleep_prepare(&cv->wq);
 
 	/* Unlock only after the waitq is locked so we don't miss a wakeup. */
 	mutex_unlock(mtx);
 
-	errno_t rc = waitq_sleep_timeout_unsafe(&cv->wq, usec, SYNCH_FLAGS_NON_BLOCKING, ipl);
+	errno_t rc = waitq_sleep_timeout_unsafe(&cv->wq, usec, SYNCH_FLAGS_NON_BLOCKING, guard);
 
 	mutex_lock(mtx);
 	return rc;
@@ -93,12 +93,12 @@ errno_t condvar_wait_timeout(condvar_t *cv, mutex_t *mtx, uint32_t usec)
 
 errno_t condvar_wait(condvar_t *cv, mutex_t *mtx)
 {
-	ipl_t ipl = waitq_sleep_prepare(&cv->wq);
+	wait_guard_t guard = waitq_sleep_prepare(&cv->wq);
 
 	/* Unlock only after the waitq is locked so we don't miss a wakeup. */
 	mutex_unlock(mtx);
 
-	errno_t rc = waitq_sleep_unsafe(&cv->wq, ipl);
+	errno_t rc = waitq_sleep_unsafe(&cv->wq, guard);
 
 	mutex_lock(mtx);
 	return rc;
