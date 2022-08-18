@@ -58,9 +58,6 @@
 #include <arch/cycle.h>
 #include <mem.h>
 
-static void waitq_sleep_timed_out(void *);
-static void waitq_complete_wakeup(waitq_t *);
-
 /** Initialize wait queue
  *
  * Initialize wait queue.
@@ -126,7 +123,7 @@ grab_locks:
  * @param data Pointer to the thread that called waitq_sleep_timeout().
  *
  */
-void waitq_sleep_timed_out(void *data)
+static void waitq_sleep_timed_out(void *data)
 {
 	_waitq_wakeup_internal(data, ETIMEOUT);
 }
@@ -209,10 +206,7 @@ errno_t _waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags)
 	assert((!PREEMPTION_DISABLED) || (PARAM_NON_BLOCKING(flags, usec)));
 
 	ipl_t ipl = waitq_sleep_prepare(wq);
-	bool nblocked;
-	errno_t rc = waitq_sleep_timeout_unsafe(wq, usec, flags, &nblocked);
-	waitq_sleep_finish(wq, nblocked, ipl);
-	return rc;
+	return waitq_sleep_timeout_unsafe(wq, usec, flags, ipl);
 }
 
 /** Prepare to sleep in a waitq.
@@ -232,43 +226,9 @@ ipl_t waitq_sleep_prepare(waitq_t *wq)
 	return ipl;
 }
 
-/** Finish waiting in a wait queue.
- *
- * This function restores interrupts to the state that existed prior
- * to the call to waitq_sleep_prepare(). If necessary, the wait queue
- * lock is released.
- *
- * @param wq       Wait queue.
- * @param blocked  Out parameter of waitq_sleep_timeout_unsafe().
- * @param ipl      Interrupt level returned by waitq_sleep_prepare().
- *
- */
-void waitq_sleep_finish(waitq_t *wq, bool blocked, ipl_t ipl)
+errno_t waitq_sleep_unsafe(waitq_t *wq, ipl_t ipl)
 {
-	if (blocked) {
-		/*
-		 * Wait for a waitq_wakeup() or waitq_unsleep() to complete
-		 * before returning from waitq_sleep() to the caller. Otherwise
-		 * the caller might expect that the wait queue is no longer used
-		 * and deallocate it (although the wakeup on a another cpu has
-		 * not yet completed and is using the wait queue).
-		 *
-		 * Note that we have to do this for EOK and EINTR, but not
-		 * necessarily for ETIMEOUT where the timeout handler stops
-		 * using the waitq before waking us up. To be on the safe side,
-		 * ensure the waitq is not in use anymore in this case as well.
-		 */
-		waitq_complete_wakeup(wq);
-	} else {
-		irq_spinlock_unlock(&wq->lock, false);
-	}
-
-	interrupts_restore(ipl);
-}
-
-errno_t waitq_sleep_unsafe(waitq_t *wq, bool *blocked)
-{
-	return waitq_sleep_timeout_unsafe(wq, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE, blocked);
+	return waitq_sleep_timeout_unsafe(wq, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE, ipl);
 }
 
 /** Internal implementation of waitq_sleep_timeout().
@@ -286,33 +246,11 @@ errno_t waitq_sleep_unsafe(waitq_t *wq, bool *blocked)
  * @return See waitq_sleep_timeout().
  *
  */
-errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flags, bool *blocked)
+errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flags, ipl_t ipl)
 {
-	*blocked = false;
-
-	if (wq->closed) {
-		irq_spinlock_unlock(&wq->lock, true);
-		return EOK;
-	}
-
-	/* Checks whether to go to sleep at all */
-	if (wq->wakeup_balance > 0) {
-		wq->wakeup_balance--;
-		return EOK;
-	} else {
-		if (PARAM_NON_BLOCKING(flags, usec)) {
-			/* Return immediately instead of going to sleep */
-			return EAGAIN;
-		}
-	}
+	errno_t rc;
 
 	/*
-	 * Now we are firmly decided to go to sleep.
-	 *
-	 */
-	irq_spinlock_lock(&THREAD->lock, false);
-
-	/**
 	 * If true, and this thread's sleep returns without a wakeup
 	 * (timed out or interrupted), waitq ignores the next wakeup.
 	 * This is necessary for futex to be able to handle those conditions.
@@ -320,31 +258,42 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 	bool sleep_composable = (flags & SYNCH_FLAGS_FUTEX);
 	bool interruptible = (flags & SYNCH_FLAGS_INTERRUPTIBLE);
 
-	if (interruptible) {
-		/* If the thread was already interrupted, don't go to sleep at all. */
-		if (THREAD->interrupted) {
-			irq_spinlock_unlock(&THREAD->lock, false);
-			return EINTR;
-		}
+	if (wq->closed) {
+		rc = EOK;
+		goto exit;
 	}
 
-	thread_wait_reset();
-	list_append(&THREAD->wq_link, &wq->sleepers);
+	/* Checks whether to go to sleep at all */
+	if (wq->wakeup_balance > 0) {
+		wq->wakeup_balance--;
 
-	/*
-	 * Suspend execution.
-	 *
-	 */
-	THREAD->state = Sleeping;
-	THREAD->sleep_queue = wq;
+		rc = EOK;
+		goto exit;
+	} else if (PARAM_NON_BLOCKING(flags, usec)) {
+		/* Return immediately instead of going to sleep */
+		rc = EAGAIN;
+		goto exit;
+	}
 
-	/*
-	 * Must be before entry to scheduler, because there are multiple
-	 * return vectors.
-	 */
-	*blocked = true;
+	irq_spinlock_lock(&THREAD->lock, false);
+
+	bool interrupted = interruptible && THREAD->interrupted;
+
+	if (!interrupted) {
+		thread_wait_reset();
+		list_append(&THREAD->wq_link, &wq->sleepers);
+
+		/* Suspend execution. */
+		THREAD->sleep_queue = wq;
+	}
 
 	irq_spinlock_unlock(&THREAD->lock, false);
+
+	/* If the thread was already interrupted, don't go to sleep at all. */
+	if (interrupted) {
+		rc = EINTR;
+		goto exit;
+	}
 
 	deadline_t deadline = timeout_deadline_in_usec(usec);
 
@@ -363,25 +312,30 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 			timeout_unregister(&timeout);
 		}
 
-		errno_t rc = THREAD->sleep_result;
+		/*
+		 * Although we don't need the lock necessarily after a successful
+		 * wakeup, we have to wait for concurrently running waitq_wakeup() to exit.
+		 * If we didn't always do this, we'd risk waitq_wakeup() that woke us up still
+		 * running on another CPU even after this function returns, and that would be
+		 * an issue if the waitq is allocated locally to wait for a one-of asynchronous event.
+		 * We'd need more external synchronization in that case, and that would be a pain.
+		 */
+		irq_spinlock_lock(&wq->lock, false);
 
-		if (rc == EINTR && !interruptible) {
-			irq_spinlock_lock(&wq->lock, false);
-			continue;
-		}
+		rc = THREAD->sleep_result;
 
-		if (rc != EOK) {
-			if (sleep_composable) {
-				irq_spinlock_lock(&wq->lock, false);
-				wq->wakeup_balance--;
-				irq_spinlock_unlock(&wq->lock, false);
-			}
-		}
-
-		return rc;
+		if (rc != EINTR || interruptible)
+			goto exit;
 	}
 
-	unreachable();
+exit:
+	if (rc != EOK && sleep_composable) {
+		wq->wakeup_balance--;
+	}
+
+	irq_spinlock_unlock(&wq->lock, false);
+	interrupts_restore(ipl);
+	return rc;
 }
 
 bool waitq_try_down(waitq_t *wq)
@@ -423,49 +377,6 @@ void waitq_wakeup(waitq_t *wq, wakeup_mode_t mode)
 		waitq_close(wq);
 		break;
 	}
-}
-
-/** If there is a wakeup in progress actively waits for it to complete.
- *
- * The function returns once the concurrently running waitq_wakeup()
- * exits. It returns immediately if there are no concurrent wakeups
- * at the time.
- *
- * Interrupts must be disabled.
- *
- * Example usage:
- * @code
- * void callback(waitq *wq)
- * {
- *     // Do something and notify wait_for_completion() that we're done.
- *     waitq_wakeup(wq);
- * }
- * void wait_for_completion(void)
- * {
- *     waitq wg;
- *     waitq_initialize(&wq);
- *     // Run callback() in the background, pass it wq.
- *     do_asynchronously(callback, &wq);
- *     // Wait for callback() to complete its work.
- *     waitq_sleep(&wq);
- *     // callback() completed its work, but it may still be accessing
- *     // wq in waitq_wakeup(). Therefore it is not yet safe to return
- *     // from waitq_sleep() or it would clobber up our stack (where wq
- *     // is stored). waitq_sleep() ensures the wait queue is no longer
- *     // in use by invoking waitq_complete_wakeup() internally.
- *
- *     // waitq_sleep() returned, it is safe to free wq.
- * }
- * @endcode
- *
- * @param wq  Pointer to a wait queue.
- */
-static void waitq_complete_wakeup(waitq_t *wq)
-{
-	assert(interrupts_disabled());
-
-	irq_spinlock_lock(&wq->lock, false);
-	irq_spinlock_unlock(&wq->lock, false);
 }
 
 static void _wake_one(waitq_t *wq)
