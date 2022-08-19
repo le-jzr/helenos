@@ -76,10 +76,58 @@ void fair_spin_mutex_lock(fair_spin_mutex_t *mutex)
 		panic("Too many processors locking a fair mutex at the same time");
 	}
 
+#ifdef CONFIG_DEBUG_SPINLOCK
+	size_t i = 0;
+	bool deadlock_reported = false;
+#endif
+
 	while (ticket != GATE(ticketgate)) {
 		spin_loop_body();
+
+#ifdef CONFIG_DEBUG_SPINLOCK
+		/*
+		 * We need to be careful about particular locks
+		 * which are directly used to report deadlocks
+		 * via printf() (and recursively other functions).
+		 * This conserns especially printf_lock and the
+		 * framebuffer lock.
+		 *
+		 * Any lock whose name is prefixed by "*" will be
+		 * ignored by this deadlock detection routine
+		 * as this might cause an infinite recursion.
+		 * We trust our code that there is no possible deadlock
+		 * caused by these locks (except when an exception
+		 * is triggered for instance by printf()).
+		 *
+		 * We encountered false positives caused by very
+		 * slow framebuffer interaction (especially when
+		 * run in a simulator) that caused problems with both
+		 * printf_lock and the framebuffer lock.
+		 */
+		if (lock->name[0] != '*' && i++ > DEADLOCK_THRESHOLD) {
+			printf("cpu%u: looping on spinlock %p:%s, caller=%p ticket=%d (%s)\n",
+					CPU->id, mutex, mutex->name, (void *) CALLER, GATE(ticketgate),
+					symtab_fmt_name_lookup(CALLER));
+			stack_trace();
+			i = 0;
+			deadlock_reported = true;
+		}
+#endif
+
 		ticketgate = atomic_load_explicit(&mutex->ticketgate, memory_order_acquire);
 	}
+
+#ifdef CONFIG_DEBUG_SPINLOCK
+	if (deadlock_reported)
+		printf("cpu%u: not deadlocked\n", CPU->id);
+
+	if (lock->name[0] == '!') {
+		printf("cpu%u: acquired spinlock %p:%s, caller=%p ticket=%d (%s)\n",
+							CPU->id, mutex, mutex->name, (void *) CALLER, ticket,
+							symtab_fmt_name_lookup(CALLER));
+		stack_trace();
+	}
+#endif
 
 	// The mutex is now ours.
 	mutex->ipl = ipl;
@@ -110,6 +158,14 @@ void fair_spin_mutex_unlock(fair_spin_mutex_t *mutex)
 	}
 
 	interrupts_restore(ipl);
+
+#ifdef CONFIG_DEBUG_SPINLOCK
+	if (lock->name[0] == '!') {
+		printf("cpu%u: released spinlock %p:%s, ticket=%d\n",
+							CPU->id, mutex, mutex->name, (void *) CALLER, GATE(ticketgate));
+		stack_trace();
+	}
+#endif
 }
 
 bool fair_spin_mutex_try_lock(fair_spin_mutex_t *mutex)
