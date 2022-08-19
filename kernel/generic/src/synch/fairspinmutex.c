@@ -38,6 +38,8 @@
 #include <synch/fairspinmutex.h>
 
 #include <cpu.h>
+#include <debug.h>
+#include <stacktrace.h>
 
 // Gate and ticket are in a single atomic variable to allow non-blocking lock attempts.
 #define GATE_OFFSET 0
@@ -104,7 +106,7 @@ void fair_spin_mutex_lock(fair_spin_mutex_t *mutex)
 		 * run in a simulator) that caused problems with both
 		 * printf_lock and the framebuffer lock.
 		 */
-		if (lock->name[0] != '*' && i++ > DEADLOCK_THRESHOLD) {
+		if (mutex->name[0] != '*' && i++ > DEADLOCK_THRESHOLD) {
 			printf("cpu%u: looping on spinlock %p:%s, caller=%p ticket=%d (%s)\n",
 					CPU->id, mutex, mutex->name, (void *) CALLER, GATE(ticketgate),
 					symtab_fmt_name_lookup(CALLER));
@@ -121,7 +123,7 @@ void fair_spin_mutex_lock(fair_spin_mutex_t *mutex)
 	if (deadlock_reported)
 		printf("cpu%u: not deadlocked\n", CPU->id);
 
-	if (lock->name[0] == '!') {
+	if (mutex->name[0] == '!') {
 		printf("cpu%u: acquired spinlock %p:%s, caller=%p ticket=%d (%s)\n",
 							CPU->id, mutex, mutex->name, (void *) CALLER, ticket,
 							symtab_fmt_name_lookup(CALLER));
@@ -160,9 +162,9 @@ void fair_spin_mutex_unlock(fair_spin_mutex_t *mutex)
 	interrupts_restore(ipl);
 
 #ifdef CONFIG_DEBUG_SPINLOCK
-	if (lock->name[0] == '!') {
+	if (mutex->name[0] == '!') {
 		printf("cpu%u: released spinlock %p:%s, ticket=%d\n",
-							CPU->id, mutex, mutex->name, (void *) CALLER, GATE(ticketgate));
+							CPU->id, mutex, mutex->name, GATE(ticketgate));
 		stack_trace();
 	}
 #endif
@@ -185,6 +187,16 @@ bool fair_spin_mutex_try_lock(fair_spin_mutex_t *mutex)
 	}
 
 	// The mutex is now ours.
+
+#ifdef CONFIG_DEBUG_SPINLOCK
+	if (mutex->name[0] == '!') {
+		printf("cpu%u: acquired spinlock %p:%s, caller=%p ticket=%d (%s)\n",
+							CPU->id, mutex, mutex->name, (void *) CALLER, GATE(ticketgate),
+							symtab_fmt_name_lookup(CALLER));
+		stack_trace();
+	}
+#endif
+
 	mutex->ipl = ipl;
 	atomic_store_explicit(&mutex->owner, (uintptr_t) CPU, memory_order_relaxed);
 	return true;
