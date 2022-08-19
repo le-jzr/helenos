@@ -80,6 +80,9 @@ extern void fair_spin_mutex_lock(fair_spin_mutex_t *);
 extern void fair_spin_mutex_unlock(fair_spin_mutex_t *);
 extern bool fair_spin_mutex_try_lock(fair_spin_mutex_t *);
 
+extern void fair_spin_mutex_pass(fair_spin_mutex_t *, fair_spin_mutex_t *);
+extern void fair_spin_mutex_exchange(fair_spin_mutex_t *, fair_spin_mutex_t *);
+
 extern bool fair_spin_mutex_probably_owned__(fair_spin_mutex_t *);
 extern bool fair_spin_mutex_probably_not_owned__(fair_spin_mutex_t *);
 

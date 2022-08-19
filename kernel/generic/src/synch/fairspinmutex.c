@@ -41,6 +41,8 @@
 #include <debug.h>
 #include <stacktrace.h>
 
+#undef CONFIG_DEBUG_SPINLOCK
+
 // Gate and ticket are in a single atomic variable to allow non-blocking lock attempts.
 #define GATE_OFFSET 0
 #define GATE(ticketgate) ((uint16_t) ((ticketgate) & 0xffffu))
@@ -206,6 +208,28 @@ bool fair_spin_mutex_try_lock(fair_spin_mutex_t *mutex)
 	mutex->ipl = ipl;
 	atomic_store_explicit(&mutex->owner, (uintptr_t) CPU, memory_order_relaxed);
 	return true;
+}
+
+void fair_spin_mutex_pass(fair_spin_mutex_t *unlock, fair_spin_mutex_t *lock)
+{
+	ipl_t ipl = unlock->ipl;
+	unlock->ipl = interrupts_disable();
+	fair_spin_mutex_unlock(unlock);
+	fair_spin_mutex_lock(lock);
+	interrupts_restore(lock->ipl);
+	lock->ipl = ipl;
+}
+
+void fair_spin_mutex_exchange(fair_spin_mutex_t *unlock, fair_spin_mutex_t *lock)
+{
+	fair_spin_mutex_lock(lock);
+
+	// Swap ipl
+	ipl_t ipl = lock->ipl;
+	lock->ipl = unlock->ipl;
+	unlock->ipl = ipl;
+
+	fair_spin_mutex_unlock(unlock);
 }
 
 bool fair_spin_mutex_probably_owned__(fair_spin_mutex_t *mutex)

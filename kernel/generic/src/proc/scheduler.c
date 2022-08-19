@@ -319,10 +319,11 @@ void scheduler(void) {
 void scheduler_locked(ipl_t ipl)
 {
 	assert(CPU != NULL);
-	assert(irq_spinlock_locked(&THREAD->lock));
-	assert(CPU && CPU->mutex_locks == 0);
 
 	if (THREAD) {
+		assert(irq_spinlock_locked(&THREAD->lock));
+		//assert(CPU && CPU->mutex_locks == 1);
+
 		/* Update thread kernel accounting */
 		THREAD->kcycles += get_cycle() - THREAD->last_cycle;
 
@@ -351,6 +352,8 @@ void scheduler_locked(ipl_t ipl)
 		 *
 		 */
 		THREAD->saved_context.ipl = ipl;
+	} else {
+		assert(CPU && CPU->mutex_locks == 0);
 	}
 
 	/*
