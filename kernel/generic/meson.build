@@ -114,6 +114,12 @@ generic_src += files(
 	'src/time/timeout.c',
 )
 
+if CONFIG_SMP
+	generic_src += files('src/synch/fairspinmutex.c')
+else
+	generic_src += files('src/synch/fairspinmutex_nosmp.c')
+endif
+
 instrumentable_src += files(
 	'src/cpu/cpu.c',
 	'src/ddi/ddi.c',
