@@ -108,8 +108,8 @@ void fair_spin_mutex_lock(fair_spin_mutex_t *mutex)
 		 */
 		if (mutex->name[0] != '*' && i++ > DEADLOCK_THRESHOLD) {
 			printf("cpu%u: looping on spinlock %p:%s, caller=%p ticket=%d (%s)\n",
-					CPU->id, mutex, mutex->name, (void *) CALLER, GATE(ticketgate),
-					symtab_fmt_name_lookup(CALLER));
+			    CPU->id, mutex, mutex->name, (void *) CALLER, GATE(ticketgate),
+			    symtab_fmt_name_lookup(CALLER));
 			stack_trace();
 			i = 0;
 			deadlock_reported = true;
@@ -120,13 +120,15 @@ void fair_spin_mutex_lock(fair_spin_mutex_t *mutex)
 	}
 
 #ifdef CONFIG_DEBUG_SPINLOCK
+	CPU->mutex_locks++;
+
 	if (deadlock_reported)
 		printf("cpu%u: not deadlocked\n", CPU->id);
 
 	if (mutex->name[0] == '!') {
 		printf("cpu%u: acquired spinlock %p:%s, caller=%p ticket=%d (%s)\n",
-							CPU->id, mutex, mutex->name, (void *) CALLER, ticket,
-							symtab_fmt_name_lookup(CALLER));
+		    CPU->id, mutex, mutex->name, (void *) CALLER, ticket,
+		    symtab_fmt_name_lookup(CALLER));
 		stack_trace();
 	}
 #endif
@@ -156,15 +158,17 @@ void fair_spin_mutex_unlock(fair_spin_mutex_t *mutex)
 			assert(GATE(ticketgate) == UINT16_MAX);
 		} while (!atomic_compare_exchange_weak_explicit(
 		    &mutex->ticketgate, &ticketgate, ticketgate & TICKET_MASK,
-			memory_order_release, memory_order_relaxed));
+		    memory_order_release, memory_order_relaxed));
 	}
 
 	interrupts_restore(ipl);
 
 #ifdef CONFIG_DEBUG_SPINLOCK
+	CPU->mutex_locks--;
+
 	if (mutex->name[0] == '!') {
 		printf("cpu%u: released spinlock %p:%s, ticket=%d\n",
-							CPU->id, mutex, mutex->name, GATE(ticketgate));
+		    CPU->id, mutex, mutex->name, GATE(ticketgate));
 		stack_trace();
 	}
 #endif
@@ -180,8 +184,8 @@ bool fair_spin_mutex_try_lock(fair_spin_mutex_t *mutex)
 	uint_fast32_t ticketgate = atomic_load_explicit(&mutex->ticketgate, memory_order_relaxed);
 
 	if (GATE(ticketgate) != TICKET(ticketgate) ||
-			!atomic_compare_exchange_strong_explicit(&mutex->ticketgate, &ticketgate,
-					ticketgate + TICKET_INC, memory_order_acquire, memory_order_relaxed)) {
+	    !atomic_compare_exchange_strong_explicit(&mutex->ticketgate, &ticketgate,
+	    ticketgate + TICKET_INC, memory_order_acquire, memory_order_relaxed)) {
 		interrupts_restore(ipl);
 		return false;
 	}
@@ -189,10 +193,12 @@ bool fair_spin_mutex_try_lock(fair_spin_mutex_t *mutex)
 	// The mutex is now ours.
 
 #ifdef CONFIG_DEBUG_SPINLOCK
+	CPU->mutex_locks++;
+
 	if (mutex->name[0] == '!') {
 		printf("cpu%u: acquired spinlock %p:%s, caller=%p ticket=%d (%s)\n",
-							CPU->id, mutex, mutex->name, (void *) CALLER, GATE(ticketgate),
-							symtab_fmt_name_lookup(CALLER));
+		    CPU->id, mutex, mutex->name, (void *) CALLER, GATE(ticketgate),
+		    symtab_fmt_name_lookup(CALLER));
 		stack_trace();
 	}
 #endif

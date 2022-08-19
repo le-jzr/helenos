@@ -104,6 +104,8 @@ typedef struct cpu {
 	 * Stack used by scheduler when there is no running thread.
 	 */
 	uint8_t *stack;
+
+	int mutex_locks;
 } cpu_t;
 
 extern cpu_t *cpus;
