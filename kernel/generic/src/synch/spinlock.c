@@ -181,9 +181,7 @@ bool spinlock_locked(spinlock_t *lock)
  */
 void irq_spinlock_initialize(irq_spinlock_t *lock, const char *name)
 {
-	spinlock_initialize(&(lock->lock), name);
-	lock->guard = false;
-	lock->ipl = 0;
+	*lock = (irq_spinlock_t) { .mutex = FAIR_SPIN_MUTEX_INITIALIZER(name), };
 }
 
 /** Lock interrupts-disabled spinlock
@@ -197,18 +195,7 @@ void irq_spinlock_initialize(irq_spinlock_t *lock, const char *name)
  */
 void irq_spinlock_lock(irq_spinlock_t *lock, bool irq_dis)
 {
-	if (irq_dis) {
-		ipl_t ipl = interrupts_disable();
-		spinlock_lock(&(lock->lock));
-
-		lock->guard = true;
-		lock->ipl = ipl;
-	} else {
-		ASSERT_IRQ_SPINLOCK(interrupts_disabled(), lock);
-
-		spinlock_lock(&(lock->lock));
-		ASSERT_IRQ_SPINLOCK(!lock->guard, lock);
-	}
+	fair_spin_mutex_lock(&lock->mutex);
 }
 
 /** Unlock interrupts-disabled spinlock
@@ -222,20 +209,7 @@ void irq_spinlock_lock(irq_spinlock_t *lock, bool irq_dis)
  */
 void irq_spinlock_unlock(irq_spinlock_t *lock, bool irq_res)
 {
-	ASSERT_IRQ_SPINLOCK(interrupts_disabled(), lock);
-
-	if (irq_res) {
-		ASSERT_IRQ_SPINLOCK(lock->guard, lock);
-
-		lock->guard = false;
-		ipl_t ipl = lock->ipl;
-
-		spinlock_unlock(&(lock->lock));
-		interrupts_restore(ipl);
-	} else {
-		ASSERT_IRQ_SPINLOCK(!lock->guard, lock);
-		spinlock_unlock(&(lock->lock));
-	}
+	fair_spin_mutex_unlock(&lock->mutex);
 }
 
 /** Lock interrupts-disabled spinlock
@@ -251,11 +225,7 @@ void irq_spinlock_unlock(irq_spinlock_t *lock, bool irq_res)
  */
 bool irq_spinlock_trylock(irq_spinlock_t *lock)
 {
-	ASSERT_IRQ_SPINLOCK(interrupts_disabled(), lock);
-	bool ret = spinlock_trylock(&(lock->lock));
-
-	ASSERT_IRQ_SPINLOCK((!ret) || (!lock->guard), lock);
-	return ret;
+	return fair_spin_mutex_try_lock(&lock->mutex);
 }
 
 /** Pass lock from one interrupts-disabled spinlock to another
@@ -271,22 +241,7 @@ bool irq_spinlock_trylock(irq_spinlock_t *lock)
  */
 void irq_spinlock_pass(irq_spinlock_t *unlock, irq_spinlock_t *lock)
 {
-	ASSERT_IRQ_SPINLOCK(interrupts_disabled(), unlock);
-
-	/* Pass guard from unlock to lock */
-	bool guard = unlock->guard;
-	ipl_t ipl = unlock->ipl;
-	unlock->guard = false;
-
-	spinlock_unlock(&(unlock->lock));
-	spinlock_lock(&(lock->lock));
-
-	ASSERT_IRQ_SPINLOCK(!lock->guard, lock);
-
-	if (guard) {
-		lock->guard = true;
-		lock->ipl = ipl;
-	}
+	fair_spin_mutex_pass(&unlock->mutex, &lock->mutex);
 }
 
 /** Hand-over-hand locking of interrupts-disabled spinlocks
@@ -302,19 +257,7 @@ void irq_spinlock_pass(irq_spinlock_t *unlock, irq_spinlock_t *lock)
  */
 void irq_spinlock_exchange(irq_spinlock_t *unlock, irq_spinlock_t *lock)
 {
-	ASSERT_IRQ_SPINLOCK(interrupts_disabled(), unlock);
-
-	spinlock_lock(&(lock->lock));
-	ASSERT_IRQ_SPINLOCK(!lock->guard, lock);
-
-	/* Pass guard from unlock to lock */
-	if (unlock->guard) {
-		lock->guard = true;
-		lock->ipl = unlock->ipl;
-		unlock->guard = false;
-	}
-
-	spinlock_unlock(&(unlock->lock));
+	fair_spin_mutex_exchange(&unlock->mutex, &lock->mutex);
 }
 
 /** Find out whether the IRQ spinlock is currently locked.
@@ -324,7 +267,7 @@ void irq_spinlock_exchange(irq_spinlock_t *unlock, irq_spinlock_t *lock)
  */
 bool irq_spinlock_locked(irq_spinlock_t *ilock)
 {
-	return spinlock_locked(&ilock->lock);
+	return fair_spin_mutex_probably_owned__(&ilock->mutex);
 }
 
 /** @}

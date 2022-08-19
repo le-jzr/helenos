@@ -40,6 +40,7 @@
 #include <stdbool.h>
 #include <preemption.h>
 #include <arch/asm.h>
+#include <synch/fairspinmutex.h>
 
 static inline void spin_loop_body(void)
 {
@@ -198,92 +199,18 @@ typedef struct spinlock spinlock_t;
 #endif /* CONFIG_SMP */
 
 typedef struct {
-	SPINLOCK_DECLARE(lock);  /**< Spinlock */
-	bool guard;              /**< Flag whether ipl is valid */
-	ipl_t ipl;               /**< Original interrupt level */
+	fair_spin_mutex_t mutex;
 } irq_spinlock_t;
 
 #define IRQ_SPINLOCK_DECLARE(lock_name)  irq_spinlock_t lock_name
 #define IRQ_SPINLOCK_EXTERN(lock_name)   extern irq_spinlock_t lock_name
 
-#ifdef CONFIG_SMP
-
-#define ASSERT_IRQ_SPINLOCK(expr, irq_lock) \
-	ASSERT_SPINLOCK(expr, &((irq_lock)->lock))
-
-/*
- * IRQ_SPINLOCK_INITIALIZE and IRQ_SPINLOCK_STATIC_INITIALIZE are to be used
- * for statically allocated interrupts-disabled spinlocks. They declare (either
- * as global or static symbol) and initialize the lock.
- */
-#ifdef CONFIG_DEBUG_SPINLOCK
-
 #define IRQ_SPINLOCK_INITIALIZE_NAME(lock_name, desc_name) \
-	irq_spinlock_t lock_name = { \
-		.lock = { \
-			.name = desc_name, \
-			.flag = ATOMIC_FLAG_INIT \
-		}, \
-		.guard = false, \
-		.ipl = 0 \
-	}
+	irq_spinlock_t lock_name = { .mutex = FAIR_SPIN_MUTEX_INITIALIZER(desc_name) }
 
 #define IRQ_SPINLOCK_STATIC_INITIALIZE_NAME(lock_name, desc_name) \
-	static irq_spinlock_t lock_name = { \
-		.lock = { \
-			.name = desc_name, \
-			.flag = ATOMIC_FLAG_INIT \
-		}, \
-		.guard = false, \
-		.ipl = 0 \
-	}
+	static irq_spinlock_t lock_name = { .mutex = FAIR_SPIN_MUTEX_INITIALIZER(desc_name) }
 
-#else /* CONFIG_DEBUG_SPINLOCK */
-
-#define IRQ_SPINLOCK_INITIALIZE_NAME(lock_name, desc_name) \
-	irq_spinlock_t lock_name = { \
-		.lock = { \
-			.flag = ATOMIC_FLAG_INIT \
-		}, \
-		.guard = false, \
-		.ipl = 0 \
-	}
-
-#define IRQ_SPINLOCK_STATIC_INITIALIZE_NAME(lock_name, desc_name) \
-	static irq_spinlock_t lock_name = { \
-		.lock = { \
-			.flag = ATOMIC_FLAG_INIT \
-		}, \
-		.guard = false, \
-		.ipl = 0 \
-	}
-
-#endif /* CONFIG_DEBUG_SPINLOCK */
-
-#else /* CONFIG_SMP */
-
-/*
- * Since the spinlocks are void on UP systems, we also need
- * to have a special variant of interrupts-disabled spinlock
- * macros which take this into account.
- */
-
-#define ASSERT_IRQ_SPINLOCK(expr, irq_lock) \
-	ASSERT_SPINLOCK(expr, NULL)
-
-#define IRQ_SPINLOCK_INITIALIZE_NAME(lock_name, desc_name) \
-	irq_spinlock_t lock_name = { \
-		.guard = false, \
-		.ipl = 0 \
-	}
-
-#define IRQ_SPINLOCK_STATIC_INITIALIZE_NAME(lock_name, desc_name) \
-	static irq_spinlock_t lock_name = { \
-		.guard = false, \
-		.ipl = 0 \
-	}
-
-#endif /* CONFIG_SMP */
 
 #define IRQ_SPINLOCK_INITIALIZE(lock_name) \
 	IRQ_SPINLOCK_INITIALIZE_NAME(lock_name, #lock_name)
