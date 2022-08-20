@@ -143,10 +143,7 @@ errno_t thread_create(void (*function)(void *), void *arg, const char *name,
 void thread_exit(int status)
 {
 	__SYSCALL1(SYS_THREAD_EXIT, (sysarg_t) status);
-
-	/* Unreachable */
-	while (true)
-		;
+	__builtin_unreachable();
 }
 
 /** Detach thread.
@@ -163,11 +160,11 @@ void thread_detach(thread_id_t thread)
  *
  * @return Current thread ID.
  */
-thread_id_t thread_get_id(void)
+thread_id_t thread_get_id(thread_handle_t handle)
 {
 	thread_id_t thread_id;
 
-	(void) __SYSCALL1(SYS_THREAD_GET_ID, (sysarg_t) &thread_id);
+	(void) __SYSCALL2(SYS_THREAD_GET_ID, (sysarg_t) handle, (sysarg_t) &thread_id);
 
 	return thread_id;
 }

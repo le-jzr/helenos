@@ -47,7 +47,7 @@ extern errno_t thread_create(void (*)(void *), void *, const char *,
     thread_id_t *);
 extern void thread_exit(int) __attribute__((noreturn));
 extern void thread_detach(thread_id_t);
-extern thread_id_t thread_get_id(void);
+extern thread_id_t thread_get_id(thread_handle_t);
 extern void thread_usleep(usec_t);
 extern void thread_sleep(sec_t);
 

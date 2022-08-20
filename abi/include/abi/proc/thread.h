@@ -38,6 +38,7 @@
 #include <stdint.h>
 
 typedef uint64_t thread_id_t;
+typedef int thread_handle_t;
 
 /** Thread states */
 typedef enum {

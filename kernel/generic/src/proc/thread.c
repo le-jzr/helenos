@@ -69,6 +69,12 @@
 #include <debug.h>
 #include <halt.h>
 
+static void thread_destroy(void *);
+
+const kobj_class_t kobj_class_thread = {
+	.destroy = thread_destroy,
+};
+
 /** Thread states */
 const char *thread_states[] = {
 	"Invalid",
@@ -233,7 +239,7 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	if (!thread)
 		return NULL;
 
-	refcount_init(&thread->refcount);
+	kobj_initialize(&thread->kobj, KOBJ_CLASS_THREAD);
 
 	if (thread_create_arch(thread, flags) != EOK) {
 		slab_free(thread_cache, thread);
@@ -368,11 +374,25 @@ static void thread_destroy(void *obj)
 	slab_free(thread_cache, thread);
 }
 
+thread_t *thread_ref(thread_t *thread)
+{
+	if (thread)
+		kobj_ref(&thread->kobj);
+	return thread;
+}
+
+thread_t *thread_try_ref(thread_t *thread)
+{
+	if (thread && kobj_try_ref(&thread->kobj))
+		return thread;
+	else
+		return NULL;
+}
+
 void thread_put(thread_t *thread)
 {
-	if (refcount_down(&thread->refcount)) {
-		thread_destroy(thread);
-	}
+	if (thread)
+		kobj_put(&thread->kobj);
 }
 
 /** Make the thread visible to the system.
@@ -1027,6 +1047,16 @@ sys_errno_t sys_thread_exit(int uspace_status)
 	thread_exit();
 }
 
+/** Get handle to currently running thread.
+ *
+ */
+sys_errno_t sys_thread_get_self(uspace_ptr_thread_handle_t uspace_thread_handle)
+{
+	// The ref is legal since a running thread owns a reference to itself.
+	thread_handle_t handle = kobj_table_insert(&TASK->kobj_table, kobj_ref(&THREAD->kobj));
+	return (sys_errno_t) copy_to_uspace(uspace_thread_handle, &handle, sizeof(handle));
+}
+
 /** Syscall for getting TID.
  *
  * @param uspace_thread_id Userspace address of 8-byte buffer where to store
@@ -1035,7 +1065,7 @@ sys_errno_t sys_thread_exit(int uspace_status)
  * @return 0 on success or an error code from @ref errno.h.
  *
  */
-sys_errno_t sys_thread_get_id(uspace_ptr_thread_id_t uspace_thread_id)
+sys_errno_t sys_thread_get_self_id(uspace_ptr_thread_id_t uspace_thread_id)
 {
 	/*
 	 * No need to acquire lock on THREAD because tid
@@ -1044,6 +1074,31 @@ sys_errno_t sys_thread_get_id(uspace_ptr_thread_id_t uspace_thread_id)
 	 */
 	return (sys_errno_t) copy_to_uspace(uspace_thread_id, &THREAD->tid,
 	    sizeof(THREAD->tid));
+}
+
+/** Syscall for getting TID.
+ *
+ * @param uspace_thread_id Userspace address of 8-byte buffer where to store
+ * current thread ID.
+ *
+ * @return 0 on success or an error code from @ref errno.h.
+ *
+ */
+sys_errno_t sys_thread_get_id(thread_handle_t handle, uspace_ptr_thread_id_t uspace_thread_id)
+{
+	thread_t *thread = kobj_table_lookup(&TASK->kobj_table, handle, KOBJ_CLASS_THREAD);
+	if (thread == NULL)
+		return EINVAL;
+
+	/*
+	 * No need to acquire lock on THREAD because tid
+	 * remains constant for the lifespan of the thread.
+	 *
+	 */
+
+	sys_errno_t rc = copy_to_uspace(uspace_thread_id, &thread->tid, sizeof(thread->tid));
+	kobj_put(&thread->kobj);
+	return rc;
 }
 
 /** Syscall wrapper for sleeping. */

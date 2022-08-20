@@ -62,7 +62,9 @@ static syshandler_t syscall_table[] = {
 	/* Thread and task related syscalls. */
 	[SYS_THREAD_CREATE] = (syshandler_t) sys_thread_create,
 	[SYS_THREAD_EXIT] = (syshandler_t) sys_thread_exit,
+	[SYS_THREAD_GET_SELF] = (syshandler_t) sys_thread_get_self,
 	[SYS_THREAD_GET_ID] = (syshandler_t) sys_thread_get_id,
+	[SYS_THREAD_GET_SELF_ID] = (syshandler_t) sys_thread_get_self_id,
 	[SYS_THREAD_USLEEP] = (syshandler_t) sys_thread_usleep,
 	[SYS_THREAD_UDELAY] = (syshandler_t) sys_thread_udelay,
 

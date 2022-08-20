@@ -67,9 +67,14 @@ typedef enum {
 	THREAD_FLAG_UNCOUNTED = (1 << 2)
 } thread_flags_t;
 
+extern const kobj_class_t kobj_class_thread;
+#define KOBJ_CLASS_THREAD (&kobj_class_thread)
+
 /** Thread structure. There is one per thread. */
 typedef struct thread {
-	atomic_refcount_t refcount;
+	// Embedded kobject structure. Contains vtable and refcount for use as a kobject.
+	// Must remain as first entry.
+	kobj_t kobj;
 
 	link_t rq_link;  /**< Run queue link. */
 	link_t wq_link;  /**< Wait queue link. */
@@ -120,7 +125,7 @@ typedef struct thread {
 	 * Can be accessed without synchronization in most places.
 	 */
 
-	/** Thread ID. */
+	/** Thread ID. Only for observability/debugging. Shouldn't be used for thread lookups (although sysinfo uses it that way for historical reasons). */
 	thread_id_t tid;
 
 	/** Function implementing the thread. */
@@ -242,20 +247,8 @@ extern thread_termination_state_t thread_wait_start(void);
 extern thread_wait_result_t thread_wait_finish(deadline_t);
 extern void thread_wakeup(thread_t *);
 
-static inline thread_t *thread_ref(thread_t *thread)
-{
-	refcount_up(&thread->refcount);
-	return thread;
-}
-
-static inline thread_t *thread_try_ref(thread_t *thread)
-{
-	if (refcount_try_up(&thread->refcount))
-		return thread;
-	else
-		return NULL;
-}
-
+extern thread_t *thread_ref(thread_t *);
+extern thread_t *thread_try_ref(thread_t *);
 extern void thread_put(thread_t *);
 
 #ifndef thread_create_arch
@@ -301,7 +294,9 @@ extern slab_cache_t *fpu_context_cache;
 extern sys_errno_t sys_thread_create(uspace_ptr_uspace_arg_t, uspace_ptr_char, size_t,
     uspace_ptr_thread_id_t);
 extern sys_errno_t sys_thread_exit(int);
-extern sys_errno_t sys_thread_get_id(uspace_ptr_thread_id_t);
+extern sys_errno_t sys_thread_get_self(uspace_ptr_thread_handle_t);
+extern sys_errno_t sys_thread_get_id(thread_handle_t, uspace_ptr_thread_id_t);
+extern sys_errno_t sys_thread_get_self_id(uspace_ptr_thread_id_t);
 extern sys_errno_t sys_thread_usleep(uint32_t);
 extern sys_errno_t sys_thread_udelay(uint32_t);
 

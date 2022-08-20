@@ -84,6 +84,7 @@ typedef void *uspace_addr_t;
 #define uspace_ptr_struct_uspace_arg uspace_ptr(struct uspace_arg)
 #define uspace_ptr_sysarg64_t uspace_ptr(sysarg64_t)
 #define uspace_ptr_task_id_t uspace_ptr(task_id_t)
+#define uspace_ptr_thread_handle_t uspace_ptr(thread_handle_t)
 #define uspace_ptr_thread_id_t uspace_ptr(thread_id_t)
 #define uspace_ptr_uintptr_t uspace_ptr(uintptr_t)
 #define uspace_ptr_uspace_arg_t uspace_ptr(uspace_arg_t)

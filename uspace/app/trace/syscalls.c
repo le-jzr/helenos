@@ -43,7 +43,9 @@ const sc_desc_t syscall_desc[] = {
 	/* Thread and task related syscalls. */
 	[SYS_THREAD_CREATE] = { "thread_create", 3, V_ERRNO },
 	[SYS_THREAD_EXIT] = { "thread_exit", 1, V_ERRNO },
-	[SYS_THREAD_GET_ID] = { "thread_get_id", 1, V_ERRNO },
+	[SYS_THREAD_GET_ID] = { "thread_get_id", 2, V_ERRNO },
+	[SYS_THREAD_GET_SELF] = { "thread_get_self", 1, V_ERRNO },
+	[SYS_THREAD_GET_SELF_ID] = { "thread_get_self_id", 1, V_ERRNO },
 	[SYS_THREAD_USLEEP] = { "thread_usleep", 1, V_ERRNO },
 	[SYS_THREAD_UDELAY] = { "thread_udelay", 1, V_ERRNO },
 
