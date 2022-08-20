@@ -65,8 +65,15 @@
 struct thread;
 struct cap;
 
+extern const kobj_class_t kobj_class_task;
+#define KOBJ_CLASS_TASK (&kobj_class_task)
+
 /** Task structure. */
 typedef struct task {
+	// Embedded kobject structure. Contains vtable and refcount for use as a kobject.
+	// Must remain as first entry.
+	kobj_t kobj;
+
 	/** Link to @c tasks ordered dictionary */
 	odlink_t ltasks;
 
@@ -87,8 +94,6 @@ typedef struct task {
 	/** Task security container. */
 	container_id_t container;
 
-	/** Number of references (i.e. threads). */
-	atomic_refcount_t refcount;
 	/** Number of threads that haven't exited yet. */
 	// TODO: remove
 	atomic_size_t lifecount;
@@ -149,6 +154,7 @@ extern void task_done(void);
 extern task_t *task_create(as_t *, const char *);
 extern void task_hold(task_t *);
 extern void task_release(task_t *);
+extern task_t *task_try_ref(task_t *);
 extern task_t *task_find_by_id(task_id_t);
 extern size_t task_count(void);
 extern task_t *task_first(void);

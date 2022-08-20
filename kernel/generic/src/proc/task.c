@@ -59,6 +59,12 @@
 #include <syscall/copy.h>
 #include <macros.h>
 
+static void task_destroy(void *);
+
+const kobj_class_t kobj_class_task = {
+	.destroy = task_destroy,
+};
+
 /** Spinlock protecting the @c tasks ordered dictionary. */
 IRQ_SPINLOCK_INITIALIZE(tasks_lock);
 
@@ -207,7 +213,7 @@ task_t *task_create(as_t *as, const char *name)
 	if (!task)
 		return NULL;
 
-	refcount_init(&task->refcount);
+	kobj_initialize(&task->kobj, KOBJ_CLASS_TASK);
 
 	task_create_arch(task);
 
@@ -275,8 +281,10 @@ task_t *task_create(as_t *as, const char *name)
  * @param task Task to be destroyed.
  *
  */
-static void task_destroy(task_t *task)
+static void task_destroy(void *arg)
 {
+	task_t *task = arg;
+
 	/*
 	 * Remove the task from the task odict.
 	 */
@@ -306,7 +314,8 @@ static void task_destroy(task_t *task)
  */
 void task_hold(task_t *task)
 {
-	refcount_up(&task->refcount);
+	if (task)
+		kobj_ref(&task->kobj);
 }
 
 /** Release a reference to a task.
@@ -318,8 +327,16 @@ void task_hold(task_t *task)
  */
 void task_release(task_t *task)
 {
-	if (refcount_down(&task->refcount))
-		task_destroy(task);
+	if (task)
+		kobj_put(&task->kobj);
+}
+
+task_t *task_try_ref(task_t *task)
+{
+	if (task && kobj_try_ref(&task->kobj))
+		return task;
+	else
+		return NULL;
 }
 
 #ifdef __32_BITS__
@@ -436,16 +453,13 @@ task_t *task_find_by_id(task_id_t id)
 
 	odlink_t *odlink = odict_find_eq(&tasks, &id, NULL);
 	if (odlink != NULL) {
-		task = odict_get_instance(odlink, task_t, ltasks);
-
 		/*
 		 * The directory of tasks can't hold a reference, since that would
 		 * prevent task from ever being destroyed. That means we have to
 		 * check for the case where the task is already being destroyed, but
 		 * not yet removed from the directory.
 		 */
-		if (!refcount_try_up(&task->refcount))
-			task = NULL;
+		task = task_try_ref(odict_get_instance(odlink, task_t, ltasks));
 	}
 
 	irq_spinlock_unlock(&tasks_lock, true);
