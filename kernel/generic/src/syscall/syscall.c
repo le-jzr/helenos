@@ -74,6 +74,21 @@ static syshandler_t syscall_table[] = {
 	[SYS_TASK_EXIT] = (syshandler_t) sys_task_exit,
 	[SYS_PROGRAM_SPAWN_LOADER] = (syshandler_t) sys_program_spawn_loader,
 
+	[SYS_TASK_CREATE] = (syshandler_t) sys_task_create,
+	[SYS_TASK_SELF] = (syshandler_t) sys_task_self,
+	[SYS_TASK_MEM_MAP] = (syshandler_t) sys_task_mem_map,
+	[SYS_TASK_MEM_REMAP] = (syshandler_t) sys_task_mem_remap,
+	[SYS_TASK_MEM_UNMAP] = (syshandler_t) sys_task_mem_unmap,
+	[SYS_TASK_MEM_SET] = (syshandler_t) sys_task_mem_set,
+	[SYS_TASK_MEM_WRITE] = (syshandler_t) sys_task_mem_write,
+	[SYS_TASK_THREAD_START] = (syshandler_t) sys_task_thread_start,
+	[SYS_TASK_CONNECT] = (syshandler_t) sys_task_connect,
+
+	[SYS_MEM_CREATE] = (syshandler_t) sys_mem_create,
+	[SYS_MEM_CHANGE_FLAGS] = (syshandler_t) sys_mem_change_flags,
+
+	[SYS_KOBJ_PUT] = (syshandler_t) sys_kobj_put,
+
 	/* Synchronization related syscalls. */
 	[SYS_WAITQ_CREATE] = (syshandler_t) sys_waitq_create,
 	[SYS_WAITQ_SLEEP] = (syshandler_t) sys_waitq_sleep,
@@ -162,14 +177,15 @@ sysarg_t syscall_handler(sysarg_t a1, sysarg_t a2, sysarg_t a3,
 		udebug_syscall_event(a1, a2, a3, a4, a5, a6, id, 0, false);
 #endif
 
-	sysarg_t rc;
-	if (id < sizeof_array(syscall_table)) {
-		rc = syscall_table[id](a1, a2, a3, a4, a5, a6);
-	} else {
+	syshandler_t handler = id < sizeof_array(syscall_table) ? syscall_table[id] : NULL;
+
+	if (!handler) {
 		log(LF_OTHER, LVL_ERROR,
 		    "Task %" PRIu64 ": Unknown syscall %#" PRIxn, TASK->taskid, id);
 		task_kill_self(true);
 	}
+
+	sysarg_t rc = syscall_table[id](a1, a2, a3, a4, a5, a6);
 
 	if (THREAD->interrupted)
 		thread_exit();

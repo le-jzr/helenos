@@ -41,6 +41,7 @@
 #include <proc/task.h>
 #include <mm/as.h>
 #include <mm/slab.h>
+#include <mm/mem.h>
 #include <atomic.h>
 #include <synch/spinlock.h>
 #include <synch/waitq.h>
@@ -58,6 +59,9 @@
 #include <str.h>
 #include <syscall/copy.h>
 #include <macros.h>
+#include <mem.h>
+#include <stdlib.h>
+#include <main/uinit.h>
 
 static void task_destroy(void *);
 
@@ -201,7 +205,7 @@ size_t tsk_destructor(void *obj)
 
 /** Create new task with no threads.
  *
- * @param as   Task's address space.
+ * @param as   Task's address space (consumed on success).
  * @param name Symbolic name (a copy is made).
  *
  * @return New task's structure.
@@ -303,6 +307,20 @@ static void task_destroy(void *arg)
 	as_release(task->as);
 
 	slab_free(task_cache, task);
+}
+
+task_t *task_ref(task_t *task)
+{
+	if (kobj_ref(&task->kobj))
+		return task;
+
+	return NULL;
+}
+
+void task_put(task_t *task)
+{
+	if (task)
+		kobj_put(&task->kobj);
 }
 
 /** Hold a reference to a task.
@@ -734,6 +752,383 @@ static int tasks_cmp(void *a, void *b)
 		return 0;
 	else
 		return +1;
+}
+
+sysarg_t sys_task_create(uspace_ptr_const_char uspace_name, size_t name_len)
+{
+	char namebuf[TASK_NAME_BUFLEN];
+
+	/* Cap length of name and copy it from userspace. */
+	if (name_len > TASK_NAME_BUFLEN - 1)
+		name_len = TASK_NAME_BUFLEN - 1;
+
+	errno_t rc = copy_from_uspace(namebuf, uspace_name, name_len);
+	if (rc != EOK)
+		return 0;
+
+	namebuf[name_len] = '\0';
+
+	as_t *child_as = as_create(0);
+	if (!child_as)
+		return 0;
+
+	task_t *child = task_create(child_as, namebuf);
+	if (!child) {
+		as_release(child_as);
+		return 0;
+	}
+
+	kobj_handle_t handle = kobj_table_insert(&TASK->kobj_table, &child->kobj);
+	if (!handle)
+		task_release(child);
+
+	return handle;
+}
+
+sysarg_t sys_task_self(void)
+{
+	task_hold(TASK);
+	kobj_handle_t handle = kobj_table_insert(&TASK->kobj_table, &TASK->kobj);
+	if (!handle)
+		task_release(TASK);
+	return handle;
+}
+
+static errno_t task_mem_map(task_t *task, mem_t *mem, size_t offset, size_t size, uintptr_t *vaddr, int flags)
+{
+	if (!task)
+		task = TASK;
+
+	bool cow = (flags & AS_AREA_COW) != 0;
+	if (cow) {
+		flags ^= AS_AREA_COW;
+		flags |= AS_AREA_WRITE;
+	}
+
+	mem_backend_t *backend = NULL;
+	mem_backend_data_t backend_data = {};
+
+	if (mem) {
+		uint64_t allowed_size = mem_size(mem);
+		int allowed_flags = mem_flags(mem) | AS_AREA_CACHEABLE | AS_AREA_GUARD | AS_AREA_LATE_RESERVE;
+
+		if (cow) {
+			allowed_flags |= AS_AREA_WRITE;
+		}
+
+		if (flags & ~allowed_flags) {
+			printf("refused flags, allowed: 0%o, proposed: 0%o \n", allowed_flags, flags);
+			return EINVAL;
+		}
+
+		if (allowed_size < offset || allowed_size - offset < size) {
+			printf("refused size\n");
+			return EINVAL;
+		}
+
+		backend = &mem_backend;
+		backend_data = (mem_backend_data_t) {
+			.mem = mem,
+			.mem_offset = offset,
+			.mem_cow = cow,
+		};
+	} else {
+		backend = &anon_backend;
+	}
+
+	// task_t.as field is immutable after creation and has its own internal synchronization,
+	// so digging into another task without further ado should be quite safe.
+	as_area_t *area = as_area_create(task->as, flags, size,
+	    AS_AREA_ATTR_NONE, backend, &backend_data, vaddr, 0);
+
+	return area == NULL ? ENOMEM : EOK;
+}
+
+sys_errno_t sys_task_mem_map(sysarg_t task_handle, sysarg_t mem_handle, sysarg_t offset, sysarg_t size, uspace_ptr_uintptr_t uspace_vaddr, sysarg_t flags)
+{
+	printf("map: task_handle %d, mem_handle %d, offset %" PRIx64 ", size %" PRIx64 ", flags %d\n",
+			(int)task_handle, (int)mem_handle, (uint64_t) offset, (uint64_t) size, (int)flags);
+
+	task_t *task = kobj_table_lookup(&TASK->kobj_table, task_handle, KOBJ_CLASS_TASK);
+	if (task_handle && !task)
+		return ENOENT;
+
+	mem_t *mem = kobj_table_lookup(&TASK->kobj_table, mem_handle, KOBJ_CLASS_MEM);
+	if (mem_handle && !mem) {
+		task_put(task);
+		return ENOENT;
+	}
+
+	uintptr_t vaddr;
+	errno_t rc = copy_from_uspace(&vaddr, uspace_vaddr, sizeof(vaddr));
+	if (rc == EOK) {
+		printf("vaddr %" PRIxPTR"\n", vaddr);
+
+		rc = task_mem_map(task, mem, offset, size, &vaddr, flags);
+		printf("error: %s\n", str_error(rc));
+		if (rc == EOK) {
+			copy_to_uspace(uspace_vaddr, &vaddr, sizeof(vaddr));
+			task_put(task);
+			// mem reference is held by the as_area_t.
+			return EOK;
+		}
+	}
+
+	task_put(task);
+	mem_put(mem);
+	return rc;
+}
+
+sys_errno_t sys_task_mem_remap(sysarg_t task_handle, sysarg_t vaddr, sysarg_t size, sysarg_t new_flags)
+{
+	// TODO
+	return EOK;
+}
+
+sys_errno_t sys_task_mem_unmap(sysarg_t task_handle, sysarg_t vaddr, sysarg_t size)
+{
+	// TODO
+	return EOK;
+}
+
+errno_t task_mem_set(task_t *task, uintptr_t dst, int value, size_t size)
+{
+	errno_t rc;
+
+	assert(task != NULL);
+
+	// A quick hackjob. Dedicated userspace memset code would be preferrable.
+
+	const int zero_len = 256;
+	char zero[zero_len];
+	memset(zero, value, zero_len);
+
+	as_t *my_as = AS;
+	as_t *their_as = task->as;
+
+	if (my_as != their_as)
+		as_switch(my_as, their_as);
+
+	while (size > zero_len) {
+		rc = copy_to_uspace(dst, zero, zero_len);
+		if (rc != EOK)
+			goto exit;
+
+		dst += zero_len;
+		size -= zero_len;
+	}
+
+	rc = copy_to_uspace(dst, zero, size);
+
+exit:
+	if (my_as != their_as)
+		as_switch(their_as, my_as);
+
+	return rc;
+}
+
+sys_errno_t sys_task_mem_set(sysarg_t task_handle, sysarg_t dst, sysarg_t value, sysarg_t size)
+{
+	task_t *task = kobj_table_lookup(&TASK->kobj_table, task_handle, KOBJ_CLASS_TASK);
+	errno_t rc = task_mem_set(task, dst, value, size);
+	task_put(task);
+	return (sys_errno_t) rc;
+}
+
+sysarg_t sys_mem_create(sysarg_t size, sysarg_t align, sysarg_t flags)
+{
+	mem_t *mem = mem_create(size, align, flags);
+	if (!mem)
+		return 0;
+
+	kobj_handle_t handle = kobj_table_insert(&TASK->kobj_table, mem);
+	if (!handle)
+		mem_put(mem);
+
+	return handle;
+}
+
+sys_errno_t sys_mem_change_flags(sysarg_t mem_handle, sysarg_t flags)
+{
+	mem_t *mem = kobj_table_lookup(&TASK->kobj_table, mem_handle, KOBJ_CLASS_MEM);
+	if (!mem)
+		return ENOENT;
+
+	errno_t rc = mem_change_flags(mem, flags);
+	mem_put(mem);
+	return rc;
+}
+
+sys_errno_t sys_kobj_put(sysarg_t handle)
+{
+	kobj_t *kobj = kobj_table_remove(&TASK->kobj_table, handle);
+	if (!kobj)
+		return ENOENT;
+
+	kobj_put(kobj);
+	return EOK;
+}
+
+static errno_t task_thread_start(task_t *task, const char *name, uintptr_t entry, uintptr_t stack_base, uintptr_t stack_size)
+{
+	/*
+	 * In case of failure, kernel_uarg will be deallocated in this function.
+	 * In case of success, kernel_uarg will be freed in uinit().
+	 */
+	uspace_arg_t *kernel_uarg = malloc(sizeof(uspace_arg_t));
+	if (!kernel_uarg)
+		return ENOMEM;
+
+	kernel_uarg->uspace_entry = entry;
+	kernel_uarg->uspace_stack = stack_base;
+	kernel_uarg->uspace_stack_size = stack_size;
+	kernel_uarg->uspace_thread_function = 0;
+	kernel_uarg->uspace_thread_arg = 0;
+	kernel_uarg->uspace_uarg = 0;
+
+	thread_t *thread = thread_create(uinit, kernel_uarg, task, THREAD_FLAG_USPACE| THREAD_FLAG_NOATTACH, name);
+	if (!thread) {
+		free(kernel_uarg);
+		return ENOMEM;
+	}
+
+#ifdef CONFIG_UDEBUG
+	/*
+	 * Generate udebug THREAD_B event and attach the thread.
+	 * This must be done atomically (with the debug locks held),
+	 * otherwise we would either miss some thread or receive
+	 * THREAD_B events for threads that already existed
+	 * and could be detected with THREAD_READ before.
+	 */
+	udebug_thread_b_event_attach(thread, task);
+#else
+	thread_attach(thread, task);
+#endif
+
+	thread_ready(thread);
+	return EOK;
+}
+
+sys_errno_t sys_task_thread_start(sysarg_t task_handle, uspace_ptr_char uspace_name, sysarg_t name_len, sysarg_t pc, sysarg_t stack_base, sysarg_t stack_size)
+{
+	if (name_len > THREAD_NAME_BUFLEN - 1)
+		name_len = THREAD_NAME_BUFLEN - 1;
+
+	char namebuf[THREAD_NAME_BUFLEN];
+	errno_t rc = copy_from_uspace(namebuf, uspace_name, name_len);
+	if (rc != EOK)
+		return (sys_errno_t) rc;
+
+	namebuf[name_len] = '\0';
+
+	task_t *task = kobj_table_lookup(&TASK->kobj_table, task_handle, KOBJ_CLASS_TASK);
+	if (!task)
+		return (sys_errno_t) ENOENT;
+
+	rc = task_thread_start(task, namebuf, pc, stack_base, stack_size);
+	task_put(task);
+
+	return (sys_errno_t) rc;
+}
+
+sys_errno_t sys_task_connect(sysarg_t task_handle, uspace_ptr_cap_phone_handle_t uspace_phone)
+{
+	task_t *task = kobj_table_lookup(&TASK->kobj_table, task_handle, KOBJ_CLASS_TASK);
+	if (!task)
+		return ENOENT;
+
+	cap_phone_handle_t phandle;
+	kobject_t *pobj;
+	errno_t rc = phone_alloc(TASK, false, &phandle, &pobj);
+	if (rc != EOK) {
+		task_put(task);
+		return rc;
+	}
+
+	if (ipc_phone_connect(pobj->phone, &task->answerbox)) {
+		task_put(task);
+		cap_publish(TASK, phandle, pobj);
+		copy_to_uspace(uspace_phone, &phandle, sizeof(phandle));
+		return EOK;
+	} else {
+		task_put(task);
+		return ENOENT;
+	}
+}
+
+errno_t task_mem_read(task_t *task, uspace_addr_t addr, void *dst, size_t size)
+{
+	assert(task != NULL);
+
+	as_t *my_as = AS;
+	as_t *their_as = task->as;
+
+	if (my_as != their_as)
+		as_switch(my_as, their_as);
+
+	errno_t rc = copy_from_uspace(dst, addr, size);
+
+	if (my_as != their_as)
+		as_switch(their_as, my_as);
+
+	return rc;
+}
+
+errno_t task_mem_write(task_t *task, uspace_addr_t addr, const void *src, size_t size)
+{
+	assert(task != NULL);
+
+	as_t *my_as = AS;
+	as_t *their_as = task->as;
+
+	if (my_as != their_as)
+		as_switch(my_as, their_as);
+
+	errno_t rc = copy_to_uspace(addr, src, size);
+
+	if (my_as != their_as)
+		as_switch(their_as, my_as);
+
+	return rc;
+}
+
+// Not exactly the most efficient way to transfer data between tasks, but works in a pinch.
+sys_errno_t sys_task_mem_write(sysarg_t task_handle, uspace_addr_t dst, uspace_addr_t src, size_t size)
+{
+	task_t *task = kobj_table_lookup(&TASK->kobj_table, task_handle, KOBJ_CLASS_TASK);
+	if (!task)
+		return ENOENT;
+
+	const size_t MAX_WRITE_SIZE = 1024;
+	char buffer[MAX_WRITE_SIZE];
+
+	errno_t rc;
+
+	while (size > MAX_WRITE_SIZE) {
+		rc = copy_from_uspace(buffer, src, MAX_WRITE_SIZE);
+		if (rc != EOK)
+			goto exit;
+
+		rc = task_mem_write(task, dst, buffer, MAX_WRITE_SIZE);
+		if (rc != EOK)
+			goto exit;
+
+		dst += MAX_WRITE_SIZE;
+		src += MAX_WRITE_SIZE;
+		size -= MAX_WRITE_SIZE;
+	}
+
+	rc = copy_from_uspace(buffer, src, size);
+	if (rc != EOK)
+		goto exit;
+
+	rc = task_mem_write(task, dst, buffer, size);
+	if (rc != EOK)
+		goto exit;
+
+exit:
+	task_put(task);
+	return rc;
 }
 
 /** @}

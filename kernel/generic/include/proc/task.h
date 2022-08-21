@@ -154,6 +154,8 @@ extern void task_done(void);
 extern task_t *task_create(as_t *, const char *);
 extern void task_hold(task_t *);
 extern void task_release(task_t *);
+extern task_t *task_ref(task_t *);
+extern void task_put(task_t *);
 extern task_t *task_try_ref(task_t *);
 extern task_t *task_find_by_id(task_id_t);
 extern size_t task_count(void);
@@ -186,6 +188,25 @@ extern sysarg_t sys_task_get_id(void);
 extern sys_errno_t sys_task_set_name(uspace_ptr_const_char, size_t);
 extern sys_errno_t sys_task_kill(uspace_ptr_task_id_t);
 extern sys_errno_t sys_task_exit(sysarg_t);
+
+extern sysarg_t sys_task_create(uspace_ptr_const_char, size_t);
+extern sysarg_t sys_task_self(void);
+extern sysarg_t sys_task_mem_map(sysarg_t, sysarg_t, sysarg_t, sysarg_t, sysarg_t, sysarg_t);
+extern sys_errno_t sys_task_mem_remap(sysarg_t, sysarg_t, sysarg_t, sysarg_t);
+extern sys_errno_t sys_task_mem_unmap(sysarg_t, sysarg_t, sysarg_t);
+extern sys_errno_t sys_task_mem_set(sysarg_t, sysarg_t, sysarg_t, sysarg_t);
+extern sys_errno_t sys_task_mem_write(sysarg_t, uspace_addr_t, uspace_addr_t, sysarg_t);
+extern sys_errno_t sys_task_thread_start(sysarg_t, sysarg_t, sysarg_t, sysarg_t, sysarg_t, sysarg_t);
+extern sys_errno_t sys_task_connect(sysarg_t, uspace_ptr_cap_phone_handle_t);
+
+extern sysarg_t sys_mem_create(sysarg_t, sysarg_t, sysarg_t);
+extern sys_errno_t sys_mem_change_flags(sysarg_t, sysarg_t);
+
+extern sys_errno_t sys_kobj_put(sysarg_t);
+
+extern errno_t task_mem_set(task_t *, uspace_addr_t, int, size_t);
+extern errno_t task_mem_read(task_t *, uspace_addr_t, void *, size_t);
+extern errno_t task_mem_write(task_t *, uspace_addr_t, const void *, size_t);
 
 #endif
 

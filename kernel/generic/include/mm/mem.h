@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010 Jakub Jermar
+ * Copyright (c) 2022 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,50 +26,43 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup abi_generic
+/** @addtogroup kernel_generic_mm
  * @{
  */
 /** @file
  */
 
-#ifndef _ABI_AS_H_
-#define _ABI_AS_H_
+#ifndef KERN_MM_MEM_H_
+#define KERN_MM_MEM_H_
 
-#include <abi/cap.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <errno.h>
+#include <kobj.h>
 
-/** Address space area flags. */
-enum {
-	AS_AREA_READ         = 0x01,
-	AS_AREA_WRITE        = 0x02,
-	AS_AREA_EXEC         = 0x04,
-	AS_AREA_CACHEABLE    = 0x08,
-	AS_AREA_GUARD        = 0x10,
-	AS_AREA_LATE_RESERVE = 0x20,
-	AS_AREA_COW          = 0x40,
-};
+// Always 64b regardless of architecture for simplicity.
+typedef uint64_t phys_addr_t;
+typedef struct mem mem_t;
 
-static void *const AS_AREA_ANY = (void *) -1;
-static void *const AS_MAP_FAILED = (void *) -1;
-static void *const AS_AREA_UNPAGED = NULL;
+extern const kobj_class_t kobj_class_mem;
+#define KOBJ_CLASS_MEM (&kobj_class_mem)
 
-/** Address space area info exported to uspace. */
-typedef struct {
-	/** Starting address */
-	uintptr_t start_addr;
+void mem_init(void);
 
-	/** Area size */
-	size_t size;
+mem_t *mem_create(uint64_t size, size_t page_size, int flags);
+void mem_put(mem_t *);
 
-	/** Area flags */
-	unsigned int flags;
-} as_area_info_t;
+errno_t mem_change_flags(mem_t *, int);
+bool mem_flags_valid(int);
+phys_addr_t mem_lookup(mem_t *mem, uint64_t offset, bool alloc);
+uintptr_t mem_read_word(mem_t *mem, uint64_t offset);
+errno_t mem_write_from_uspace(mem_t *mem, uint64_t offset, uintptr_t src, size_t size);
 
-typedef struct {
-	cap_phone_handle_t pager;
-	sysarg_t id1;
-	sysarg_t id2;
-	sysarg_t id3;
-} as_area_pager_info_t;
+uint64_t mem_size(mem_t *);
+int mem_flags(mem_t *);
+
+void mem_range_ref(uint64_t offset, size_t size, int flags);
+void mem_range_unref(uint64_t offset, size_t size, int flags);
 
 #endif
 

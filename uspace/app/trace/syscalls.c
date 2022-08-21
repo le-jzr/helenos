@@ -55,6 +55,21 @@ const sc_desc_t syscall_desc[] = {
 	[SYS_TASK_EXIT] = { "task_exit", 1, V_ERRNO },
 	[SYS_PROGRAM_SPAWN_LOADER] = { "program_spawn_loader", 2, V_ERRNO },
 
+	[SYS_TASK_CREATE] = { "task_create", 2, V_INTEGER },
+	[SYS_TASK_SELF] = { "task_self", 0, V_INTEGER },
+	[SYS_TASK_MEM_MAP] = {"task_mem_map", 6, V_PTR },
+	[SYS_TASK_MEM_REMAP] = { "mem_remap", 4, V_ERRNO },
+	[SYS_TASK_MEM_UNMAP] = { "mem_unmap", 3, V_ERRNO },
+	[SYS_TASK_MEM_SET] = {"task_mem_set", 4, V_ERRNO },
+	[SYS_TASK_MEM_WRITE] = {"task_mem_write", 4, V_ERRNO },
+	[SYS_TASK_THREAD_START] = { "task_thread_start", 5, V_ERRNO },
+	[SYS_TASK_CONNECT] = { "task_connect", 2, V_ERRNO },
+
+	[SYS_MEM_CREATE] = { "mem_create", 3, V_INTEGER },
+	[SYS_MEM_CHANGE_FLAGS] = { "mem_change_flags", 2, V_ERRNO },
+
+	[SYS_KOBJ_PUT] = { "kobj_put", 1, V_ERRNO },
+
 	/* Synchronization related syscalls. */
 	[SYS_WAITQ_CREATE] = { "waitq_create", 1, V_ERRNO },
 	[SYS_WAITQ_SLEEP] = { "waitq_sleep", 3, V_ERRNO },
