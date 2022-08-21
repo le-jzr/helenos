@@ -46,6 +46,8 @@
 #include "exec.h"
 #include "errors.h"
 
+errno_t elf_load_file_name2(const char *path, void **out_task);
+
 static errno_t find_command(char *, char **);
 static int try_access(const char *);
 
@@ -139,6 +141,17 @@ unsigned int try_exec(char *cmd, char **argv, iostate_t *io)
 	for (i = 0; i < 3 && files[i] != NULL; i++) {
 		vfs_fhandle(files[i], &file_handles[i]);
 	}
+
+	printf("loading ELF using new loader\n");
+	void *task;
+	rc = elf_load_file_name2(tmp, &task);
+	if (rc != EOK) {
+		cli_error(CL_EEXEC, "%s: Cannot spawn `%s' (%s)", progname, cmd,
+		    str_error(rc));
+		return 1;
+	}
+
+
 
 	rc = task_spawnvf(&tid, &twait, tmp, (const char **) argv,
 	    file_handles[0], file_handles[1], file_handles[2]);
