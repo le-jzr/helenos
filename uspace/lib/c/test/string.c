@@ -150,7 +150,7 @@ PCUT_TEST(strncpy_just_over)
 PCUT_TEST(strncpy_over)
 {
 	const char *s = "hello";
-	char buf[8];
+	char buf[9];
 	size_t i;
 	char *p;
 
