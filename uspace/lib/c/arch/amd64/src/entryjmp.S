@@ -39,12 +39,8 @@ SYMBOL(entry_point_jmp)
 	push %rbp
 	movq %rsp, %rbp
 
-	# pcb must be passed in %rdi, use %rdx as a scratch register
-	mov %rdi, %rdx
-	mov %rsi, %rdi
-
 	# store pcb pointer on stack
 	mov %rsi, -0x8(%rsp)
 
 	# jump to entry point
-	jmp *%rdx
+	jmp *%rdi

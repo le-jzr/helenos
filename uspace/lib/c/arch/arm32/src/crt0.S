@@ -33,15 +33,20 @@
 .org 0
 
 ## User-space task entry point
-#
-# r1 contains the PCB pointer
-# r2 contains the RAS page address
-#
 SYMBOL(_start)
+	# RAS address is in r2 if we're being started by kernel.
+	# Otherwise, RAS is on stack and r2 is 0.
+	sub sp, sp, #8
+	pop {r4}
+	pop {r0}
+	add r2, r2, r4
+
+	# Now RAS address is in r2 no matter the source, and pcb is in r0.
+
 	# Store the RAS page address into the ras_page variable
 	// FIXME: This only works for not-PIC executables.
-	ldr r0, =ras_page
-	str r2, [r0]
+	ldr r4, =ras_page
+	str r2, [r4]
 
 	#
 	# Create the first stack frame.
@@ -51,8 +56,6 @@ SYMBOL(_start)
 	push {fp, ip, lr, pc}
 	sub fp, ip, #4
 
-	# Pass pcb_ptr to __c_start as the first argument (in r0)
-	mov r0, r1
 	bl __c_start
 
 .data
