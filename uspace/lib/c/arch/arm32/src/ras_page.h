@@ -1,1 +1,1 @@
-extern volatile unsigned *ras_page;
+extern volatile unsigned *__libc_arch_ras_page;

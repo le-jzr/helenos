@@ -35,7 +35,14 @@
 #include <stdbool.h>
 #include "ras_page.h"
 
-volatile unsigned *ras_page;
+/* This symbol is really defined in crt0.c, we only have a weak definition here to satisfy linker.
+ * The definition in crt0.c, which is always linked into the main executable, will preempt this one,
+ * ensuring the variable is always directly accessible to entry code before relocations have been
+ * processed. This also works for static executables as well as for position-independent executables.
+ * However, the side effect is that no atomic operations are usable in dynamic linker code.
+ */
+__attribute__((weak))
+volatile unsigned *__libc_arch_ras_page;
 
 bool __atomic_compare_exchange_4(volatile void *mem0, void *expected0,
     unsigned desired, bool weak, int success, int failure)
