@@ -35,7 +35,14 @@
 #include <stdbool.h>
 #include "ras_page.h"
 
-volatile unsigned *ras_page;
+/* This symbol is really defined in crt0.c, we only have a weak definition here to satisfy linker.
+ * The definition in crt0.c, which is always linked into the main executable, will preempt this one,
+ * ensuring the variable is always directly accessible to entry code before relocations have been
+ * processed. This also works for static executables as well as for position-independent executables.
+ * However, the side effect is that no atomic operations are usable in dynamic linker code.
+ */
+__attribute__((weak))
+volatile unsigned *__libc_arch_ras_page;
 
 bool __atomic_compare_exchange_4(volatile void *mem0, void *expected0,
     unsigned desired, bool weak, int success, int failure)
@@ -67,16 +74,16 @@ bool __atomic_compare_exchange_4(volatile void *mem0, void *expected0,
 	    "	streq %[nv], %[addr]\n"
 	    "2:\n"
 	    : [ret] "=&r" (ret),
-	      [rp0] "=m" (ras_page[0]),
-	      [rp1] "=m" (ras_page[1]),
+	      [rp0] "=m" (__libc_arch_ras_page[0]),
+	      [rp1] "=m" (__libc_arch_ras_page[1]),
 	      [addr] "+m" (*mem)
 	    : [ov] "r" (ov),
 	      [nv] "r" (desired)
 	    : "memory"
 	);
 
-	ras_page[0] = 0;
-	ras_page[1] = 0xffffffff;
+	__libc_arch_ras_page[0] = 0;
+	__libc_arch_ras_page[1] = 0xffffffff;
 
 	if (ret == ov)
 		return true;
@@ -110,14 +117,14 @@ unsigned short __atomic_fetch_add_2(volatile void *mem0, unsigned short val,
 	    "	strh %[ret], %[addr]\n"
 	    "2:\n"
 	    : [ret] "=&r" (ret),
-	      [rp0] "=m" (ras_page[0]),
-	      [rp1] "=m" (ras_page[1]),
+	      [rp0] "=m" (__libc_arch_ras_page[0]),
+	      [rp1] "=m" (__libc_arch_ras_page[1]),
 	      [addr] "+m" (*mem)
 	    : [imm] "r" (val)
 	);
 
-	ras_page[0] = 0;
-	ras_page[1] = 0xffffffff;
+	__libc_arch_ras_page[0] = 0;
+	__libc_arch_ras_page[1] = 0xffffffff;
 
 	return ret - val;
 }
@@ -146,14 +153,14 @@ unsigned __atomic_fetch_add_4(volatile void *mem0, unsigned val, int model)
 	    "	str %[ret], %[addr]\n"
 	    "2:\n"
 	    : [ret] "=&r" (ret),
-	      [rp0] "=m" (ras_page[0]),
-	      [rp1] "=m" (ras_page[1]),
+	      [rp0] "=m" (__libc_arch_ras_page[0]),
+	      [rp1] "=m" (__libc_arch_ras_page[1]),
 	      [addr] "+m" (*mem)
 	    : [imm] "r" (val)
 	);
 
-	ras_page[0] = 0;
-	ras_page[1] = 0xffffffff;
+	__libc_arch_ras_page[0] = 0;
+	__libc_arch_ras_page[1] = 0xffffffff;
 
 	return ret - val;
 }

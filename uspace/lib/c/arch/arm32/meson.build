@@ -42,4 +42,4 @@ arch_src += files(
 	'src/rtld/reloc2.c',
 )
 
-arch_start_src = files('src/crt0.S')
+arch_start_src = files('src/crt0.c')

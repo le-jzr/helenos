@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2008 Jiri Svoboda
+ * Copyright (c) 2022 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,13 +33,14 @@
 void entry_point_jmp(void *entry_point, void *pcb)
 {
 	asm volatile (
-		// Store pcb and ras_page under stack pointer.
+		// Store pcb under stack pointer, and ras_page in r2.
 		"push {%0} \n"
-		"push {%1} \n"
-		"add sp, sp, #8 \n"
+		"add sp, sp, #4 \n"
+		"mov r2, %1 \n"
 		"mov pc, %2 \n"
 		:
-		: "r"(pcb), "r"(ras_page), "r"(entry_point)
+		: "r"(pcb), "r"(__libc_arch_ras_page), "r"(entry_point)
+		: "r2"
 	);
 
 	__builtin_unreachable();
