@@ -104,8 +104,8 @@ apps = [
 ]
 
 if CONFIG_BUILD_SHARED_LIBS
-	apps += [
-		'dltest',
-		'dltests',
-	]
+#	apps += [
+#		'dltest',
+#		'dltests',
+#	]
 endif
