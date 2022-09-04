@@ -87,6 +87,10 @@ typedef struct pcb {
 	reloc_entry_point_t reloc_entry;
 
 	void *tls_template;
+	size_t tls_template_size;
+	size_t tls_template_align;
+	size_t tls_template_tp_offset;
+
 	void *initialization_order;
 	void *resolution_order;
 	size_t module_count;

@@ -210,14 +210,8 @@ void __libc_main(void *pcb_ptr)
 	/* Initialize user task run-time environment */
 	__malloc_init();
 
-#ifdef CONFIG_RTLD
-	if (__pcb != NULL && __pcb->rtld_runtime != NULL) {
+	if (__pcb != NULL && __pcb->rtld_runtime != NULL)
 		runtime_env = (rtld_t *) __pcb->rtld_runtime;
-	} else {
-		if (rtld_init_static() != EOK)
-			abort();
-	}
-#endif
 
 	__async_server_init();
 	__async_client_init();

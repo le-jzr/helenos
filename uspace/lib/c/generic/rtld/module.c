@@ -54,51 +54,6 @@
 
 #include "../private/libc.h"
 
-/** Create module for static executable.
- *
- * @param rtld Run-time dynamic linker
- * @param rmodule Place to store pointer to new module or @c NULL
- * @return EOK on success, ENOMEM if out of memory
- */
-errno_t module_create_static_exec(rtld_t *rtld, module_t **rmodule)
-{
-	module_t *module;
-
-	module = calloc(1, sizeof(module_t));
-	if (module == NULL) {
-		DPRINTF("malloc failed\n");
-		return ENOMEM;
-	}
-
-	module->dyn.soname = "[program]";
-
-	module->rtld = rtld;
-	module->exec = true;
-	module->local = true;
-
-	const elf_segment_header_t *tls =
-	    elf_get_phdr(__progsymbols.elfstart, PT_TLS);
-
-	if (tls) {
-		uintptr_t bias = elf_get_bias(__progsymbols.elfstart);
-		module->tdata = (void *) (tls->p_vaddr + bias);
-		module->tdata_size = tls->p_filesz;
-		module->tbss_size = tls->p_memsz - tls->p_filesz;
-		module->tls_align = tls->p_align;
-	} else {
-		module->tdata = NULL;
-		module->tdata_size = 0;
-		module->tbss_size = 0;
-		module->tls_align = 1;
-	}
-
-	list_append(&module->modules_link, &rtld->modules);
-
-	if (rmodule != NULL)
-		*rmodule = module;
-	return EOK;
-}
-
 /** (Eagerly) process all relocation tables in a module.
  *
  * Currently works as if LD_BIND_NOW was specified.
@@ -330,9 +285,8 @@ void modules_process_relocs(rtld_t *rtld, module_t *start)
 		 * Skip rtld module, since it has already been processed.
 		 * Skip start / main program -- leave it for later
 		 */
-		if (m != &rtld->rtld && m != start) {
+		if (m != start)
 			module_process_relocs(m);
-		}
 	}
 
 	/*
@@ -362,6 +316,11 @@ void modules_process_tls(rtld_t *rtld)
 		rtld->tls_size += m->tdata_size + m->tbss_size;
 	}
 
+	void *data = memalign(rtld->tls_align, rtld->tls_size);
+	assert(data);
+
+	tcb_t *tcb = data;
+	memset(tcb, 0, sizeof(tcb_t));
 #else
 	rtld->tls_size = 0;
 	rtld->tls_align = alignof(tcb_t);
@@ -391,7 +350,27 @@ void modules_process_tls(rtld_t *rtld)
 
 	/* Space for the TCB. */
 	rtld->tls_size += sizeof(tcb_t);
+
+	void *data = memalign(rtld->tls_align, rtld->tls_size);
+	assert(data);
+
+	tcb_t *tcb = (tcb_t *) (data + rtld->tls_size - sizeof(tcb_t));
+	memset(tcb, 0, sizeof(tcb_t));
 #endif
+
+	list_foreach(rtld->imodules, imodules_link, module_t, m) {
+		void *data = (void *) tcb + m->tpoff;
+
+		assert(((uintptr_t) data) % m->tls_align == 0);
+
+		if (m->tdata)
+			memcpy(data, m->tdata, m->tdata_size);
+
+		memset(data + m->tdata_size, 0, m->tbss_size);
+	}
+
+	rtld->tls_template = data;
+	rtld->tls_tp_offset = ((void *) tcb) - data;
 }
 
 /** Clear BFS tags of all modules.
