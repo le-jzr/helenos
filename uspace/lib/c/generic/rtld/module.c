@@ -179,7 +179,7 @@ module_t *module_find(rtld_t *rtld, const char *name)
  *
  * Currently this trivially tries to load '/<name>'.
  */
-module_t *module_load(rtld_t *rtld, const char *name, mlflags_t flags)
+module_t *module_load(rtld_t *rtld, const char *name)
 {
 	elf_finfo_t info;
 	char name_buf[NAME_BUF_SIZE];
@@ -194,9 +194,6 @@ module_t *module_load(rtld_t *rtld, const char *name, mlflags_t flags)
 
 	m->rtld = rtld;
 	m->id = rtld_get_next_id(rtld);
-
-	if ((flags & mlf_local) != 0)
-		m->local = true;
 
 	if (str_size(name) > NAME_BUF_SIZE - 2) {
 		DPRINTF("soname too long. increase NAME_BUF_SIZE\n");
@@ -255,7 +252,7 @@ error:
 
 /** Load all modules on which m (transitively) depends.
  */
-errno_t module_load_deps(module_t *m, mlflags_t flags)
+errno_t module_load_deps(module_t *m)
 {
 	elf_dyn_t *dp;
 	char *dep_name;
@@ -301,12 +298,12 @@ errno_t module_load_deps(module_t *m, mlflags_t flags)
 			DPRINTF("%s needs %s\n", m->dyn.soname, dep_name);
 			dm = module_find(m->rtld, dep_name);
 			if (!dm) {
-				dm = module_load(m->rtld, dep_name, flags);
+				dm = module_load(m->rtld, dep_name);
 				if (!dm) {
 					return EINVAL;
 				}
 
-				errno_t rc = module_load_deps(dm, flags);
+				errno_t rc = module_load_deps(dm);
 				if (rc != EOK) {
 					return rc;
 				}

@@ -38,11 +38,6 @@
 #include <adt/list.h>
 #include <stddef.h>
 
-typedef enum {
-	/** Do not export symbols to global namespace */
-	mlf_local = 0x1
-} mlflags_t;
-
 /** Dynamically linked module */
 typedef struct module {
 	/** Module ID */
