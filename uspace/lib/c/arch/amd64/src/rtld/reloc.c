@@ -221,7 +221,8 @@ void rela_table_process(module_t *m, elf_rela_t *rt, size_t rt_size)
 
 		case R_X86_64_TPOFF64:
 			DPRINTF("fixup R_X86_64_TPOFF64\n");
-			*r_ptr = sym_def->st_value + dest->tpoff;
+			uintptr_t val = (sym_def == NULL) ? 0 : sym_def->st_value;
+			*r_ptr = dest->tpoff + val + r_addend;
 			break;
 
 		default:
