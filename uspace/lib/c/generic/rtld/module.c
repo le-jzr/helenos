@@ -70,7 +70,6 @@ errno_t module_create_static_exec(rtld_t *rtld, module_t **rmodule)
 		return ENOMEM;
 	}
 
-	module->id = rtld_get_next_id(rtld);
 	module->dyn.soname = "[program]";
 
 	module->rtld = rtld;
@@ -193,7 +192,6 @@ module_t *module_load(rtld_t *rtld, const char *name)
 	}
 
 	m->rtld = rtld;
-	m->id = rtld_get_next_id(rtld);
 
 	if (str_size(name) > NAME_BUF_SIZE - 2) {
 		DPRINTF("soname too long. increase NAME_BUF_SIZE\n");
@@ -318,17 +316,6 @@ errno_t module_load_deps(module_t *m)
 	return EOK;
 }
 
-/** Find module structure by ID. */
-module_t *module_by_id(rtld_t *rtld, unsigned long id)
-{
-	list_foreach(rtld->modules, modules_link, module_t, m) {
-		if (m->id == id)
-			return m;
-	}
-
-	return NULL;
-}
-
 /** Process relocations in modules.
  *
  * Processes relocations in @a start and all its dependencies.
@@ -370,6 +357,8 @@ void modules_process_tls(rtld_t *rtld)
 
 		rtld->tls_size = ALIGN_UP(rtld->tls_size, m->tls_align);
 		m->tpoff = rtld->tls_size;
+		m->id = ((unsigned long) m->tpoff) << 1;
+
 		rtld->tls_size += m->tdata_size + m->tbss_size;
 	}
 
@@ -388,6 +377,7 @@ void modules_process_tls(rtld_t *rtld)
 		rtld->tls_size += m->tdata_size + m->tbss_size;
 		rtld->tls_size = ALIGN_UP(rtld->tls_size, m->tls_align);
 		m->tpoff = -(ptrdiff_t) rtld->tls_size;
+		m->id = ((unsigned long) m->tpoff) << 1;
 	}
 
 	/*
