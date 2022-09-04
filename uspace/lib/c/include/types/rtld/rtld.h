@@ -43,17 +43,11 @@
 #include <types/rtld/module.h>
 
 typedef struct rtld {
-	elf_dyn_t *rtld_dynamic;
-	module_t rtld;
-
-	module_t *program;
-
-	/** Next module ID */
-	unsigned long next_id;
-
 	/** Size of initial TLS tdata + tbss */
+	void *tls_template;
 	size_t tls_size;
 	size_t tls_align;
+	size_t tls_tp_offset;
 
 	/** List of all loaded modules including rtld and the program */
 	list_t modules;

@@ -42,27 +42,6 @@
 #include <str.h>
 
 rtld_t *runtime_env;
-static rtld_t rt_env_static;
-
-/** Initialize the runtime linker for use in a statically-linked executable. */
-errno_t rtld_init_static(void)
-{
-	errno_t rc;
-
-	runtime_env = &rt_env_static;
-	list_initialize(&runtime_env->modules);
-	list_initialize(&runtime_env->imodules);
-	runtime_env->program = NULL;
-	runtime_env->next_id = 1;
-
-	rc = module_create_static_exec(runtime_env, NULL);
-	if (rc != EOK)
-		return rc;
-
-	modules_process_tls(runtime_env);
-
-	return EOK;
-}
 
 /** Initialize and process a dynamically linked executable.
  *
@@ -80,8 +59,6 @@ errno_t rtld_prog_process(elf_finfo_t *p_info, rtld_t **rre)
 	env = calloc(1, sizeof(rtld_t));
 	if (env == NULL)
 		return ENOMEM;
-
-	env->next_id = 1;
 
 	prog = calloc(1, sizeof(module_t));
 	if (prog == NULL) {
@@ -115,9 +92,6 @@ errno_t rtld_prog_process(elf_finfo_t *p_info, rtld_t **rre)
 	list_initialize(&env->imodules);
 	list_append(&prog->modules_link, &env->modules);
 
-	/* Pointer to program module. Used as root of the module graph. */
-	env->program = prog;
-
 	/*
 	 * Now we can continue with loading all other modules.
 	 */
@@ -149,27 +123,12 @@ errno_t rtld_prog_process(elf_finfo_t *p_info, rtld_t **rre)
  */
 tcb_t *rtld_tls_make(rtld_t *rtld)
 {
-	tcb_t *tcb = tls_alloc_arch(rtld->tls_size, rtld->tls_align);
-	if (tcb == NULL)
-		return NULL;
-
-	/*
-	 * Copy thread local data from the initialization images of initial
-	 * modules. Zero out thread-local uninitialized data.
-	 */
-
-	list_foreach(rtld->imodules, imodules_link, module_t, m) {
-		void *data = (void *) tcb + m->tpoff;
-
-		assert(((uintptr_t) data) % m->tls_align == 0);
-
-		if (m->tdata)
-			memcpy(data, m->tdata, m->tdata_size);
-
-		memset(data + m->tdata_size, 0, m->tbss_size);
-	}
-
-	tcb->dtv = NULL;
+	void *data = memalign(rtld->tls_align, rtld->tls_size);
+	memcpy(data, rtld->tls_template, rtld->tls_size);
+	tcb_t *tcb = data + rtld->tls_tp_offset;
+#ifdef CONFIG_TLS_VARIANT_2
+	tcb->self = tcb;
+#endif
 	return tcb;
 }
 
