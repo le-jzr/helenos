@@ -180,16 +180,12 @@ void __libc_main(void *pcb_ptr)
 	__pcb = (pcb_t *) pcb_ptr;
 	bool loader2_init = false;
 
-	if (__pcb) {
-		if (__pcb->tcb) {
-			main_fibril.tcb = __pcb->tcb;
-		} else {
-			// FIXME
-			main_fibril.tcb = tls_make_initial(__progsymbols.elfstart);
+	// Loaded using the new loaderless code. We have some more work to do to transfer inbox entries.
+	if (__pcb && __pcb->reloc_entry)
+		loader2_init = true;
 
-			// Loaded using the new loaderless code. We have some more work to do to transfer inbox entries.
-			loader2_init = true;
-		}
+	if (__pcb) {
+		main_fibril.tcb = __pcb->tcb;
 	} else {
 		/*
 		 * Loaded by kernel, not the loader.

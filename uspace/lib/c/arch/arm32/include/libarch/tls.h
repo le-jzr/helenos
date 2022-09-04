@@ -40,8 +40,7 @@
 
 #define CONFIG_TLS_VARIANT_1
 
-/** Offsets for accessing thread-local variables are shifted 8 bytes higher. */
-#define ARCH_TP_OFFSET  (sizeof(tcb_t) - 8)
+#define ARCH_TP_OFFSET 0
 
 /** TCB (Thread Control Block) struct.
  *
@@ -49,8 +48,6 @@
  */
 typedef struct {
 	void **dtv;
-	void *pad;
-	/** Fibril data. */
 	void *fibril_data;
 } tcb_t;
 

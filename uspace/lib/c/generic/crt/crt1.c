@@ -29,6 +29,7 @@
 #include "../private/libc.h"
 #include "../private/cc.h"
 #include <loader/pcb.h>
+#include <io/kio.h>
 
 /*
  * We shouldn't be accessing these symbols directly from libc,
@@ -48,6 +49,15 @@ extern int main(int, char *[]);
 extern unsigned char __executable_start[];
 extern unsigned char _end[];
 
+#define TEST_TLS_VAL 0x1337FEE7
+
+/* Using this definition, we verify that the linker's idea of
+ * main executable's TLS offset matches the dynamic linker.
+ */
+static __thread volatile uint32_t test_tls_var = TEST_TLS_VAL;
+
+#define TEST_TLS_ERROR "Invalid local exec TLS."
+
 /* __c_start is only called from _start in assembly. */
 void __c_start(pcb_t *);
 
@@ -55,8 +65,20 @@ INTERNAL void __c_start(pcb_t *pcb)
 {
 	// If this is a dynamically linked binary, we may have to call the relocator routine first.
 	// pcb tells us where it is, since libc symbols aren't accessible yet.
-	if (pcb && pcb->reloc_entry)
+	if (pcb && pcb->reloc_entry) {
 		pcb->reloc_entry(pcb);
+		pcb->tcb = __tcb_get();
+		__tcb_reset();
+	}
+
+	if (pcb && pcb->tcb) {
+		__tcb_set(pcb->tcb);
+		if (test_tls_var != TEST_TLS_VAL) {
+			__kio_write(TEST_TLS_ERROR, sizeof(TEST_TLS_ERROR));
+			__builtin_trap();
+		}
+		__tcb_reset();
+	}
 
 	__progsymbols = (progsymbols_t) {
 		.main = main,
