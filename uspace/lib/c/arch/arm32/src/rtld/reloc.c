@@ -139,9 +139,9 @@ void rel_table_process(module_t *m, elf_rel_t *rt, size_t rt_size)
 		case R_ARM_TLS_TPOFF32:
 			DPRINTF("fixup R_ARM_TLS_TPOFF\n");
 			if (sym_def != NULL)
-				*r_ptr = sym_def->st_value + dest->tpoff;
+				*r_ptr += sym_def->st_value + dest->tpoff;
 			else
-				*r_ptr = m->tpoff;
+				*r_ptr += m->tpoff;
 			break;
 
 		case R_ARM_COPY:

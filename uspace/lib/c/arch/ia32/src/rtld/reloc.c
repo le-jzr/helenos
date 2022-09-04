@@ -184,7 +184,8 @@ void rel_table_process(module_t *m, elf_rel_t *rt, size_t rt_size)
 
 		case R_386_TLS_TPOFF:
 			DPRINTF("fixup R_386_TLS_TPOFF\n");
-			*r_ptr = sym_def->st_value + dest->tpoff;
+			uintptr_t val = (sym_def == NULL) ? 0 : sym_def->st_value;
+			*r_ptr += dest->tpoff + val;
 			break;
 
 		case R_386_TLS_DTPOFF32:
