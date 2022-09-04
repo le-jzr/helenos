@@ -99,7 +99,6 @@ errno_t rtld_prog_process(elf_finfo_t *p_info, rtld_t **rre)
 	prog->bias = 0;
 	prog->dyn.soname = "[program]";
 	prog->rtld = env;
-	prog->id = rtld_get_next_id(env);
 	prog->exec = true;
 	prog->local = false;
 
@@ -150,55 +149,28 @@ errno_t rtld_prog_process(elf_finfo_t *p_info, rtld_t **rre)
  */
 tcb_t *rtld_tls_make(rtld_t *rtld)
 {
-	tcb_t *tcb;
-	void **dtv;
-	size_t nmods;
-	size_t i;
-
-	tcb = tls_alloc_arch(rtld->tls_size, rtld->tls_align);
+	tcb_t *tcb = tls_alloc_arch(rtld->tls_size, rtld->tls_align);
 	if (tcb == NULL)
 		return NULL;
-
-	/** Allocate dynamic thread vector */
-	nmods = list_count(&rtld->imodules);
-	dtv = malloc((nmods + 1) * sizeof(void *));
-	if (dtv == NULL) {
-		tls_free(tcb);
-		return NULL;
-	}
-
-	/*
-	 * We define generation number to be equal to vector length.
-	 * We start with a vector covering the initially loaded modules.
-	 */
-	DTV_GN(dtv) = nmods;
 
 	/*
 	 * Copy thread local data from the initialization images of initial
 	 * modules. Zero out thread-local uninitialized data.
 	 */
 
-	i = 1;
 	list_foreach(rtld->imodules, imodules_link, module_t, m) {
-		assert(i++ == m->id);
+		void *data = (void *) tcb + m->tpoff;
 
-		dtv[m->id] = (void *) tcb + m->tpoff;
-
-		assert(((uintptr_t) dtv[m->id]) % m->tls_align == 0);
+		assert(((uintptr_t) data) % m->tls_align == 0);
 
 		if (m->tdata)
-			memcpy(dtv[m->id], m->tdata, m->tdata_size);
+			memcpy(data, m->tdata, m->tdata_size);
 
-		memset(dtv[m->id] + m->tdata_size, 0, m->tbss_size);
+		memset(data + m->tdata_size, 0, m->tbss_size);
 	}
 
-	tcb->dtv = dtv;
+	tcb->dtv = NULL;
 	return tcb;
-}
-
-unsigned long rtld_get_next_id(rtld_t *rtld)
-{
-	return rtld->next_id++;
 }
 
 /** Get address of thread-local variable.
@@ -213,43 +185,17 @@ unsigned long rtld_get_next_id(rtld_t *rtld)
 void *rtld_tls_get_addr(rtld_t *rtld, tcb_t *tcb, unsigned long mod_id,
     unsigned long offset)
 {
-	module_t *m;
-	size_t dtv_len;
-	void *tls_block;
+	assert(mod_id != 0 && (mod_id & 1) == 0);
+	// TODO
 
-	dtv_len = DTV_GN(tcb->dtv);
-	if (dtv_len < mod_id) {
-		/* Vector is short */
+	const unsigned long sign_bit = (unsigned long)LONG_MAX + 1;
 
-		tcb->dtv = realloc(tcb->dtv, (1 + mod_id) * sizeof(void *));
-		/* XXX This can fail if OOM */
-		assert(tcb->dtv != NULL);
-		/* Zero out new part of vector */
-		memset(tcb->dtv + (1 + dtv_len), 0, (mod_id - dtv_len) *
-		    sizeof(void *));
-	}
+	// static tpoffset encoded in mod_id. bypass dtv
+	unsigned long modoff = mod_id >> 1;
+	// correct sign bit.
+	modoff |= mod_id & sign_bit;
 
-	if (tcb->dtv[mod_id] == NULL) {
-		/* TLS block is not allocated */
-
-		m = module_by_id(rtld, mod_id);
-		assert(m != NULL);
-		/* Should not be initial module, those have TLS pre-allocated */
-		assert(!link_used(&m->imodules_link));
-
-		tls_block = memalign(m->tls_align, m->tdata_size + m->tbss_size);
-		/* XXX This can fail if OOM */
-		assert(tls_block != NULL);
-
-		/* Copy tdata */
-		memcpy(tls_block, m->tdata, m->tdata_size);
-		/* Zero out tbss */
-		memset(tls_block + m->tdata_size, 0, m->tbss_size);
-
-		tcb->dtv[mod_id] = tls_block;
-	}
-
-	return (uint8_t *)(tcb->dtv[mod_id]) + offset;
+	return (void *)tcb + (long)modoff + offset;
 }
 
 /** @}
