@@ -32,7 +32,7 @@
 arch_src = []
 subdir('arch' / UARCH)
 
-c_args = [ '-fno-builtin', '-D_LIBC_SOURCE' ]
+c_args = [ '-fno-builtin', '-D_LIBC_SOURCE', '-ftls-model=initial-exec' ]
 
 root_path = '..' / '..' / '..'
 
