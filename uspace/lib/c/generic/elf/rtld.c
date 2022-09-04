@@ -26,11 +26,15 @@
 #include <types/common.h>
 #include <abi/elf.h>
 
+#include "../private/sys.h"
 #include "../private/loader.h"
 #include "../private/rtld_arch.h"
+#include <libarch/config.h>
 #include <loader/pcb.h>
 #include <io/kio.h>
 #include <stdio.h>
+#include <align.h>
+#include <stdlib.h>
 
 static char early_print_buffer[1024];
 
@@ -57,6 +61,7 @@ struct lildyn {
 	const uint32_t *hash;
 	const elf_symbol_t *symtab;
 	const char *strtab;
+	uintptr_t tpoff;
 };
 
 static unsigned long elf_hash(const char *s)
@@ -131,6 +136,23 @@ static const elf_dyn_t *get_dynamic(const elf_rtld_info_t *info)
 	for (int i = 0; i < phdr_len; i++) {
 		if (phdr[i].p_type == PT_DYNAMIC)
 			return (void *) info->bias + phdr[i].p_vaddr;
+	}
+
+	return NULL;
+}
+
+static const elf_segment_header_t *get_tls(const elf_rtld_info_t *info)
+{
+	if (!info)
+		return NULL;
+
+	const elf_header_t *header = (void *) info->header;
+	const elf_segment_header_t *phdr = (void *) info->phdr;
+	int phdr_len = header->e_phnum;
+
+	for (int i = 0; i < phdr_len; i++) {
+		if (phdr[i].p_type == PT_TLS)
+			return &phdr[i];
 	}
 
 	return NULL;
@@ -266,7 +288,25 @@ static void relocate_one(const elf_rtld_info_t *elf_list[], int elf_list_len, in
 		}
 	}
 
+	if (sym_idx != 0 && (d.type & REL_TLS) && ELF_ST_TYPE(sym->st_info) != STT_TLS) {
+		ERRORF("ELF %d, sym %zu: symbol %s has TLS relocation,"
+				" but is not STT_TLS\n", elf_id, sym_idx, name);
+		return;
+	}
+
+	if (!(d.type & REL_TLS) && ELF_ST_TYPE(sym->st_info) == STT_TLS) {
+		ERRORF("ELF %d, sym %zu: symbol %s has non-TLS relocation,"
+				" but is STT_TLS\n", elf_id, sym_idx, name);
+		return;
+	}
+
 	if (d.type == REL_COPY) {
+		if (ELF_ST_TYPE(sym->st_info) != STT_OBJECT) {
+			ERRORF("ELF %d, sym %zu: symbol %s has copy relocation"
+					" but is not STT_OBJECT\n", elf_id, sym_idx, name);
+			return;
+		}
+
 		void *dst = (void *) vaddr;
 		void *src = (void *) (elf_list[sym_elf_id]->bias + sym->st_value);
 		size_t size = sym->st_size;
@@ -298,17 +338,22 @@ static void relocate_one(const elf_rtld_info_t *elf_list[], int elf_list_len, in
 		value -= vaddr;
 
 	if (d.type & REL_SYMVAL)
-		value += elf_list[sym_elf_id]->bias + sym->st_value;
+		value += sym->st_value;
 
 	if (d.type & REL_SYMSZ)
 		value += sym->st_size;
 
-	// DTPMOD is defined to start at 1, which must be the index of the main executable.
+	// We cheat a little here.
+	// For the initial modules, we encode the static tpoff in DTPMOD
+	// instead of using sequential indices. This allows us to completely
+	// avoid allocating and using DTV for initial binaries.
+	// Binaries loaded using dlopen() will use odd indices and go
+	// through DTV as usual.
 	if (d.type & REL_DTPMOD)
-		value += sym_elf_id + 1;
+		value += (lildyn[sym_elf_id].tpoff << 1);
 
-	if (d.type & REL_DTPOFF)
-		value += sym->st_value;
+	if (d.type & REL_TPOFF)
+		value += lildyn[sym_elf_id].tpoff;
 
 	write_width(vaddr, d.width, value);
 }
@@ -564,10 +609,22 @@ static void relocate(const elf_rtld_info_t *elf_list[], int elf_list_len,
 
 void RELOCATOR_NAME(pcb_t *pcb);
 
+#ifdef CONFIG_TLS_VARIANT_1
+#define TLS_VARIANT 1
+#else
+#define TLS_VARIANT 2
+#endif
+
+/* For variant 1, TCB size is fixed at 16 bytes.
+ * This is required by the specification and compiler depends
+ * on this assumption.
+ */
+#define TLS_VARIANT_1_TCB_SIZE 16
+
 void RELOCATOR_NAME(pcb_t *pcb)
 {
 	// Prepare a few pointers for symbol resolution on stack, since we don't have
-	// access to libc facilities yet. At three pointers per entry, we have space
+	// access to libc facilities yet. At four pointers per entry, we have space
 	// for at least a few thousand initially loaded libraries. That should
 	// probably be enough for as long as this code exists, and if not, just increase
 	// the initial stack. Anyone loading that much code can spare a few more kB.
@@ -585,15 +642,82 @@ void RELOCATOR_NAME(pcb_t *pcb)
 		lildyn[i] = get_lildyn(dyn, bias);
 	}
 
+	uintptr_t tls_max_align = 8;
+
+	uintptr_t tpoff = (TLS_VARIANT == 1) ? TLS_VARIANT_1_TCB_SIZE : 0;
+
+	for (size_t i = 0; i < pcb->module_count; i++) {
+		const elf_segment_header_t *tls = get_tls(res_order[i]);
+		if (tls == NULL)
+			continue;
+
+		if (tls_max_align < tls->p_align)
+			tls_max_align = tls->p_align;
+
+		if (TLS_VARIANT == 1) {
+			if (tls->p_align > 0)
+				tpoff = ALIGN_UP(tpoff, tls->p_align);
+
+			lildyn[i].tpoff = tpoff;
+
+			tpoff += tls->p_memsz;
+		} else {
+			tpoff += tls->p_memsz;
+
+			if (tls->p_align > 0)
+				tpoff = ALIGN_UP(tpoff, tls->p_align);
+
+			lildyn[i].tpoff = -tpoff;
+		}
+
+		DPRINTF("Module %zu assigned tpoff = %" PRIdPTR "\n", i, lildyn[i].tpoff);
+	}
+
+	uintptr_t tls_size;
+	uintptr_t tls_tp_offset;
+
+	if (TLS_VARIANT == 1) {
+		tls_size = tpoff;
+		tls_tp_offset = 0;
+	} else {
+		tls_size = ALIGN_UP(tpoff, tls_max_align);
+		tls_tp_offset = tls_size;
+		tls_size += sizeof(tcb_t);
+	}
+
 	DPRINTF("Modules prepared. Relocating.\n");
 	relocate(res_order, pcb->module_count, lildyn);
 
-	// Now that relocations are done, we have to allocate TLS for the initial thread.
+	// Now that relocations are done, we have to initialize TLS for the initial thread.
 
-	// TODO
+	tls_size = ALIGN_UP(tls_size, PAGE_SIZE);
+
+	DPRINTF("Relocated. Allocating TLS.\n");
+	void *tls = sys_mem_map(MEM_NULL, 0, tls_size, AS_AREA_ANY,
+			AS_AREA_READ | AS_AREA_WRITE | AS_AREA_CACHEABLE);
+
+	if (!tls) {
+		ERRORF("Not enough memory to allocate TLS.\n");
+		exit(1);
+	}
+
+	tls = tls - tls_tp_offset;
+
+	for (size_t i = 0; i < pcb->module_count; i++) {
+		const elf_segment_header_t *tls_init = get_tls(res_order[i]);
+		if (!tls_init)
+			continue;
+
+		void *module_tls = tls + (intptr_t) lildyn[i].tpoff;
+		memcpy(module_tls, (void *) tls_init->p_vaddr, tls_init->p_filesz);
+		memset(module_tls + tls_init->p_filesz, 0, tls_init->p_memsz - tls_init->p_filesz);
+	}
+
+	DPRINTF("Setting tls.\n");
+	__tcb_set(tls);
 
 	// Once TLS is allocated and the thread pointer set, run initialization functions
 	// in the correct order.
 
-	while (true) {}
+	// TODO
 }

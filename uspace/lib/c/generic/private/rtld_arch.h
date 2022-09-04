@@ -13,10 +13,10 @@ enum RelType {
 	REL_PLACE   = 1 << 2,
 	REL_SYMVAL  = 1 << 3,
 	REL_SYMSZ   = 1 << 4,
-	REL_DTPMOD  = 1 << 5,
-	REL_DTPOFF  = 1 << 6,
-	REL_TPOFF   = 1 << 7,
-	REL_COPY    = 1 << 8,
+	REL_COPY    = 1 << 5,
+	REL_TLS     = 1 << 6,
+	REL_DTPMOD  = 1 << 7,
+	REL_TPOFF   = 1 << 8,
 };
 
 typedef struct {

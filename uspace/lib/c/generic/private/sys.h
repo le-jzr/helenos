@@ -40,6 +40,9 @@
 #include <abi/syscall.h>
 #include <libc.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <abi/mm/as.h>
+#include <errno.h>
 
 #define KOBJ_NULL NULL
 #define TASK_NULL ((task_handle_t) NULL)
