@@ -67,8 +67,6 @@ INTERNAL void __c_start(pcb_t *pcb)
 	// pcb tells us where it is, since libc symbols aren't accessible yet.
 	if (pcb && pcb->reloc_entry) {
 		pcb->reloc_entry(pcb);
-		pcb->tcb = __tcb_get();
-		__tcb_reset();
 	}
 
 	if (pcb && pcb->tcb) {

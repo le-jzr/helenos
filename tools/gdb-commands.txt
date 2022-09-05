@@ -1,0 +1,33 @@
+target remote :1234
+symbol-file kernel/kernel.3.elf
+set radix 16
+macro define CURRENT ((current_t *) ((uintptr_t) $esp & ~0x1fff))
+hbreak fault_from_uspace_core
+
+define task
+x/s CURRENT->task->name
+end
+
+define to_uspace
+set $KERNEL_RIP=$rip
+set $KERNEL_RSP=$rsp
+set $KERNEL_RBP=$rbp
+set $USPACE_RIP=istate->rip
+set $USPACE_RSP=istate->rsp
+set $USPACE_RBP=istate->rbp
+set $rip=$USPACE_RIP
+set $rsp=$USPACE_RSP
+set $rbp=$USPACE_RBP
+end
+
+define to_kernel
+set $rip=$KERNEL_RIP
+set $rsp=$KERNEL_RSP
+set $rbp=$KERNEL_RBP
+end
+
+define u
+up
+end
+
+c

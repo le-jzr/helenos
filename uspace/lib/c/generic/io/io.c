@@ -662,6 +662,8 @@ size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
  */
 size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 {
+	assert(stream);
+
 	uint8_t *data;
 	size_t bytes_left;
 	size_t now;
