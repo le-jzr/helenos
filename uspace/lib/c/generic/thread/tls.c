@@ -176,6 +176,13 @@ void tls_free(tcb_t *tcb)
 #ifdef CONFIG_RTLD
 	free(tcb->dtv);
 
+	tls_free_func_t free_func = static_tls_var(tcb, tls_free_func);
+
+	if (free_func) {
+		free_func(tcb, runtime_env->tls_size, runtime_env->tls_align);
+		return;
+	}
+
 	if (runtime_env != NULL) {
 		tls_free_arch(tcb, runtime_env->tls_size, runtime_env->tls_align);
 		return;

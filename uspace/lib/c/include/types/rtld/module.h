@@ -37,6 +37,7 @@
 
 #include <adt/list.h>
 #include <stddef.h>
+#include <rtld/dynamic.h>
 
 /** Dynamically linked module */
 typedef struct module {

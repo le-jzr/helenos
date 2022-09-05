@@ -29,12 +29,14 @@
 #include "../private/sys.h"
 #include "../private/loader.h"
 #include "../private/rtld_arch.h"
+#include "../private/libc.h"
 #include <libarch/config.h>
 #include <loader/pcb.h>
 #include <io/kio.h>
 #include <stdio.h>
 #include <align.h>
 #include <stdlib.h>
+#include <rtld/rtld.h>
 
 static char early_print_buffer[1024];
 
@@ -191,8 +193,9 @@ static int lookup_symbol(int elf_list_len, const struct lildyn lildyn[],
 		const char *symbol, unsigned long symbol_hash, int first,
 		const elf_symbol_t **out_sym)
 {
+	DTRACE("Looking up symbol %s.\n", symbol);
 	for (int i = first; i < elf_list_len; i++) {
-		DTRACE("Looking up symbol %s in module %d.\n", symbol, i);
+		DULTRATRACE("Looking up symbol %s in module %d.\n", symbol, i);
 
 		const elf_symbol_t *s = hash_lookup_symbol(&lildyn[i], symbol, symbol_hash);
 
@@ -235,8 +238,6 @@ static inline void write_width(uintptr_t vaddr, int width, uintptr_t value)
 		break;
 	case 64:
 		*(uint64_t *)vaddr = value;
-		break;
-	default:
 		break;
 	}
 }
@@ -611,15 +612,28 @@ void RELOCATOR_NAME(pcb_t *pcb);
 
 #ifdef CONFIG_TLS_VARIANT_1
 #define TLS_VARIANT 1
-#else
+#endif
+#ifdef CONFIG_TLS_VARIANT_2
 #define TLS_VARIANT 2
 #endif
 
-/* For variant 1, TCB size is fixed at 16 bytes.
+/* For variant 1, TCB size is fixed at two pointers.
  * This is required by the specification and compiler depends
  * on this assumption.
  */
-#define TLS_VARIANT_1_TCB_SIZE 16
+#define TLS_VARIANT_1_TCB_SIZE (2 * sizeof(void *))
+
+#include <types/rtld/rtld.h>
+
+static rtld_t _rtld;
+
+__thread tls_free_func_t tls_free_func = NULL;
+
+static void initial_tls_free(void *tcb, size_t tls_size, size_t tls_align)
+{
+	void *tls = tcb - _rtld.tls_tp_offset;
+	sys_mem_unmap(tls, _rtld.tls_size);
+}
 
 void RELOCATOR_NAME(pcb_t *pcb)
 {
@@ -690,31 +704,55 @@ void RELOCATOR_NAME(pcb_t *pcb)
 
 	// Now that relocations are done, we have to initialize TLS for the initial thread.
 
-	tls_size = ALIGN_UP(tls_size, PAGE_SIZE);
-
 	DPRINTF("Relocated. Allocating TLS.\n");
-	void *tls = sys_mem_map(MEM_NULL, 0, tls_size, AS_AREA_ANY,
+	void *template = sys_mem_map(MEM_NULL, 0,  ALIGN_UP(tls_size, PAGE_SIZE), AS_AREA_ANY,
 			AS_AREA_READ | AS_AREA_WRITE | AS_AREA_CACHEABLE);
 
-	if (!tls) {
+	if (!template) {
 		ERRORF("Not enough memory to allocate TLS.\n");
 		exit(1);
 	}
 
-	tls = tls - tls_tp_offset;
+	void *tp = template + tls_tp_offset;
 
 	for (size_t i = 0; i < pcb->module_count; i++) {
 		const elf_segment_header_t *tls_init = get_tls(res_order[i]);
 		if (!tls_init)
 			continue;
 
-		void *module_tls = tls + (intptr_t) lildyn[i].tpoff;
+		void *module_tls = tp + (intptr_t) lildyn[i].tpoff;
 		memcpy(module_tls, (void *) tls_init->p_vaddr, tls_init->p_filesz);
 		memset(module_tls + tls_init->p_filesz, 0, tls_init->p_memsz - tls_init->p_filesz);
 	}
 
-	DPRINTF("Setting tls.\n");
-	__tcb_set(tls);
+	// Some transitional stuff.
+	_rtld.tls_template = template;
+	_rtld.tls_size = tls_size;
+	_rtld.tls_align = tls_max_align;
+	_rtld.tls_tp_offset = tls_tp_offset;
+	pcb->rtld_runtime = &_rtld;
+
+	// Make the actual TLS for initial thread.
+	void *tls = sys_mem_map(MEM_NULL, 0, ALIGN_UP(tls_size, PAGE_SIZE), AS_AREA_ANY,
+			AS_AREA_READ | AS_AREA_WRITE | AS_AREA_CACHEABLE);
+	if (!tls) {
+		ERRORF("Not enough memory to allocate TLS.\n");
+		exit(1);
+	}
+
+	memcpy(tls, template, tls_size);
+
+	pcb->tcb = tls + tls_tp_offset;
+
+#if TLS_VARIANT == 2
+	pcb->tcb->self = pcb->tcb;
+#endif
+
+	runtime_env = &_rtld;
+	__tcb_set(pcb->tcb);
+	tls_free_func = initial_tls_free;
+	__tcb_reset();
+	runtime_env = NULL;
 
 	// Once TLS is allocated and the thread pointer set, run initialization functions
 	// in the correct order.

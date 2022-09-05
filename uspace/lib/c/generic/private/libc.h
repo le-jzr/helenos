@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011 Martin Decky
+ * Copyright (c) 2022 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,6 +37,8 @@
 #define _LIBC_PRIVATE_LIBC_H_
 
 #include <types/common.h>
+#include <tls.h>
+#include "cc.h"
 
 /* Type of the main C function. */
 typedef int (*main_fn_t)(int, char **);
@@ -58,6 +61,17 @@ typedef struct {
 	fini_array_entry_t *fini_array;
 	int fini_array_len;
 } progsymbols_t;
+
+typedef void (*tls_free_func_t)(void *tcb, size_t tls_size, size_t tls_align);
+extern INTERNAL __thread tls_free_func_t tls_free_func;
+
+static inline void *__static_tls_var(void *tcb, void *var)
+{
+	// Only works if the variable has a fixed offset from TCB.
+	return (var - ((void *) __tcb_get()) + tcb);
+}
+
+#define static_tls_var(tcb, var) (*((typeof(&var)) __static_tls_var(tcb, &(var))))
 
 extern progsymbols_t __progsymbols;
 extern void __libc_main(void *) __attribute__((noreturn));

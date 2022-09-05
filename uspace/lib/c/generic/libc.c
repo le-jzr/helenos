@@ -178,13 +178,8 @@ void __libc_main(void *pcb_ptr)
 	kio_printf("pcb_ptr = %p\n", pcb_ptr);
 
 	__pcb = (pcb_t *) pcb_ptr;
-	bool loader2_init = false;
 
-	// Loaded using the new loaderless code. We have some more work to do to transfer inbox entries.
-	if (__pcb && __pcb->reloc_entry)
-		loader2_init = true;
-
-	if (__pcb) {
+	if (__pcb && __pcb->tcb) {
 		main_fibril.tcb = __pcb->tcb;
 	} else {
 		/*
@@ -195,9 +190,8 @@ void __libc_main(void *pcb_ptr)
 		 */
 
 		main_fibril.tcb = tls_make_initial(__progsymbols.elfstart);
+		assert(main_fibril.tcb);
 	}
-
-	assert(main_fibril.tcb);
 
 	__fibrils_init();
 	__fibril_synch_init();
@@ -210,8 +204,10 @@ void __libc_main(void *pcb_ptr)
 	/* Initialize user task run-time environment */
 	__malloc_init();
 
+#ifdef CONFIG_RTLD
 	if (__pcb != NULL && __pcb->rtld_runtime != NULL)
 		runtime_env = (rtld_t *) __pcb->rtld_runtime;
+#endif
 
 	__async_server_init();
 	__async_client_init();
@@ -243,7 +239,8 @@ void __libc_main(void *pcb_ptr)
 		}
 	}
 
-	if (loader2_init) {
+	// Loaded using the new loaderless code. We have some more work to do to transfer inbox entries.
+	if (__pcb && __pcb->inbox == NULL) {
 		kio_printf("entering loader2 async initialization\n");
 		async_set_fallback_port_handler(ldr_connection, NULL);
 		fibril_wait_for(&loader_done);
