@@ -594,6 +594,9 @@ static void relocate(const elf_rtld_info_t *elf_list[], int elf_list_len,
 		const elf_dyn_t *dyn = get_dynamic(elf_list[elf_id]);
 		struct bigdyn bigdyn = get_bigdyn(dyn, bias);
 
+		// TODO: Improve performance by caching resolved symbols and adding
+		//       fast path for R_*_RELATIVE relocations which are most abundant.
+
 		DTRACE("Processing relocations with implicit addend.\n");
 		process_rel(elf_list, elf_list_len, elf_id, lildyn, bigdyn.rel, bigdyn.rel_len);
 
