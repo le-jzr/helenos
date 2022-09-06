@@ -1598,7 +1598,7 @@ page_fault:
 	} else if (rc == AS_PF_SILENT) {
 		printf("Killing task %" PRIu64 " due to a "
 		    "failed late reservation request.\n", TASK->taskid);
-		task_kill_self(true);
+		task_kill_self(true, -1);
 	} else {
 		fault_if_from_uspace(istate, "Page fault: %p.", (void *) address);
 		panic_memtrap(istate, access, address, NULL);

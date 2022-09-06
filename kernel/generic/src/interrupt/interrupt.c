@@ -181,7 +181,7 @@ fault_from_uspace_core(istate_t *istate, const char *fmt, va_list args)
 	vprintf(fmt, args);
 	printf("\n");
 
-	task_kill_self(true);
+	task_kill_self(true, -1);
 }
 
 /** Terminate thread and task after the exception came from userspace.

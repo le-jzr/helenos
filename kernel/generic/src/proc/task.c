@@ -92,7 +92,7 @@ static task_id_t task_counter = 0;
 static slab_cache_t *task_cache;
 
 /* Forward declarations. */
-static void task_kill_internal(task_t *);
+static void task_kill_internal(task_t *, int);
 static errno_t tsk_constructor(void *, unsigned int);
 static size_t tsk_destructor(void *);
 
@@ -143,7 +143,7 @@ void task_done(void)
 #ifdef CONFIG_DEBUG
 				printf("[%" PRIu64 "] ", task->taskid);
 #endif
-				task_kill_internal(task);
+				task_kill_internal(task, -1);
 			}
 
 			task = task_next(task);
@@ -571,7 +571,7 @@ void task_get_accounting(task_t *task, uint64_t *ucycles, uint64_t *kcycles)
 	*kcycles = kret;
 }
 
-static void task_kill_internal(task_t *task)
+static void task_kill_internal(task_t *task, int status)
 {
 	irq_spinlock_lock(&task->lock, true);
 
@@ -582,6 +582,8 @@ static void task_kill_internal(task_t *task)
 	list_foreach(task->threads, th_link, thread_t, thread) {
 		thread_interrupt(thread);
 	}
+
+	task->exit_status = status;
 
 	irq_spinlock_unlock(&task->lock, true);
 }
@@ -605,7 +607,7 @@ errno_t task_kill(task_id_t id)
 	if (!task)
 		return ENOENT;
 
-	task_kill_internal(task);
+	task_kill_internal(task, -1);
 	task_release(task);
 	return EOK;
 }
@@ -617,7 +619,7 @@ errno_t task_kill(task_id_t id)
  * @return Zero on success or an error code from errno.h.
  *
  */
-void task_kill_self(bool notify)
+void task_kill_self(bool notify, int status)
 {
 	/*
 	 * User space can subscribe for FAULT events to take action
@@ -636,7 +638,7 @@ void task_kill_self(bool notify)
 		}
 	}
 
-	task_kill_internal(TASK);
+	task_kill_internal(TASK, status);
 	thread_exit();
 }
 
@@ -647,7 +649,7 @@ void task_kill_self(bool notify)
  */
 sys_errno_t sys_task_exit(sysarg_t notify)
 {
-	task_kill_self(notify);
+	task_kill_self(notify, 0);
 	unreachable();
 }
 

@@ -142,6 +142,8 @@ typedef struct task {
 	uint64_t kcycles;
 
 	debug_sections_t *debug_sections;
+
+	int exit_status;
 } task_t;
 
 /** Synchronize access to @c tasks */
@@ -162,7 +164,7 @@ extern size_t task_count(void);
 extern task_t *task_first(void);
 extern task_t *task_next(task_t *);
 extern errno_t task_kill(task_id_t);
-extern void task_kill_self(bool) __attribute__((noreturn));
+extern void task_kill_self(bool, int) __attribute__((noreturn));
 extern void task_get_accounting(task_t *, uint64_t *, uint64_t *);
 extern void task_print_list(bool);
 

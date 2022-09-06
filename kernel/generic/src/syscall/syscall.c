@@ -182,7 +182,7 @@ sysarg_t syscall_handler(sysarg_t a1, sysarg_t a2, sysarg_t a3,
 	if (!handler) {
 		log(LF_OTHER, LVL_ERROR,
 		    "Task %" PRIu64 ": Unknown syscall %#" PRIxn, TASK->taskid, id);
-		task_kill_self(true);
+		task_kill_self(true, -1);
 	}
 
 	sysarg_t rc = syscall_table[id](a1, a2, a3, a4, a5, a6);
