@@ -78,6 +78,7 @@ typedef void *uspace_addr_t;
 #define uspace_ptr_char uspace_ptr(char)
 #define uspace_ptr_const_char uspace_ptr(const char)
 #define uspace_ptr_ddi_ioarg_t uspace_ptr(ddi_ioarg_t)
+#define uspace_ptr_int uspace_ptr(int)
 #define uspace_ptr_ipc_data_t uspace_ptr(ipc_data_t)
 #define uspace_ptr_irq_code_t uspace_ptr(irq_code_t)
 #define uspace_ptr_size_t uspace_ptr(size_t)
