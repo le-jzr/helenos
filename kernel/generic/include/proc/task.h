@@ -145,10 +145,8 @@ typedef struct task {
 
 	int exit_status;
 
-#if 0
 	/** Waitq for task_wait(). */
 	waitq_t join_wq;
-#endif
 } task_t;
 
 /** Synchronize access to @c tasks */

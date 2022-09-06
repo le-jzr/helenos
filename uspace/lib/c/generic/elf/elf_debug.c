@@ -20,7 +20,7 @@ static void print_ptr(const char *name, elf_dyn_t *dyn)
 	DPRINTF("%s(0x%"PRIxPTR")\n", name, (uintptr_t) dyn->d_un.d_ptr);
 }
 
-#define NUL_ENTRY(name) case name: printf(#name); break
+#define NUL_ENTRY(name) case name: DPRINTF(#name "\n"); break
 #define VAL_ENTRY(name) case name: print_val(#name, dyn); break
 #define PTR_ENTRY(name) case name: print_ptr(#name, dyn); break
 

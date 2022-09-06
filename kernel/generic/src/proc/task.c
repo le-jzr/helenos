@@ -269,7 +269,7 @@ task_t *task_create(as_t *as, const char *name)
 		(void) ipc_phone_connect(phone_obj->phone, ipc_box_0);
 	}
 
-	//waitq_initialize(&task->join_wq);
+	waitq_initialize(&task->join_wq);
 
 	irq_spinlock_lock(&tasks_lock, true);
 
@@ -607,7 +607,7 @@ static void task_kill_internal(task_t *task, int status)
 
 	irq_spinlock_unlock(&task->lock, true);
 
-	//waitq_close(&task->join_wq);
+	waitq_close(&task->join_wq);
 }
 
 /** Kill task.
@@ -677,9 +677,6 @@ sys_errno_t sys_task_exit(sysarg_t notify, sysarg_t status)
 
 sys_errno_t sys_task_wait(sysarg_t task_handle, uspace_ptr_int uspace_status)
 {
-	// TODO
-	return ENOSYS;
-#if 0
 	task_t *task = kobj_table_lookup(&TASK->kobj_table, task_handle, KOBJ_CLASS_TASK);
 	if (!task)
 		return ENOENT;
@@ -693,7 +690,6 @@ sys_errno_t sys_task_wait(sysarg_t task_handle, uspace_ptr_int uspace_status)
 	}
 
 	return rc;
-#endif
 }
 
 static void task_print(task_t *task, bool additional)

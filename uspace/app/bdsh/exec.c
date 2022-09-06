@@ -46,7 +46,7 @@
 #include "exec.h"
 #include "errors.h"
 
-errno_t elf_load_file_name2(const char *path, const char *cwd, const char *const args[], void **out_task, int, int, int);
+errno_t elf_load_file_name2(const char *path, const char *cwd, const char *const args[], task_handle_t *out_task, int, int, int);
 
 static errno_t find_command(char *, char **);
 static int try_access(const char *);
@@ -114,12 +114,9 @@ static errno_t find_command(char *cmd, char **found)
 
 unsigned int try_exec(char *cmd, char **argv, iostate_t *io)
 {
-	task_id_t tid;
-	task_wait_t twait;
-	task_exit_t texit;
 	char *tmp;
 	errno_t rc;
-	int retval, i;
+	int i;
 	int file_handles[3] = { -1, -1, -1 };
 	FILE *files[3];
 
@@ -150,20 +147,9 @@ unsigned int try_exec(char *cmd, char **argv, iostate_t *io)
 		str_cpy(cwd, MAX_PATH_LEN + 1, "/");
 
 	printf("loading ELF using new loader\n");
-	void *task;
+	task_handle_t task;
 	rc = elf_load_file_name2(tmp, cwd, (const char **) argv, &task, file_handles[0], file_handles[1], file_handles[2]);
-	if (rc != EOK) {
-		cli_error(CL_EEXEC, "%s: Cannot spawn `%s' (%s)", progname, cmd,
-		    str_error(rc));
-		return 1;
-	}
-
 	free(cwd);
-
-	while (true) {}
-
-	rc = task_spawnvf(&tid, &twait, tmp, (const char **) argv,
-	    file_handles[0], file_handles[1], file_handles[2]);
 	free(tmp);
 
 	if (rc != EOK) {
@@ -172,17 +158,17 @@ unsigned int try_exec(char *cmd, char **argv, iostate_t *io)
 		return 1;
 	}
 
-	rc = task_wait(&twait, &texit, &retval);
+	int status = -1;
+	rc = task_wait_2(task, &status);
+	task_put(task);
+
 	if (rc != EOK) {
 		printf("%s: Failed waiting for command (%s)\n", progname,
 		    str_error(rc));
 		return 1;
-	} else if (texit != TASK_EXIT_NORMAL) {
-		printf("%s: Command failed (unexpectedly terminated)\n", progname);
-		return 1;
-	} else if (retval != 0) {
+	} else if (status != 0) {
 		printf("%s: Command failed (exit code %d)\n",
-		    progname, retval);
+		    progname, status);
 		return 1;
 	}
 

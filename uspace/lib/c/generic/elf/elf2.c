@@ -743,6 +743,13 @@ static struct elf_info *elf_load_info(mem_handle_t mem, void *vaddr, size_t file
 		break;
 	}
 
+	for (size_t i = 0; i < dyn_len; i++) {
+		if (dyn[i].d_tag == DT_NULL) {
+			dyn_len = i;
+			break;
+		}
+	}
+
 	// Find contents of the dynamic section.
 	size_t strtab_len = 0;
 	uintptr_t strtab_vaddr = 0;
