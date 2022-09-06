@@ -647,9 +647,9 @@ void task_kill_self(bool notify, int status)
  * @param notify Send out fault notifications.
  *
  */
-sys_errno_t sys_task_exit(sysarg_t notify)
+sys_errno_t sys_task_exit(sysarg_t notify, sysarg_t status)
 {
-	task_kill_self(notify, 0);
+	task_kill_self(notify, status);
 	unreachable();
 }
 

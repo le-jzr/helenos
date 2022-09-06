@@ -182,13 +182,13 @@ void __libc_exit(int status)
 		task_retval(status);
 	}
 
-	__SYSCALL1(SYS_TASK_EXIT, false);
+	__SYSCALL2(SYS_TASK_EXIT, false, status);
 	__builtin_unreachable();
 }
 
 void __libc_abort(void)
 {
-	__SYSCALL1(SYS_TASK_EXIT, true);
+	__SYSCALL2(SYS_TASK_EXIT, true, -1);
 	__builtin_unreachable();
 }
 

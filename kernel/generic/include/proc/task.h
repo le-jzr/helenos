@@ -189,7 +189,7 @@ extern sysarg_t sys_task_get_id(void);
 
 extern sys_errno_t sys_task_set_name(uspace_ptr_const_char, size_t);
 extern sys_errno_t sys_task_kill(uspace_ptr_task_id_t);
-extern sys_errno_t sys_task_exit(sysarg_t);
+extern sys_errno_t sys_task_exit(sysarg_t, sysarg_t);
 
 extern sysarg_t sys_task_create(uspace_ptr_const_char, size_t);
 extern sysarg_t sys_task_self(void);
