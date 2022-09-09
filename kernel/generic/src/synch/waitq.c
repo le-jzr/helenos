@@ -97,6 +97,12 @@ errno_t waitq_sleep_timeout(waitq_t *wq, uint32_t usec)
 	return _waitq_sleep_timeout(wq, usec, SYNCH_FLAGS_NON_BLOCKING);
 }
 
+errno_t waitq_sleep_until_interruptible(waitq_t *wq, deadline_t deadline)
+{
+	return waitq_sleep_until_unsafe(wq, deadline, SYNCH_FLAGS_INTERRUPTIBLE,
+			waitq_sleep_prepare(wq));
+}
+
 /** Sleep until either wakeup, timeout or interruption occurs
  *
  * Sleepers are organised in a FIFO fashion in a structure called wait queue.
@@ -131,7 +137,17 @@ errno_t waitq_sleep_timeout(waitq_t *wq, uint32_t usec)
 errno_t _waitq_sleep_timeout(waitq_t *wq, uint32_t usec, unsigned int flags)
 {
 	assert((!PREEMPTION_DISABLED) || (PARAM_NON_BLOCKING(flags, usec)));
-	return waitq_sleep_timeout_unsafe(wq, usec, flags, waitq_sleep_prepare(wq));
+
+	wait_guard_t guard = waitq_sleep_prepare(wq);
+
+	deadline_t deadline;
+	if (usec == 0 && !(flags & SYNCH_FLAGS_NON_BLOCKING)) {
+		deadline = DEADLINE_NEVER;
+	} else {
+		deadline = timeout_deadline_in_usec(usec);
+	}
+
+	return waitq_sleep_until_unsafe(wq, deadline, flags, guard);
 }
 
 /** Prepare to sleep in a waitq.
@@ -155,7 +171,7 @@ wait_guard_t waitq_sleep_prepare(waitq_t *wq)
 
 errno_t waitq_sleep_unsafe(waitq_t *wq, wait_guard_t guard)
 {
-	return waitq_sleep_timeout_unsafe(wq, SYNCH_NO_TIMEOUT, SYNCH_FLAGS_NONE, guard);
+	return waitq_sleep_until_unsafe(wq, DEADLINE_NEVER, 0, guard);
 }
 
 /** Internal implementation of waitq_sleep_timeout().
@@ -172,7 +188,7 @@ errno_t waitq_sleep_unsafe(waitq_t *wq, wait_guard_t guard)
  * @return See waitq_sleep_timeout().
  *
  */
-errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flags, wait_guard_t guard)
+errno_t waitq_sleep_until_unsafe(waitq_t *wq, deadline_t deadline, unsigned int flags, wait_guard_t guard)
 {
 	errno_t rc;
 
@@ -197,7 +213,7 @@ errno_t waitq_sleep_timeout_unsafe(waitq_t *wq, uint32_t usec, unsigned int flag
 		goto exit;
 	}
 
-	if (PARAM_NON_BLOCKING(flags, usec)) {
+	if (deadline == 0) {
 		/* Return immediately instead of going to sleep */
 		rc = ETIMEOUT;
 		goto exit;

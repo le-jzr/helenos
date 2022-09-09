@@ -52,6 +52,7 @@
 
 typedef void *kobj_handle_t;
 typedef struct mem_handle *mem_handle_t;
+typedef struct endpoint_handle *endpoint_handle_t;
 
 static inline _Noreturn void panic(const char *str)
 {
@@ -148,6 +149,60 @@ static inline errno_t sys_task_wait(task_handle_t task, int *status)
 {
 	return (errno_t) __SYSCALL2(SYS_TASK_WAIT, (sysarg_t) task, (sysarg_t) status);
 }
+
+typedef enum ipc_flags {
+	IPC_FLAGS_NONE = 0,
+	IPC_FLAGS_NONBLOCK = 1 << 0,
+} ipc_flags_t;
+
+struct ipc_write_data {
+	uintptr_t data;
+	size_t handles_len;
+	size_t data_len;
+	size_t data_min_len;
+	ipc_flags_t flags;
+};
+/*
+static inline errno_t sys_ipc_write(endpoint_handle_t ep,
+		const struct ipc_write_data *data, size_t *written)
+{
+
+}
+
+static inline endpoint_handle_t sys_endpoint_create(void *userdata, size_t reserve, size_t max_len)
+{
+
+}
+*/
+
+typedef enum {
+	TODO
+} ipc_read_flags_t;
+
+struct ipc_read_data {
+	const void *data;
+	size_t handles_len;
+	size_t data_len;
+	ipc_read_flags_t flags;
+};
+
+typedef uint64_t deadline_t;
+/*
+static inline errno_t sys_ipc_read(struct ipc_read_data *data)
+{
+
+}
+
+static inline errno_t sys_ipc_read_before(struct ipc_read_data *data, deadline_t deadline)
+{
+
+}
+
+static inline void sys_ipc_end_read(const struct ipc_read_data *data)
+{
+
+}
+*/
 
 static inline uintptr_t sys_vaddr_limit(void)
 {

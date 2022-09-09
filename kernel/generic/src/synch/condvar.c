@@ -74,18 +74,18 @@ void condvar_broadcast(condvar_t *cv)
  *
  * @param cv		Condition variable.
  * @param mtx		Mutex.
- * @param usec		Timeout value in microseconds.
+ * @param deadline	Deadline.
  *
  * @return		See comment for waitq_sleep_timeout().
  */
-errno_t condvar_wait_timeout(condvar_t *cv, mutex_t *mtx, uint32_t usec)
+errno_t condvar_wait_until(condvar_t *cv, mutex_t *mtx, deadline_t deadline)
 {
 	wait_guard_t guard = waitq_sleep_prepare(&cv->wq);
 
 	/* Unlock only after the waitq is locked so we don't miss a wakeup. */
 	mutex_unlock(mtx);
 
-	errno_t rc = waitq_sleep_timeout_unsafe(&cv->wq, usec, SYNCH_FLAGS_NON_BLOCKING, guard);
+	errno_t rc = waitq_sleep_until_unsafe(&cv->wq, deadline, SYNCH_FLAGS_NON_BLOCKING, guard);
 
 	mutex_lock(mtx);
 	return rc;

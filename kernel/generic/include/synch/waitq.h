@@ -39,6 +39,7 @@
 #include <synch/spinlock.h>
 #include <abi/synch.h>
 #include <adt/list.h>
+#include <time/timeout.h>
 
 /** Wait queue structure.
  *
@@ -75,7 +76,8 @@ extern errno_t _waitq_sleep_timeout(waitq_t *, uint32_t, unsigned int);
 extern errno_t waitq_sleep_timeout(waitq_t *, uint32_t);
 extern wait_guard_t waitq_sleep_prepare(waitq_t *);
 extern errno_t waitq_sleep_unsafe(waitq_t *, wait_guard_t);
-extern errno_t waitq_sleep_timeout_unsafe(waitq_t *, uint32_t, unsigned int, wait_guard_t);
+extern errno_t waitq_sleep_until_unsafe(waitq_t *, deadline_t, unsigned int, wait_guard_t);
+extern errno_t waitq_sleep_until_interruptible(waitq_t *, deadline_t);
 
 extern void waitq_wake_one(waitq_t *);
 extern void waitq_wake_all(waitq_t *);
