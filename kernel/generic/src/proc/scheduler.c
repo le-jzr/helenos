@@ -49,7 +49,6 @@
 #include <time/timeout.h>
 #include <time/delay.h>
 #include <arch/asm.h>
-#include <arch/faddr.h>
 #include <arch/cycle.h>
 #include <atomic.h>
 #include <synch/spinlock.h>
@@ -294,21 +293,17 @@ static void fpu_restore(void)
 #endif
 }
 
+/** Enter main scheduler loop. Never returns. */
 void scheduler_run(void)
 {
 	assert(interrupts_disabled());
-	assert(THREAD == NULL);
+
 	assert(CPU != NULL);
+	assert(THREAD == NULL);
+	assert(TASK == NULL);
 
 	current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
-
-	context_t ctx;
-	context_save(&ctx);
-	context_set(&ctx, FADDR(scheduler_separated_stack),
-	    (uintptr_t) CPU_LOCAL->stack, STACK_SIZE);
-	context_restore(&ctx);
-
-	unreachable();
+	context_replace(scheduler_separated_stack, CPU_LOCAL->stack, STACK_SIZE);
 }
 
 /** Things to do before we switch to THREAD context.
@@ -419,13 +414,7 @@ static void cleanup_after_thread(thread_t *thread, state_t out_state)
 	}
 }
 
-/** The scheduler
- *
- * The thread scheduling procedure.
- * Passes control directly to
- * scheduler_separated_stack().
- *
- */
+/** Switch to scheduler context to let other threads run. */
 void scheduler_enter(state_t new_state)
 {
 	ipl_t ipl = interrupts_disable();
@@ -434,6 +423,9 @@ void scheduler_enter(state_t new_state)
 	assert(THREAD != NULL);
 
 	fpu_cleanup();
+
+	if (atomic_load(&haltstate))
+		halt();
 
 	irq_spinlock_lock(&THREAD->lock, false);
 	THREAD->state = new_state;
@@ -446,16 +438,6 @@ void scheduler_enter(state_t new_state)
 	if (new_state == Sleeping) {
 		/* Prefer the thread after it's woken up. */
 		THREAD->priority = -1;
-	}
-
-	if (!context_save(&THREAD->saved_context)) {
-		/*
-		 * This is the place where threads leave scheduler();
-		 */
-
-		irq_spinlock_unlock(&THREAD->lock, false);
-		interrupts_restore(ipl);
-		return;
 	}
 
 	/*
@@ -480,12 +462,12 @@ void scheduler_enter(state_t new_state)
 	 *
 	 */
 	context_t ctx;
-	context_save(&ctx);
-	context_set(&ctx, FADDR(scheduler_separated_stack),
-	    (uintptr_t) CPU_LOCAL->stack, STACK_SIZE);
-	context_restore(&ctx);
+	context_create(&ctx, scheduler_separated_stack, CPU_LOCAL->stack, STACK_SIZE);
 
-	/* Not reached */
+	context_swap(&THREAD->saved_context, &ctx);
+
+	irq_spinlock_unlock(&THREAD->lock, false);
+	interrupts_restore(ipl);
 }
 
 /** Scheduler stack switch wrapper
@@ -500,9 +482,6 @@ void scheduler_separated_stack(void)
 	assert((!THREAD) || (irq_spinlock_locked(&THREAD->lock)));
 	assert(CPU != NULL);
 	assert(interrupts_disabled());
-
-	if (atomic_load(&haltstate))
-		halt();
 
 	if (THREAD) {
 		state_t state = THREAD->state;
@@ -524,7 +503,7 @@ void scheduler_separated_stack(void)
 	 */
 	current_copy(CURRENT, (current_t *) THREAD->kstack);
 
-	context_restore(&THREAD->saved_context);
+	context_swap(NULL, &THREAD->saved_context);
 
 	/* Not reached */
 }

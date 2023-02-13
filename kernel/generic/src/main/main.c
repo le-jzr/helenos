@@ -79,7 +79,6 @@
 #include <synch/syswaitq.h>
 #include <arch/arch.h>
 #include <arch.h>
-#include <arch/faddr.h>
 #include <ipc/ipc.h>
 #include <macros.h>
 #include <smp/smp.h>
@@ -131,8 +130,6 @@ ballocs_t ballocs = {
 	.size = 0
 };
 
-static context_t ctx;
-
 // NOTE: All kernel stacks must be aligned to STACK_SIZE, see CURRENT.
 static const size_t bootstrap_stack_size = STACK_SIZE;
 static _Alignas(STACK_SIZE) uint8_t bootstrap_stack[STACK_SIZE];
@@ -173,10 +170,8 @@ _NO_TRACE void main_bsp(void)
 	config.kernel_size =
 	    ALIGN_UP((uintptr_t) kdata_end - config.base, PAGE_SIZE);
 
-	context_save(&ctx);
-	context_set(&ctx, FADDR(main_bsp_separated_stack),
+	context_replace(main_bsp_separated_stack,
 	    bootstrap_stack, bootstrap_stack_size);
-	context_restore(&ctx);
 	/* not reached */
 }
 
@@ -330,18 +325,13 @@ void main_ap(void)
 	calibrate_delay_loop();
 	ARCH_OP(post_cpu_init);
 
-	current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
-
 	/*
 	 * If we woke kmp up before we left the kernel stack, we could
 	 * collide with another CPU coming up. To prevent this, we
 	 * switch to this cpu's private stack prior to waking kmp up.
 	 */
-	context_t ctx;
-	context_save(&ctx);
-	context_set(&ctx, FADDR(main_ap_separated_stack),
-	    (uintptr_t) CPU_LOCAL->stack, STACK_SIZE);
-	context_restore(&ctx);
+	current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
+	context_replace(main_ap_separated_stack, CPU_LOCAL->stack, STACK_SIZE);
 	/* not reached */
 }
 
