@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2010 Jakub Jermar
+ * Copyright (c) 2023 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -64,7 +65,7 @@
 #include <log.h>
 #include <stacktrace.h>
 
-static void scheduler_separated_stack(void);
+static void scheduler_separated_stack(void) __attribute__((noreturn));
 
 atomic_size_t nrdy;  /**< Number of ready threads in the system. */
 
@@ -222,6 +223,8 @@ static void switch_task(task_t *task)
  */
 static void relink_rq(int start)
 {
+	assert(interrupts_disabled());
+
 	if (CPU_LOCAL->current_clock_tick < CPU_LOCAL->relink_deadline)
 		return;
 
@@ -301,6 +304,8 @@ void scheduler_run(void)
 	assert(CPU != NULL);
 	assert(THREAD == NULL);
 	assert(TASK == NULL);
+
+	CPU_LOCAL->scheduler_context_initialized = true;
 
 	current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
 	context_replace(scheduler_separated_stack, CPU_LOCAL->stack, STACK_SIZE);
@@ -421,6 +426,7 @@ void scheduler_enter(state_t new_state)
 
 	assert(CPU != NULL);
 	assert(THREAD != NULL);
+	assert(CPU_LOCAL->scheduler_context_initialized);
 
 	fpu_cleanup();
 
@@ -446,66 +452,54 @@ void scheduler_enter(state_t new_state)
 	 * from THREAD's or CPU's stack.
 	 *
 	 */
+
 	current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
-
-	/*
-	 * We may not keep the old stack.
-	 * Reason: If we kept the old stack and got blocked, for instance, in
-	 * find_best_thread(), the old thread could get rescheduled by another
-	 * CPU and overwrite the part of its own stack that was also used by
-	 * the scheduler on this CPU.
-	 *
-	 * Moreover, we have to bypass the compiler-generated POP sequence
-	 * which is fooled by SP being set to the very top of the stack.
-	 * Therefore the scheduler() function continues in
-	 * scheduler_separated_stack().
-	 *
-	 */
-	context_t ctx;
-	context_create(&ctx, scheduler_separated_stack, CPU_LOCAL->stack, STACK_SIZE);
-
-	context_swap(&THREAD->saved_context, &ctx);
+	context_swap(&THREAD->saved_context, &CPU_LOCAL->scheduler_context);
 
 	irq_spinlock_unlock(&THREAD->lock, false);
 	interrupts_restore(ipl);
 }
 
-/** Scheduler stack switch wrapper
- *
- * Second part of the scheduler() function
- * using new stack. Handling the actual context
- * switch to a new thread.
- *
+/** Main scheduler loop.
  */
 void scheduler_separated_stack(void)
 {
-	assert((!THREAD) || (irq_spinlock_locked(&THREAD->lock)));
-	assert(CPU != NULL);
-	assert(interrupts_disabled());
+	assert(TASK == NULL);
+	assert(THREAD == NULL);
 
-	if (THREAD) {
+	while (!atomic_load(&haltstate)) {
+		assert(CURRENT->mutex_locks == 0);
+
+		int rq_index;
+		THREAD = find_best_thread(&rq_index);
+		prepare_to_run_thread(rq_index);
+
+		/*
+		 * Copy the knowledge of CPU, TASK, THREAD and preemption counter to
+		 * thread's stack.
+		 */
+		current_copy(CURRENT, (current_t *) THREAD->kstack);
+
+		/* Switch to thread context. */
+		context_swap(&CPU_LOCAL->scheduler_context, &THREAD->saved_context);
+
+		/* Back from the thread. */
+
+		assert(CPU != NULL);
+		assert(THREAD != NULL);
+		assert(irq_spinlock_locked(&THREAD->lock));
+		assert(interrupts_disabled());
+
 		state_t state = THREAD->state;
 		irq_spinlock_unlock(&THREAD->lock, false);
 
 		cleanup_after_thread(THREAD, state);
 
+		// FIXME: necessary for find_best_thread() to work properly
 		THREAD = NULL;
 	}
 
-	int rq_index;
-	THREAD = find_best_thread(&rq_index);
-
-	prepare_to_run_thread(rq_index);
-
-	/*
-	 * Copy the knowledge of CPU, TASK, THREAD and preemption counter to
-	 * thread's stack.
-	 */
-	current_copy(CURRENT, (current_t *) THREAD->kstack);
-
-	context_swap(NULL, &THREAD->saved_context);
-
-	/* Not reached */
+	halt();
 }
 
 #ifdef CONFIG_SMP
