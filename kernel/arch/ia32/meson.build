@@ -27,7 +27,7 @@
 #
 
 arch_src += files(
-	'src/context.S',
+	'src/context.c',
 	'src/debug/stacktrace.c',
 	'src/debug/stacktrace_asm.S',
 	'src/delay.S',
@@ -65,7 +65,6 @@ arch_src += files(
 
 _check_headers = [
 	'include/arch/istate_struct.h',
-	'include/arch/context_struct.h',
 	'include/arch/boot/memmap_struct.h',
 ]
 

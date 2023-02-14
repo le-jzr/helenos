@@ -37,7 +37,6 @@
 #include <arch/mm/page.h>
 #include <arch/pm.h>
 #include <arch/cpu.h>
-#include <arch/context_struct.h>
 
 .section K_TEXT_START, "ax"
 

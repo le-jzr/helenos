@@ -39,34 +39,7 @@
 #include <arch/context_struct.h>
 #include <trace.h>
 #include <arch.h>
-#include <arch/faddr.h>
 #include <panic.h>
-
-#define STACK_ITEM_SIZE  4
-
-/*
- * Both context_save() and context_restore() eat two doublewords from the stack.
- * First for pop of the saved register, second during ret instruction.
- *
- * One item is put onto stack to support CURRENT.
- */
-#define SP_DELTA  (8 + STACK_ITEM_SIZE)
-
-#define context_set(c, _pc, stack, size) \
-	do { \
-		(c)->pc = (uintptr_t) (_pc); \
-		(c)->sp = ((uintptr_t) (stack)) + (size) - SP_DELTA; \
-		(c)->ebp = 0; \
-	} while (0)
-
-#define context_set_generic(ctx, _pc, stack, size) \
-	do { \
-		(ctx)->pc = (uintptr_t) (_pc); \
-		(ctx)->sp = ((uintptr_t) (stack)) + (size) - SP_DELTA; \
-	} while (0)
-
-extern int context_save_arch(context_t *ctx) __attribute__((returns_twice));
-extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
 
 /**
  * Saves current context to the variable pointed to by `self`,
@@ -80,23 +53,92 @@ extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
  */
 _NO_TRACE static inline void context_swap(context_t *self, context_t *other)
 {
-	if (!self || context_save_arch(self))
-		context_restore_arch(other);
+	uintptr_t dummy1;
+	uintptr_t dummy2;
+
+	void *dummy_sp;
+
+	asm volatile (
+	    /* Stash uspace thread pointer. */
+	    "movl %%gs:0, %%eax\n"
+	    "pushl %%eax\n"
+
+	    /* Stash rbp (can't be put in clobbers list). */
+	    "pushl %%ebp\n"
+
+	    /* Call the snippet below to save PC on stack. */
+	    "call 1f\n"
+
+	    /* Returned from call. Skip to end. */
+	    "jmp 2f\n"
+
+	    /* Save current stack pointer. */
+	    "1: movl %%esp, (%%edi)\n"
+
+	    /* Restore stack pointer of the other context. */
+	    "movl (%%esi), %%esp\n"
+
+	    /* Return to the PC at the top of new stack. */
+	    "ret\n"
+
+	    /* Landing site for jump after return. */
+	    /* Restore rbp. */
+	    "2: popl %%ebp\n"
+
+	    /* Restore uspace thread pointer. */
+	    "popl %%eax\n"
+	    "movl %%eax, %%gs:0\n"
+
+	    /*
+	     * Indicates to GCC that rdi and rsi are overwritten,
+	     * since a register cannot be in the input list and clobber list
+	     * at the same time, but overlapping output with input is ok.
+	     */
+	    : "=D" (dummy1), "=S" (dummy2)
+
+	      /*
+	       * Pass destination for stack pointer save in rdi.
+	       * Pass source for stack pointer restore in rsi.
+	       */
+	    : "D" (self ? &self->sp : &dummy_sp), "S" (&other->sp)
+
+	      /*
+	       * Clobber all registers except edi/esi and ebp.
+	       * This will make GCC preserve the registers that contain any live data.
+	       * "cc" indicates flags may change.
+	       * "memory" indicates memory can change.
+	       */
+	    : "cc", "memory", "eax", "ebx", "ecx", "edx");
 }
+
+extern void context_trampoline(void);
 
 _NO_TRACE static inline void context_create(context_t *context,
     void (*fn)(void), void *stack_base, size_t stack_size)
 {
-	*context = (context_t) { 0 };
-	context_set(context, FADDR(fn), stack_base, stack_size);
+	context->sp = stack_base + stack_size - 2 * sizeof(uintptr_t);
+
+	/* Trampoline for context_swap() to "return" to. */
+	((void **) context->sp)[0] = context_trampoline;
+	/* Function to call from the trampoline. */
+	((void **) context->sp)[1] = fn;
 }
 
 __attribute__((noreturn)) static inline void context_replace(void (*fn)(void),
     void *stack_base, size_t stack_size)
 {
-	context_t ctx;
-	context_create(&ctx, fn, stack_base, stack_size);
-	context_swap(NULL, &ctx);
+	void *sp = stack_base + stack_size - 2 * sizeof(uintptr_t);
+
+	/* Trampoline for context_swap() to "return" to. */
+	((void **) sp)[0] = context_trampoline;
+	/* Function to call from the trampoline. */
+	((void **) sp)[1] = fn;
+
+	asm volatile (
+	    "movl %0, %%esp\n"
+	    "ret\n"
+	    :: "r" (sp));
+
 	unreachable();
 }
 

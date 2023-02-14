@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Jakub Jermar
+ * Copyright (c) 2023 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,20 +26,23 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup kernel_ia32
- * @{
- */
-/** @file
- */
+#include <arch/context.h>
 
-#ifndef KERN_ia32_FADDR_H_
-#define KERN_ia32_FADDR_H_
+__attribute__((naked)) void context_trampoline(void)
+{
+	asm (
+	    /* Pop function address. */
+	    "popl %eax\n"
 
-#include <typedefs.h>
+	    /* Create the first stack frame. */
+	    "pushl $0\n"
+	    "pushl $0\n"
+	    "movl %esp, %ebp\n"
 
-#define FADDR(fptr)  ((uintptr_t) (fptr))
+	    /* Clear flags. */
+	    "pushl $0\n"
+	    "popfl\n"
 
-#endif
-
-/** @}
- */
+	    "call *%eax\n"
+	);
+}
