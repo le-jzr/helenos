@@ -233,6 +233,16 @@ static void before_thread_is_ready(thread_t *thread)
 	assert(irq_spinlock_locked(&thread->lock));
 }
 
+/** Start a thread that wasn't started yet since it was created.
+ *
+ * @param thread A reference to the newly created thread.
+ */
+void thread_start(thread_t *thread)
+{
+	assert(thread->state == Entering);
+	thread_ready(thread_ref(thread));
+}
+
 /** Make thread ready
  *
  * Switch thread to the ready state. Consumes reference passed by the caller.

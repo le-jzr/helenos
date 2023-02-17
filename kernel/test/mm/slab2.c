@@ -210,8 +210,10 @@ static void multitest(int size)
 	for (i = 0; i < THREADS; i++) {
 		if (!(t = thread_create(slabtest, NULL, TASK, THREAD_FLAG_NONE, "slabtest"))) {
 			TPRINTF("Could not create thread %d\n", i);
-		} else
-			thread_ready(t);
+		} else {
+			thread_start(t);
+			thread_put(t);
+		}
 	}
 	thread_sleep(1);
 	condvar_broadcast(&thread_starter);

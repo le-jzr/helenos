@@ -63,7 +63,8 @@ const char *test_thread1(void)
 			TPRINTF("Could not create thread %d\n", i);
 			break;
 		}
-		thread_ready(t);
+		thread_start(t);
+		thread_put(t);
 		total++;
 	}
 

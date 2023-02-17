@@ -122,7 +122,8 @@ const char *test_falloc2(void)
 			TPRINTF("Could not create thread %u\n", i);
 			break;
 		}
-		thread_ready(thrd);
+		thread_start(thrd);
+		thread_put(thrd);
 	}
 
 	while (atomic_load(&thread_cnt) > 0) {
