@@ -499,6 +499,28 @@ void scheduler_separated_stack(void)
 	halt();
 }
 
+/** Thread wrapper.
+ *
+ * This wrapper is provided to ensure that a starting thread properly handles
+ * everything it needs to do when first scheduled, and when it exits.
+ */
+void thread_main_func(void)
+{
+	assert(interrupts_disabled());
+
+	void (*f)(void *) = THREAD->thread_code;
+	void *arg = THREAD->thread_arg;
+
+	/* This is where each thread wakes up after its creation */
+	interrupts_enable();
+
+	f(arg);
+
+	thread_exit();
+
+	/* Not reached */
+}
+
 #ifdef CONFIG_SMP
 
 static inline void fpu_owner_lock(cpu_t *cpu)
