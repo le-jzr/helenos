@@ -452,16 +452,48 @@ void scheduler_enter(state_t new_state)
 
 	CPU_LOCAL->exiting_state = new_state;
 
-	current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
-	context_swap(&THREAD->saved_context, &CPU_LOCAL->scheduler_context);
+	/*
+	 * Check if we can switch to a new thread immediately.
+	 */
+
+	int rq_index;
+	thread_t *new_thread = try_find_thread(&rq_index);
+	if (new_thread) {
+		thread_t *old_thread = THREAD;
+		CPU_LOCAL->prev_thread = old_thread;
+		THREAD = new_thread;
+		/* No waiting necessary, we can switch to the new thread directly. */
+		prepare_to_run_thread(rq_index);
+
+		current_copy(CURRENT, (current_t *) new_thread->kstack);
+		context_swap(&old_thread->saved_context, &new_thread->saved_context);
+	} else {
+		/*
+		 * A new thread isn't immediately available, switch to a separate
+		 * stack to sleep or do other idle stuff.
+		 */
+		current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
+		context_swap(&THREAD->saved_context, &CPU_LOCAL->scheduler_context);
+	}
 
 	assert(CURRENT->mutex_locks == 0);
 	assert(interrupts_disabled());
+
+	/* Check if we need to clean up after another thread. */
+	if (CPU_LOCAL->prev_thread) {
+		cleanup_after_thread(CPU_LOCAL->prev_thread, CPU_LOCAL->exiting_state);
+		CPU_LOCAL->prev_thread = NULL;
+	}
 
 	interrupts_restore(ipl);
 }
 
 /** Main scheduler loop.
+ *
+ * This function is only switched to when a thread is stopping and there is
+ * no other thread to run in its place. We need a separate context for that
+ * because we're going to block the CPU, which means we need another context
+ * to clean up after the previous thread.
  */
 void scheduler_separated_stack(void)
 {
@@ -512,6 +544,13 @@ void thread_main_func(void)
 	void *arg = THREAD->thread_arg;
 
 	/* This is where each thread wakes up after its creation */
+
+	/* Check if we need to clean up after another thread. */
+	if (CPU_LOCAL->prev_thread) {
+		cleanup_after_thread(CPU_LOCAL->prev_thread, CPU_LOCAL->exiting_state);
+		CPU_LOCAL->prev_thread = NULL;
+	}
+
 	interrupts_enable();
 
 	f(arg);
