@@ -34,7 +34,7 @@ arch_src += files(
 	'src/boot/memmap.c',
 	'src/boot/multiboot2.S',
 	'src/boot/multiboot.S',
-	'src/context.S',
+	'src/context.c',
 	'src/cpu/cpu.c',
 	'src/ddi/ddi.c',
 	'src/debug/stacktrace_asm.S',
@@ -71,7 +71,6 @@ endif
 
 _check_headers = [
 	'include/arch/boot/memmap_struct.h',
-	'include/arch/context_struct.h',
 	'include/arch/istate_struct.h',
 	'include/arch/kseg_struct.h',
 ]

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Ondrej Palkovsky
+ * Copyright (c) 2023 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,20 +26,26 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup kernel_amd64
- * @{
- */
-/** @file
- */
+#include <arch/context.h>
 
-#ifndef KERN_amd64_FADDR_H_
-#define KERN_amd64_FADDR_H_
+__attribute__((naked)) void context_trampoline(void)
+{
+	asm (
+	    /* Pop function address. */
+	    "popq %rax\n"
 
-#include <typedefs.h>
+	    /* Create the first stack frame. */
+	    "pushq $0\n"
+	    "pushq $0\n"
+	    "movq %rsp, %rbp\n"
 
-#define FADDR(fptr)  ((uintptr_t) (fptr))
+	    /* Clear flags. */
+	    "pushq $0\n"
+	    "popfq\n"
 
-#endif
+	    /* Set userspace thread pointer to 0. */
+	    "movq $0, %fs:0\n"
 
-/** @}
- */
+	    "callq *%rax\n"
+	);
+}
