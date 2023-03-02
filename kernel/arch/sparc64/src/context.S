@@ -1,5 +1,6 @@
 #
 # Copyright (c) 2005 Jakub Jermar
+# Copyright (c) 2023 Jiří Zárevúcky
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -33,41 +34,42 @@
 
 .text
 
-/*
- * context_save_arch() is required not to create its own stack frame. See the
- * generic context.h for explanation.
- */
-FUNCTION_BEGIN(context_save_arch)
+FUNCTION_BEGIN(context_swap_arch)
+
+	save %sp, -128, %sp
+
+	call 1f
+	nop
+
+	restore
+
+	retl
+	nop
+
+1:
 	#
 	# Force all our active register windows to memory so that we can find
 	# them there even if e.g. the thread is migrated to another processor.
 	#
 	flushw
 
-	stx %sp, [%o0 + CONTEXT_OFFSET_SP]
-	stx %o7, [%o0 + CONTEXT_OFFSET_PC]
-	stx %i0, [%o0 + CONTEXT_OFFSET_I0]
-	stx %i1, [%o0 + CONTEXT_OFFSET_I1]
-	stx %i2, [%o0 + CONTEXT_OFFSET_I2]
-	stx %i3, [%o0 + CONTEXT_OFFSET_I3]
-	stx %i4, [%o0 + CONTEXT_OFFSET_I4]
-	stx %i5, [%o0 + CONTEXT_OFFSET_I5]
-	stx %fp, [%o0 + CONTEXT_OFFSET_FP]
-	stx %i7, [%o0 + CONTEXT_OFFSET_I7]
-	stx %l0, [%o0 + CONTEXT_OFFSET_L0]
-	stx %l1, [%o0 + CONTEXT_OFFSET_L1]
-	stx %l2, [%o0 + CONTEXT_OFFSET_L2]
-	stx %l3, [%o0 + CONTEXT_OFFSET_L3]
-	stx %l4, [%o0 + CONTEXT_OFFSET_L4]
-	stx %l5, [%o0 + CONTEXT_OFFSET_L5]
-	stx %l6, [%o0 + CONTEXT_OFFSET_L6]
-	stx %l7, [%o0 + CONTEXT_OFFSET_L7]
-	stx %g7, [%o0 + CONTEXT_OFFSET_TP]
-	retl
-	mov 1, %o0		! context_save_arch returns 1
-FUNCTION_END(context_save_arch)
+	stx %sp, [%i0 + CONTEXT_OFFSET_SP]
+	stx %o7, [%i0 + CONTEXT_OFFSET_PC]
+	stx %fp, [%i0 + CONTEXT_OFFSET_FP]
+	stx %i7, [%i0 + CONTEXT_OFFSET_I7]
+	stx %g7, [%i0 + CONTEXT_OFFSET_TP]
 
-FUNCTION_BEGIN(context_restore_arch)
+	ldx [%i1 + CONTEXT_OFFSET_SP], %sp
+	ldx [%i1 + CONTEXT_OFFSET_PC], %o7
+	ldx [%i1 + CONTEXT_OFFSET_FP], %fp
+	ldx [%i1 + CONTEXT_OFFSET_I7], %i7
+	ldx [%i1 + CONTEXT_OFFSET_TP], %g7
+
+	retl
+	nop
+FUNCTION_END(context_swap_arch)
+
+FUNCTION_BEGIN(context_replace_arch)
 	#
 	# Forget all previous windows, they are not going to be needed again.
 	# Enforce a window fill on the next RESTORE instruction by setting
@@ -85,25 +87,11 @@ FUNCTION_BEGIN(context_restore_arch)
 	wrpr %g0, NWINDOWS - 2, %cansave
 	wrpr %l0, %pstate
 
-	ldx [%o0 + CONTEXT_OFFSET_SP], %sp
-	ldx [%o0 + CONTEXT_OFFSET_PC], %o7
-	ldx [%o0 + CONTEXT_OFFSET_I0], %i0
-	ldx [%o0 + CONTEXT_OFFSET_I1], %i1
-	ldx [%o0 + CONTEXT_OFFSET_I2], %i2
-	ldx [%o0 + CONTEXT_OFFSET_I3], %i3
-	ldx [%o0 + CONTEXT_OFFSET_I4], %i4
-	ldx [%o0 + CONTEXT_OFFSET_I5], %i5
-	ldx [%o0 + CONTEXT_OFFSET_FP], %fp
-	ldx [%o0 + CONTEXT_OFFSET_I7], %i7
-	ldx [%o0 + CONTEXT_OFFSET_L0], %l0
-	ldx [%o0 + CONTEXT_OFFSET_L1], %l1
-	ldx [%o0 + CONTEXT_OFFSET_L2], %l2
-	ldx [%o0 + CONTEXT_OFFSET_L3], %l3
-	ldx [%o0 + CONTEXT_OFFSET_L4], %l4
-	ldx [%o0 + CONTEXT_OFFSET_L5], %l5
-	ldx [%o0 + CONTEXT_OFFSET_L6], %l6
-	ldx [%o0 + CONTEXT_OFFSET_L7], %l7
-	ldx [%o0 + CONTEXT_OFFSET_TP], %g7
+	mov %o0, %o7
+	mov %o1, %sp
+	mov -0x7ff, %fp
+	mov 0, %g7
+
 	retl
-	xor %o0, %o0, %o0	! context_restore_arch returns 0
-FUNCTION_END(context_restore_arch)
+	nop
+FUNCTION_END(context_replace_arch)
