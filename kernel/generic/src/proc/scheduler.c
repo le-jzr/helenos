@@ -66,6 +66,7 @@
 #include <stacktrace.h>
 
 static void scheduler_separated_stack(void);
+static void fpu_restore(void);
 
 atomic_size_t nrdy;  /**< Number of ready threads in the system. */
 
@@ -82,24 +83,7 @@ static void before_thread_runs(void)
 {
 	before_thread_runs_arch();
 
-#ifdef CONFIG_FPU_LAZY
-	irq_spinlock_lock(&CPU->fpu_lock, true);
-
-	if (THREAD == CPU->fpu_owner)
-		fpu_enable();
-	else
-		fpu_disable();
-
-	irq_spinlock_unlock(&CPU->fpu_lock, true);
-#elif defined CONFIG_FPU
-	fpu_enable();
-	if (THREAD->fpu_context_exists)
-		fpu_context_restore(&THREAD->fpu_context);
-	else {
-		fpu_init();
-		THREAD->fpu_context_exists = true;
-	}
-#endif
+	fpu_restore();
 
 #ifdef CONFIG_UDEBUG
 	if (THREAD->btrace) {
@@ -334,6 +318,42 @@ static void relink_rq(int start)
 	}
 }
 
+/**
+ * Do whatever needs to be done with current FPU state before we switch to
+ * another thread.
+ */
+static void fpu_cleanup(void)
+{
+#if (defined CONFIG_FPU) && (!defined CONFIG_FPU_LAZY)
+	fpu_context_save(&THREAD->fpu_context);
+#endif
+}
+
+/**
+ * Set correct FPU state for this thread after switch from another thread.
+ */
+static void fpu_restore(void)
+{
+#ifdef CONFIG_FPU_LAZY
+	irq_spinlock_lock(&CPU->fpu_lock, true);
+	thread_t *owner = CPU->fpu_owner;
+	irq_spinlock_unlock(&CPU->fpu_lock, true);
+
+	if (THREAD == owner)
+		fpu_enable();
+	else
+		fpu_disable();
+#elif defined CONFIG_FPU
+	fpu_enable();
+	if (THREAD->fpu_context_exists)
+		fpu_context_restore(&THREAD->fpu_context);
+	else {
+		fpu_init();
+		THREAD->fpu_context_exists = true;
+	}
+#endif
+}
+
 void scheduler(void)
 {
 	ipl_t ipl = interrupts_disable();
@@ -363,9 +383,8 @@ void scheduler_locked(ipl_t ipl)
 		/* Update thread kernel accounting */
 		THREAD->kcycles += get_cycle() - THREAD->last_cycle;
 
-#if (defined CONFIG_FPU) && (!defined CONFIG_FPU_LAZY)
-		fpu_context_save(&THREAD->fpu_context);
-#endif
+		fpu_cleanup();
+
 		if (!context_save(&THREAD->saved_context)) {
 			/*
 			 * This is the place where threads leave scheduler();
