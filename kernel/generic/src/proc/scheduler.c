@@ -171,7 +171,7 @@ void scheduler_init(void)
  * @return Thread to be scheduled.
  *
  */
-static thread_t *find_best_thread(void)
+static thread_t *find_best_thread(int *rq_index)
 {
 	assert(CPU != NULL);
 
@@ -239,6 +239,7 @@ loop:
 		thread->stolen = false;
 		irq_spinlock_unlock(&thread->lock, false);
 
+		*rq_index = i;
 		return thread;
 	}
 
@@ -456,13 +457,10 @@ void scheduler_separated_stack(void)
 		THREAD = NULL;
 	}
 
-	THREAD = find_best_thread();
+	int rq_index;
+	THREAD = find_best_thread(&rq_index);
 
-	irq_spinlock_lock(&THREAD->lock, false);
-	int priority = THREAD->priority;
-	irq_spinlock_unlock(&THREAD->lock, false);
-
-	relink_rq(priority);
+	relink_rq(rq_index);
 
 	switch_task(THREAD->task);
 
