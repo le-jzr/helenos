@@ -504,6 +504,7 @@ void scheduler_separated_stack(void)
 {
 	assert(TASK == NULL);
 	assert(THREAD == NULL);
+	assert(interrupts_disabled());
 
 	while (!atomic_load(&haltstate)) {
 		assert(CURRENT->mutex_locks == 0);
@@ -529,7 +530,10 @@ void scheduler_separated_stack(void)
 
 		cleanup_after_thread(THREAD, CPU_LOCAL->exiting_state);
 
-		// FIXME: necessary for find_best_thread() to work properly
+		/*
+		 * Necessary because we're allowing interrupts in find_best_thread(),
+		 * so we need to avoid other code referencing the thread we left.
+		 */
 		THREAD = NULL;
 	}
 
