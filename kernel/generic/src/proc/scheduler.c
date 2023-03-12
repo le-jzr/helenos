@@ -435,6 +435,17 @@ void scheduler_enter(state_t new_state)
 	if (atomic_load(&haltstate))
 		halt();
 
+	/* Check if we have a thread to switch to. */
+
+	int rq_index;
+	thread_t *new_thread = try_find_thread(&rq_index);
+
+	if (new_thread == NULL && new_state == Running) {
+		/* No other thread to run, but we still have work to do here. */
+		interrupts_restore(ipl);
+		return;
+	}
+
 	irq_spinlock_lock(&THREAD->lock, false);
 	THREAD->state = new_state;
 
@@ -452,12 +463,6 @@ void scheduler_enter(state_t new_state)
 
 	CPU_LOCAL->exiting_state = new_state;
 
-	/*
-	 * Check if we can switch to a new thread immediately.
-	 */
-
-	int rq_index;
-	thread_t *new_thread = try_find_thread(&rq_index);
 	if (new_thread) {
 		thread_t *old_thread = THREAD;
 		CPU_LOCAL->prev_thread = old_thread;
