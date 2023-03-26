@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2007 Michal Kebrt
+ * Copyright (c) 2023 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,33 +38,19 @@
 #define KERN_arm32_CONTEXT_H_
 
 #include <align.h>
+#include <assert.h>
 #include <arch/stack.h>
 #include <arch/context_struct.h>
 #include <arch/regutils.h>
-#include <arch/faddr.h>
 #include <panic.h>
 
 /* Put one item onto the stack to support CURRENT and align it up. */
 #define SP_DELTA  (0 + ALIGN_UP(STACK_ITEM_SIZE, STACK_ALIGNMENT))
 
-#define context_set(c, _pc, stack, size) \
-	do { \
-		(c)->pc = (uintptr_t) (_pc); \
-		(c)->sp = ((uintptr_t) (stack)) + (size) - SP_DELTA; \
-		(c)->fp = 0; \
-		(c)->cpu_mode = SUPERVISOR_MODE; \
-	} while (0)
-
-#ifndef __ASSEMBLER__
-
-#define context_set_generic(ctx, _pc, stack, size) \
-	do { \
-		(ctx)->pc = (uintptr_t) (_pc); \
-		(ctx)->sp = ((uintptr_t) (stack)) + (size) - SP_DELTA; \
-	} while (0)
-
-extern int context_save_arch(context_t *ctx) __attribute__((returns_twice));
-extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
+_NO_TRACE static inline uintptr_t arm_current_mode()
+{
+	return current_status_reg_read() & STATUS_REG_MODE_MASK;
+}
 
 /**
  * Saves current context to the variable pointed to by `self`,
@@ -72,32 +59,75 @@ extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
  * When the `self` context is later restored by another call to
  * `context_swap()`, the control flow behaves as if the earlier call to
  * `context_swap()` just returned.
- *
- * If `self` is NULL, the currently running context is thrown away.
  */
 _NO_TRACE static inline void context_swap(context_t *self, context_t *other)
 {
-	if (!self || context_save_arch(self))
-		context_restore_arch(other);
+	assert(self);
+	assert(arm_current_mode() == SUPERVISOR_MODE);
+
+	/*
+	 * Explicitly store the arguments in r0/r1 so that we know which regs
+	 * to clobber in asm.
+	 */
+	register uintptr_t r0 asm("r0") = (uintptr_t) self;
+	register uintptr_t r1 asm("r1") = (uintptr_t) other;
+
+	asm volatile (
+	    /* FP cannot be used in clobbers, apparently. */
+	    "push {fp} \n"
+
+	    /* Clear LR and FP, in case we're restoring a new context. */
+	    "mov lr, #0 \n"
+	    "mov fp, #0 \n"
+
+	    /* Store current SP and PC + 8. */
+	    "stmia %[r0], {sp, pc} \n"
+	    /* Restore saved SP and PC. */
+	    "ldmia %[r1], {sp, pc} \n"
+
+	    /* Restore FP. */
+	    "pop {fp} \n"
+
+	    /*
+	     * Use r0/r1 as inputs, but also tell GCC they are overwritten by
+	     * setting them as outputs. Clobber everything else to make GCC
+	     * preserve those registers if needed.
+	     */
+	    : "=r" (r0),
+	      "=r" (r1)
+	    : [r0] "r" (r0),
+	      [r1] "r" (r1)
+	    : "lr", "ip", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
+	      "cc", "memory"
+	);
 }
 
 _NO_TRACE static inline void context_create(context_t *context,
     void (*fn)(void), void *stack_base, size_t stack_size)
 {
-	*context = (context_t) { 0 };
-	context_set(context, FADDR(fn), stack_base, stack_size);
+	*context = (context_t) {
+		.pc = (uintptr_t) fn,
+		.sp = (uintptr_t) stack_base + stack_size - SP_DELTA,
+	};
 }
 
 __attribute__((noreturn)) static inline void context_replace(void (*fn)(void),
     void *stack_base, size_t stack_size)
 {
-	context_t ctx;
-	context_create(&ctx, fn, stack_base, stack_size);
-	context_swap(NULL, &ctx);
+	assert(arm_current_mode() == SUPERVISOR_MODE);
+
+	asm volatile (
+	    "mov fp, #0 \n"
+	    "mov lr, #0 \n"
+	    "mov sp, %[sp] \n"
+	    "mov pc, %[pc] \n"
+	    :
+	    : [pc] "r" ((uintptr_t) fn),
+	      [sp] "r" ((uintptr_t) stack_base + stack_size - SP_DELTA)
+	);
+
 	unreachable();
 }
-
-#endif /* __ASSEMBLER__ */
 
 #endif
 

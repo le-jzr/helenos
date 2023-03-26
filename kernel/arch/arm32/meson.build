@@ -33,7 +33,6 @@ arch_src += files(
 	'src/exc_handler.S',
 	'src/arm32.c',
 	'src/machine_func.c',
-	'src/context.S',
 	'src/dummy.S',
 	'src/cpu/cpu.c',
 	'src/interrupt.c',
