@@ -29,7 +29,6 @@
 arch_src += files(
 	'src/arm64.c',
 	'src/asm.S',
-	'src/context.S',
 	'src/cpu/cpu.c',
 	'src/debug/stacktrace.c',
 	'src/debug/stacktrace_asm.S',
@@ -57,7 +56,6 @@ if MACHINE == 'hikey960'
 endif
 
 _check_headers = [
-	'include/arch/context_struct.h',
 	'include/arch/fpu_context_struct.h',
 	'include/arch/istate_struct.h',
 ]

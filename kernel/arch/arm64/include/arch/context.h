@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015 Petr Pavlu
+ * Copyright (c) 2023 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,33 +37,16 @@
 #ifndef KERN_arm64_CONTEXT_H_
 #define KERN_arm64_CONTEXT_H_
 
+#include <assert.h>
 #include <align.h>
 #include <arch/context_struct.h>
 #include <arch/stack.h>
 #include <trace.h>
 #include <arch.h>
-#include <arch/faddr.h>
 #include <panic.h>
 
 /* Put one item onto the stack to support CURRENT and align it up. */
 #define SP_DELTA  (0 + ALIGN_UP(STACK_ITEM_SIZE, STACK_ALIGNMENT))
-
-#define context_set(c, _pc, stack, size) \
-	do { \
-		(c)->pc = (uint64_t) (_pc); \
-		(c)->sp = ((uint64_t) (stack)) + (size) - SP_DELTA; \
-		/* Set frame pointer too. */ \
-		(c)->x29 = 0; \
-	} while (0)
-
-#define context_set_generic(ctx, _pc, stack, size) \
-	do { \
-		(ctx)->pc = (uintptr_t) (_pc); \
-		(ctx)->sp = ((uintptr_t) (stack)) + (size) - SP_DELTA; \
-	} while (0)
-
-extern int context_save_arch(context_t *ctx) __attribute__((returns_twice));
-extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
 
 /**
  * Saves current context to the variable pointed to by `self`,
@@ -71,28 +55,74 @@ extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
  * When the `self` context is later restored by another call to
  * `context_swap()`, the control flow behaves as if the earlier call to
  * `context_swap()` just returned.
- *
- * If `self` is NULL, the currently running context is thrown away.
  */
 _NO_TRACE static inline void context_swap(context_t *self, context_t *other)
 {
-	if (!self || context_save_arch(self))
-		context_restore_arch(other);
+	assert(self);
+
+	register uintptr_t x0 asm("x0") = (uintptr_t) self;
+	register uintptr_t x1 asm("x1") = (uintptr_t) other;
+
+	asm volatile (
+	    /* Save FP and LR on stack. */
+	    "sub sp, sp, #16 \n"
+	    "stp fp, lr, [sp] \n"
+
+	    /* Clear FP and LR, in case we're swapping to a new context. */
+	    "mov fp, #0 \n"
+	    "mov lr, #0 \n"
+
+	    /* Set x2 to PC address just past the branch below. */
+	    "adr x2, 1f \n"
+	    "mov x3, sp \n"
+
+	    /* Write the SP and PC values to context. */
+	    "stp x3, x2, [%[x0]] \n"
+	    /* Read the SP and PC values from the other context. */
+	    "ldp x3, x2, [%[x1]] \n"
+
+	    /* Set stack pointer and branch to new PC. */
+	    "mov sp, x3 \n"
+	    "br x2 \n"
+
+	    /* We arrive here when we return from another swap. */
+	    /* Restore FP and LR from stack. */
+	    "1: ldp fp, lr, [sp] \n"
+	    "add sp, sp, #16 \n"
+
+	    : "=r" (x0),
+	      "=r" (x1)
+	    : [x0] "r" (x0),
+	      [x1] "r" (x1)
+	    : "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12",
+	      "x13", "x14", "x15", "x16", "x17", "x18", "x19", "x20", "x21", "x22",
+	      "x23", "x24", "x25", "x26", "x27", "x28", "cc", "memory"
+	);
 }
 
 _NO_TRACE static inline void context_create(context_t *context,
     void (*fn)(void), void *stack_base, size_t stack_size)
 {
-	*context = (context_t) { 0 };
-	context_set(context, FADDR(fn), stack_base, stack_size);
+	*context = (context_t) {
+		.pc = (uintptr_t) fn,
+		.sp = (uintptr_t) stack_base + stack_size - SP_DELTA,
+	};
 }
 
 __attribute__((noreturn)) static inline void context_replace(void (*fn)(void),
     void *stack_base, size_t stack_size)
 {
-	context_t ctx;
-	context_create(&ctx, fn, stack_base, stack_size);
-	context_swap(NULL, &ctx);
+	asm volatile (
+	    "mov lr, #0 \n"
+	    "mov fp, #0 \n"
+	    "mov sp, %[sp] \n"
+	    "br %[pc] \n"
+	    :
+	    : [pc] "r" ((uintptr_t) fn),
+	      [sp] "r" ((uintptr_t) stack_base + stack_size - SP_DELTA)
+	    : "memory"
+	);
+
 	unreachable();
 }
 
