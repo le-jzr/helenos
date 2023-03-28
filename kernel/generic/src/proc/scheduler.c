@@ -319,23 +319,21 @@ static void prepare_to_run_thread(int rq_index)
 
 	switch_task(THREAD->task);
 
-	irq_spinlock_lock(&THREAD->lock, false);
-	assert(THREAD->cpu == CPU);
-
-	THREAD->state = Running;
-	THREAD->priority = rq_index;  /* Correct rq index */
+	assert(THREAD->cpu_ == CPU);
 
 	/*
 	 * Clear the stolen flag so that it can be migrated
 	 * when load balancing needs emerge.
 	 */
 	THREAD->stolen = false;
+	THREAD->state_ = Running;
+	THREAD->priority_ = rq_index;  /* Correct rq index */
 
 #ifdef SCHEDULER_VERBOSE
 	log(LF_OTHER, LVL_DEBUG,
-	    "cpu%u: tid %" PRIu64 " (priority=%d, ticks=%" PRIu64
+	    "cpu%u: tid %" PRIu64 " (priority=%d" PRIu64
 	    ", nrdy=%zu)", CPU->id, THREAD->tid, THREAD->priority,
-	    THREAD->ticks, atomic_load(&CPU->nrdy));
+	    atomic_load(&CPU->nrdy));
 #endif
 
 	/*
@@ -349,6 +347,8 @@ static void prepare_to_run_thread(int rq_index)
 	before_thread_runs_arch();
 
 #ifdef CONFIG_UDEBUG
+	irq_spinlock_lock(&THREAD->lock, false);
+
 	if (THREAD->btrace) {
 		istate_t *istate = THREAD->udebug.uspace_state;
 		if (istate != NULL) {
@@ -358,9 +358,10 @@ static void prepare_to_run_thread(int rq_index)
 
 		THREAD->btrace = false;
 	}
-#endif
+
 
 	irq_spinlock_unlock(&THREAD->lock, false);
+#endif
 
 	/* Time allocation in microseconds. */
 	uint64_t time_to_run = (rq_index + 1) * 10000;
@@ -393,17 +394,14 @@ static void add_to_rq(thread_t *thread, cpu_t *cpu, int i)
  */
 static void thread_requeue_preempted(thread_t *thread)
 {
-	irq_spinlock_lock(&thread->lock, false);
+	assert(interrupts_disabled());
+	assert(thread->state_ == Running);
+	assert(thread->cpu_ == CPU);
 
-	assert(thread->state == Running);
-	assert(thread->cpu == CPU);
+	int i = (thread->priority_ < RQ_COUNT - 1) ?
+	    ++thread->priority_ : thread->priority_;
 
-	int i = (thread->priority < RQ_COUNT - 1) ?
-	    ++thread->priority : thread->priority;
-
-	thread->state = Ready;
-
-	irq_spinlock_unlock(&thread->lock, false);
+	thread->state_ = Ready;
 
 	add_to_rq(thread, CPU, i);
 }
@@ -412,22 +410,16 @@ void thread_requeue_sleeping(thread_t *thread)
 {
 	ipl_t ipl = interrupts_disable();
 
-	irq_spinlock_lock(&thread->lock, false);
+	assert(thread->state_ == Sleeping || thread->state_ == Entering);
 
-	assert(thread->state == Sleeping || thread->state == Entering);
-
-	thread->priority = 0;
-	thread->state = Ready;
+	thread->priority_ = 0;
+	thread->state_ = Ready;
 
 	/* Prefer the CPU on which the thread ran last */
-	if (!thread->cpu)
-		thread->cpu = CPU;
+	if (!thread->cpu_)
+		thread->cpu_ = CPU;
 
-	cpu_t *cpu = thread->cpu;
-
-	irq_spinlock_unlock(&thread->lock, false);
-
-	add_to_rq(thread, cpu, 0);
+	add_to_rq(thread, thread->cpu_, 0);
 
 	interrupts_restore(ipl);
 }
@@ -474,7 +466,7 @@ static void cleanup_after_thread(thread_t *thread, state_t out_state)
 		 * Entering state is unexpected.
 		 */
 		panic("tid%" PRIu64 ": unexpected state %s.",
-		    thread->tid, thread_states[thread->state]);
+		    thread->tid, thread_states[out_state]);
 		break;
 	}
 }
@@ -508,9 +500,9 @@ void scheduler_enter(state_t new_state)
 
 	after_thread_ran_arch();
 
-	irq_spinlock_lock(&THREAD->lock, false);
-	THREAD->state = new_state;
+	THREAD->state_ = new_state;
 
+	irq_spinlock_lock(&THREAD->lock, false);
 	/* Update thread kernel accounting */
 	THREAD->kcycles += get_cycle() - THREAD->last_cycle;
 	irq_spinlock_unlock(&THREAD->lock, false);
@@ -662,8 +654,6 @@ static thread_t *steal_thread_from(cpu_t *old_cpu, int i)
 	/* Search rq from the back */
 	list_foreach_rev(old_rq->rq, rq_link, thread_t, thread) {
 
-		irq_spinlock_lock(&thread->lock, false);
-
 		/*
 		 * Do not steal CPU-wired threads, threads
 		 * already stolen, threads for which migration
@@ -672,16 +662,13 @@ static thread_t *steal_thread_from(cpu_t *old_cpu, int i)
 		 */
 		if (thread->stolen || thread->nomigrate ||
 		    thread == fpu_owner(old_cpu)) {
-			irq_spinlock_unlock(&thread->lock, false);
 			continue;
 		}
 
 		fpu_owner_unlock(old_cpu);
 
 		thread->stolen = true;
-		thread->cpu = CPU;
-
-		irq_spinlock_unlock(&thread->lock, false);
+		thread->cpu_ = CPU;
 
 		/*
 		 * Ready thread on local CPU
@@ -831,7 +818,7 @@ void sched_print_list(void)
 			list_foreach(cpus[cpu].rq[i].rq, rq_link, thread_t,
 			    thread) {
 				printf("%" PRIu64 "(%s) ", thread->tid,
-				    thread_states[thread->state]);
+				    thread_states[thread->state_]);
 			}
 			printf("\n");
 

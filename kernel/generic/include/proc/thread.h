@@ -100,18 +100,8 @@ typedef struct thread {
 	 */
 	IRQ_SPINLOCK_DECLARE(lock);
 
-	/* The thread will not be migrated if nomigrate is non-zero. */
-	unsigned int nomigrate;
-
-	/** Thread state. */
-	state_t state;
-
-	/** Thread CPU. */
-	cpu_t *cpu;
 	/** Containing task. */
 	task_t *task;
-	/** Thread was migrated to another CPU and has not run yet. */
-	bool stolen;
 
 
 	/** Thread accounting. */
@@ -121,10 +111,6 @@ typedef struct thread {
 	uint64_t last_cycle;
 	/** Thread doesn't affect accumulated accounting. */
 	bool uncounted;
-
-	/** Thread's priority. Implemented as index to CPU->rq */
-	int priority;
-
 
 	/** Architecture-specific data. */
 	thread_arch_t arch;
@@ -208,6 +194,20 @@ typedef struct thread {
 #endif
 	bool fpu_context_exists;
 
+	/* The thread will not be migrated if nomigrate is non-zero. */
+	unsigned int nomigrate;
+
+	/** Thread was migrated to another CPU and has not run yet. */
+	bool stolen;
+
+	/** Thread state. */
+	state_t state_;
+
+	/** Thread CPU. */
+	cpu_t *cpu_;
+
+	/** Thread's priority. Implemented as index to CPU->rq */
+	int priority_;
 } thread_t;
 
 IRQ_SPINLOCK_EXTERN(threads_lock);

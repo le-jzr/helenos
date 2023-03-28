@@ -196,10 +196,10 @@ void thread_init(void)
  */
 void thread_wire(thread_t *thread, cpu_t *cpu)
 {
-	irq_spinlock_lock(&thread->lock, true);
-	thread->cpu = cpu;
+	ipl_t ipl = interrupts_disable();
+	thread->cpu_ = cpu;
 	thread->nomigrate++;
-	irq_spinlock_unlock(&thread->lock, true);
+	interrupts_restore(ipl);
 }
 
 /** Start a thread that wasn't started yet since it was created.
@@ -208,7 +208,7 @@ void thread_wire(thread_t *thread, cpu_t *cpu)
  */
 void thread_start(thread_t *thread)
 {
-	assert(thread->state == Entering);
+	assert(thread->state_ == Entering);
 	thread_requeue_sleeping(thread_ref(thread));
 }
 
@@ -261,14 +261,14 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	thread->kcycles = 0;
 	thread->uncounted =
 	    ((flags & THREAD_FLAG_UNCOUNTED) == THREAD_FLAG_UNCOUNTED);
-	thread->priority = -1;          /* Start in rq[0] */
-	thread->cpu = NULL;
+	thread->priority_ = 0;
+	thread->cpu_ = NULL;
 	thread->stolen = false;
 	thread->uspace =
 	    ((flags & THREAD_FLAG_USPACE) == THREAD_FLAG_USPACE);
 
 	thread->nomigrate = 0;
-	thread->state = Entering;
+	thread->state_ = Entering;
 
 	atomic_init(&thread->sleep_queue, NULL);
 
@@ -338,15 +338,15 @@ static void thread_destroy(void *obj)
 
 	irq_spinlock_unlock(&thread->task->lock, false);
 
-	assert((thread->state == Exiting) || (thread->state == Lingering));
+	assert((thread->state_ == Exiting) || (thread->state_ == Lingering));
 
 	/* Clear cpu->fpu_owner if set to this thread. */
 #ifdef CONFIG_FPU_LAZY
-	if (thread->cpu) {
-		irq_spinlock_lock(&thread->cpu->fpu_lock, false);
-		if (thread->cpu->fpu_owner == thread)
-			thread->cpu->fpu_owner = NULL;
-		irq_spinlock_unlock(&thread->cpu->fpu_lock, false);
+	if (thread->cpu_) {
+		irq_spinlock_lock(&thread->cpu_->fpu_lock, false);
+		if (thread->cpu_->fpu_owner == thread)
+			thread->cpu_->fpu_owner = NULL;
+		irq_spinlock_unlock(&thread->cpu_->fpu_lock, false);
 	}
 #endif
 
@@ -570,19 +570,26 @@ void thread_wakeup(thread_t *thread)
 /** Prevent the current thread from being migrated to another processor. */
 void thread_migration_disable(void)
 {
-	assert(THREAD);
+	ipl_t ipl = interrupts_disable();
 
+	assert(THREAD);
 	THREAD->nomigrate++;
+
+	interrupts_restore(ipl);
 }
 
 /** Allow the current thread to be migrated to another processor. */
 void thread_migration_enable(void)
 {
+	ipl_t ipl = interrupts_disable();
+
 	assert(THREAD);
 	assert(THREAD->nomigrate > 0);
 
 	if (THREAD->nomigrate > 0)
 		THREAD->nomigrate--;
+
+	interrupts_restore(ipl);
 }
 
 /** Thread sleep
@@ -626,15 +633,7 @@ errno_t thread_join_timeout(thread_t *thread, uint32_t usec, unsigned int flags)
 	if (thread == THREAD)
 		return EINVAL;
 
-	irq_spinlock_lock(&thread->lock, true);
-	state_t state = thread->state;
-	irq_spinlock_unlock(&thread->lock, true);
-
-	if (state == Exiting) {
-		return EOK;
-	} else {
-		return _waitq_sleep_timeout(&thread->join_wq, usec, flags);
-	}
+	return _waitq_sleep_timeout(&thread->join_wq, usec, flags);
 }
 
 /** Thread usleep
@@ -679,16 +678,16 @@ static void thread_print(thread_t *thread, bool additional)
 		    ucycles, usuffix, kcycles, ksuffix);
 	else
 		printf("%-8" PRIu64 " %-14s %p %-8s %p %-5" PRIu32 "\n",
-		    thread->tid, name, thread, thread_states[thread->state],
+		    thread->tid, name, thread, thread_states[thread->state_],
 		    thread->task, thread->task->container);
 
 	if (additional) {
-		if (thread->cpu)
-			printf("%-5u", thread->cpu->id);
+		if (thread->cpu_)
+			printf("%-5u", thread->cpu_->id);
 		else
 			printf("none ");
 
-		if (thread->state == Sleeping) {
+		if (thread->state_ == Sleeping) {
 			printf(" %p", thread->sleep_queue);
 		}
 
@@ -888,21 +887,16 @@ void thread_stack_trace(thread_id_t thread_id)
 
 	irq_spinlock_lock(&thread->lock, true);
 
-	bool sleeping = false;
 	istate_t *istate = thread->udebug.uspace_state;
 	if (istate != NULL) {
 		printf("Scheduling thread stack trace.\n");
 		thread->btrace = true;
-		if (thread->state == Sleeping)
-			sleeping = true;
 	} else
 		printf("Thread interrupt state not available.\n");
 
 	irq_spinlock_unlock(&thread->lock, true);
 
-	if (sleeping)
-		thread_wakeup(thread);
-
+	thread_wakeup(thread);
 	thread_put(thread);
 }
 

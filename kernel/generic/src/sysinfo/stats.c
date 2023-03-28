@@ -302,14 +302,14 @@ static void produce_stats_thread(thread_t *thread, stats_thread_t *stats_thread)
 
 	stats_thread->thread_id = thread->tid;
 	stats_thread->task_id = thread->task->taskid;
-	stats_thread->state = thread->state;
-	stats_thread->priority = thread->priority;
+	stats_thread->state = thread->state_;
+	stats_thread->priority = thread->priority_;
 	stats_thread->ucycles = thread->ucycles;
 	stats_thread->kcycles = thread->kcycles;
 
-	if (thread->cpu != NULL) {
+	if (thread->cpu_ != NULL) {
 		stats_thread->on_cpu = true;
-		stats_thread->cpu = thread->cpu->id;
+		stats_thread->cpu = thread->cpu_->id;
 	} else
 		stats_thread->on_cpu = false;
 }
