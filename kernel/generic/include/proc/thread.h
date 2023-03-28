@@ -100,36 +100,6 @@ typedef struct thread {
 	 */
 	IRQ_SPINLOCK_DECLARE(lock);
 
-	char name[THREAD_NAME_BUFLEN];
-
-	/** Function implementing the thread. */
-	void (*thread_code)(void *);
-	/** Argument passed to thread_code() function. */
-	void *thread_arg;
-
-	/**
-	 * From here, the stored context is restored
-	 * when the thread is scheduled.
-	 */
-	context_t saved_context;
-
-	/**
-	 * True if this thread is executing copy_from_uspace().
-	 * False otherwise.
-	 */
-	bool in_copy_from_uspace;
-
-	/**
-	 * True if this thread is executing copy_to_uspace().
-	 * False otherwise.
-	 */
-	bool in_copy_to_uspace;
-
-#ifdef CONFIG_FPU
-	fpu_context_t fpu_context;
-#endif
-	bool fpu_context_exists;
-
 	/* The thread will not be migrated if nomigrate is non-zero. */
 	unsigned int nomigrate;
 
@@ -142,8 +112,7 @@ typedef struct thread {
 	task_t *task;
 	/** Thread was migrated to another CPU and has not run yet. */
 	bool stolen;
-	/** Thread is executed in user space. */
-	bool uspace;
+
 
 	/** Thread accounting. */
 	uint64_t ucycles;
@@ -155,8 +124,7 @@ typedef struct thread {
 
 	/** Thread's priority. Implemented as index to CPU->rq */
 	int priority;
-	/** Thread ID. */
-	thread_id_t tid;
+
 
 	/** Architecture-specific data. */
 	thread_arch_t arch;
@@ -174,6 +142,72 @@ typedef struct thread {
 	/** Debugging stuff */
 	udebug_thread_t udebug;
 #endif /* CONFIG_UDEBUG */
+
+	/*
+	 * Immutable fields.
+	 *
+	 * These fields are only modified during initialization, and are not
+	 * changed at any time between initialization and destruction.
+	 * Can be accessed without synchronization in most places.
+	 */
+
+	/** Thread ID. */
+	thread_id_t tid;
+
+	/** Function implementing the thread. */
+	void (*thread_code)(void *);
+	/** Argument passed to thread_code() function. */
+	void *thread_arg;
+
+	char name[THREAD_NAME_BUFLEN];
+
+	/** Thread is executed in user space. */
+	bool uspace;
+
+	/*
+	 * Local fields.
+	 *
+	 * These fields can be safely accessed from code that _controls execution_
+	 * of this thread. Code controls execution of a thread if either:
+	 *  - it runs in the context of said thread AND interrupts are disabled
+	 *    (interrupts can and will access these fields)
+	 *  - the thread is not running, and the code accessing it can legally
+	 *    add/remove the thread to/from a runqueue, i.e., either:
+	 *    - it is allowed to enqueue thread in a new runqueue
+	 *    - it holds the lock to the runqueue containing the thread
+	 *
+	 */
+
+	/**
+	 * From here, the stored context is restored
+	 * when the thread is scheduled.
+	 */
+	context_t saved_context;
+
+	// TODO: we only need one of the two bools below
+
+	/**
+	 * True if this thread is executing copy_from_uspace().
+	 * False otherwise.
+	 */
+	bool in_copy_from_uspace;
+
+	/**
+	 * True if this thread is executing copy_to_uspace().
+	 * False otherwise.
+	 */
+	bool in_copy_to_uspace;
+
+	/*
+	 * FPU context is a special case. If lazy FPU switching is disabled,
+	 * it acts as a regular local field. However, if lazy switching is enabled,
+	 * the context is synchronized via CPU->fpu_lock
+	 */
+#ifdef CONFIG_FPU
+	fpu_context_t fpu_context;
+#endif
+	bool fpu_context_exists;
+
 } thread_t;
 
 IRQ_SPINLOCK_EXTERN(threads_lock);

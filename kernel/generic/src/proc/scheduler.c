@@ -360,7 +360,7 @@ static void prepare_to_run_thread(int rq_index)
 	}
 #endif
 
-	fpu_restore();
+	irq_spinlock_unlock(&THREAD->lock, false);
 
 	/* Time allocation in microseconds. */
 	uint64_t time_to_run = (rq_index + 1) * 10000;
@@ -372,7 +372,7 @@ static void prepare_to_run_thread(int rq_index)
 	/* Save current CPU cycle */
 	THREAD->last_cycle = get_cycle();
 
-	irq_spinlock_unlock(&THREAD->lock, false);
+	fpu_restore();
 }
 
 static void add_to_rq(thread_t *thread, cpu_t *cpu, int i)
@@ -504,14 +504,15 @@ void scheduler_enter(state_t new_state)
 		return;
 	}
 
+	fpu_cleanup();
+
+	after_thread_ran_arch();
+
 	irq_spinlock_lock(&THREAD->lock, false);
 	THREAD->state = new_state;
 
 	/* Update thread kernel accounting */
 	THREAD->kcycles += get_cycle() - THREAD->last_cycle;
-
-	after_thread_ran_arch();
-
 	irq_spinlock_unlock(&THREAD->lock, false);
 
 	CPU_LOCAL->exiting_state = new_state;
