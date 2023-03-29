@@ -288,7 +288,8 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 
 #ifdef CONFIG_UDEBUG
 	/* Initialize debugging stuff */
-	thread->btrace = false;
+	atomic_flag_clear_explicit(&thread->btrace, memory_order_relaxed);
+	atomic_flag_test_and_set_explicit(&thread->btrace, memory_order_relaxed);
 	udebug_thread_initialize(&thread->udebug);
 #endif
 
@@ -874,28 +875,14 @@ void thread_stack_trace(thread_id_t thread_id)
 	}
 
 	/*
-	 * Schedule a stack trace to be printed
-	 * just before the thread is scheduled next.
-	 *
-	 * If the thread is sleeping then try to interrupt
-	 * the sleep. Any request for printing an uspace stack
-	 * trace from within the kernel should be always
-	 * considered a last resort debugging means, therefore
-	 * forcing the thread's sleep to be interrupted
-	 * is probably justifiable.
+	 * Schedule a stack trace to be printed just before the thread is scheduled
+	 * next, and interrupt sleep. If the thread is not sleeping, the wakeup does
+	 * nothing. If the thread is sleeping, it will detect it was woken up
+	 * spuriously and go back to sleep.
 	 */
 
-	irq_spinlock_lock(&thread->lock, true);
-
-	istate_t *istate = thread->udebug.uspace_state;
-	if (istate != NULL) {
-		printf("Scheduling thread stack trace.\n");
-		thread->btrace = true;
-	} else
-		printf("Thread interrupt state not available.\n");
-
-	irq_spinlock_unlock(&thread->lock, true);
-
+	printf("Scheduling thread stack trace.\n");
+	atomic_flag_clear_explicit(&thread->btrace, memory_order_relaxed);
 	thread_wakeup(thread);
 	thread_put(thread);
 }

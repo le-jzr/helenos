@@ -114,7 +114,7 @@ typedef struct thread {
 	 * If true, the scheduler will print a stack trace
 	 * to the kernel console upon scheduling this thread.
 	 */
-	bool btrace;
+	atomic_flag btrace;
 
 	/** Debugging stuff */
 	udebug_thread_t udebug;

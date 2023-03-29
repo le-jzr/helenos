@@ -347,20 +347,16 @@ static void prepare_to_run_thread(int rq_index)
 	before_thread_runs_arch();
 
 #ifdef CONFIG_UDEBUG
-	irq_spinlock_lock(&THREAD->lock, false);
+	/* The value of btrace is inverted, it's cleared when we want a trace. */
+	if (!atomic_flag_test_and_set_explicit(
+	    &THREAD->btrace, memory_order_relaxed)) {
 
-	if (THREAD->btrace) {
 		istate_t *istate = THREAD->udebug.uspace_state;
 		if (istate != NULL) {
 			printf("Thread %" PRIu64 " stack trace:\n", THREAD->tid);
 			stack_trace_istate(istate);
 		}
-
-		THREAD->btrace = false;
 	}
-
-
-	irq_spinlock_unlock(&THREAD->lock, false);
 #endif
 
 	/* Time allocation in microseconds. */
