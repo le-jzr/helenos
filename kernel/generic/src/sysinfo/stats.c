@@ -304,8 +304,8 @@ static void produce_stats_thread(thread_t *thread, stats_thread_t *stats_thread)
 	stats_thread->task_id = thread->task->taskid;
 	stats_thread->state = thread->state_;
 	stats_thread->priority = thread->priority_;
-	stats_thread->ucycles = thread->ucycles;
-	stats_thread->kcycles = thread->kcycles;
+	stats_thread->ucycles = atomic_time_read(&thread->ucycles);
+	stats_thread->kcycles = atomic_time_read(&thread->kcycles);
 
 	if (thread->cpu_ != NULL) {
 		stats_thread->on_cpu = true;

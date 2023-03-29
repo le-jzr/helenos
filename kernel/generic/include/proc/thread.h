@@ -94,17 +94,15 @@ typedef struct thread {
 	/** Waitq for thread_join_timeout(). */
 	waitq_t join_wq;
 
+	/** Thread accounting. */
+	atomic_time_stat_t ucycles;
+	atomic_time_stat_t kcycles;
+
 	/** Lock protecting thread structure.
 	 *
 	 * Protects the whole thread structure except fields listed above.
 	 */
 	IRQ_SPINLOCK_DECLARE(lock);
-
-	/** Thread accounting. */
-	uint64_t ucycles;
-	uint64_t kcycles;
-	/** Last sampled cycle. */
-	uint64_t last_cycle;
 
 	/** Architecture-specific data. */
 	thread_arch_t arch;
@@ -208,6 +206,9 @@ typedef struct thread {
 
 	/** Thread's priority. Implemented as index to CPU->rq */
 	int priority_;
+
+	/** Last sampled cycle. */
+	uint64_t last_cycle;
 } thread_t;
 
 IRQ_SPINLOCK_EXTERN(threads_lock);

@@ -498,10 +498,8 @@ void scheduler_enter(state_t new_state)
 
 	THREAD->state_ = new_state;
 
-	irq_spinlock_lock(&THREAD->lock, false);
 	/* Update thread kernel accounting */
-	THREAD->kcycles += get_cycle() - THREAD->last_cycle;
-	irq_spinlock_unlock(&THREAD->lock, false);
+	atomic_time_increment(&THREAD->kcycles, get_cycle() - THREAD->last_cycle);
 
 	CPU_LOCAL->exiting_state = new_state;
 
