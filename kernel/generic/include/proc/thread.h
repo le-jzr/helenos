@@ -100,23 +100,14 @@ typedef struct thread {
 	 */
 	IRQ_SPINLOCK_DECLARE(lock);
 
-	/** Containing task. */
-	task_t *task;
-
-
 	/** Thread accounting. */
 	uint64_t ucycles;
 	uint64_t kcycles;
 	/** Last sampled cycle. */
 	uint64_t last_cycle;
-	/** Thread doesn't affect accumulated accounting. */
-	bool uncounted;
 
 	/** Architecture-specific data. */
 	thread_arch_t arch;
-
-	/** Thread's kernel stack. */
-	uint8_t *kstack;
 
 #ifdef CONFIG_UDEBUG
 	/**
@@ -149,6 +140,15 @@ typedef struct thread {
 
 	/** Thread is executed in user space. */
 	bool uspace;
+
+	/** Thread doesn't affect accumulated accounting. */
+	bool uncounted;
+
+	/** Containing task. */
+	task_t *task;
+
+	/** Thread's kernel stack. */
+	uint8_t *kstack;
 
 	/*
 	 * Local fields.
