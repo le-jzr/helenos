@@ -213,9 +213,11 @@ static inline void print_thread_summary(data_t *data)
 
 		switch (data->threads[i].state) {
 		case Running:
+		case UspaceCopy:
 			running++;
 			break;
 		case Ready:
+		case Stolen:
 			ready++;
 			break;
 		case Sleeping:

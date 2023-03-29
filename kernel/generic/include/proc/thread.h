@@ -162,20 +162,6 @@ typedef struct thread {
 	 */
 	context_t saved_context;
 
-	// TODO: we only need one of the two bools below
-
-	/**
-	 * True if this thread is executing copy_from_uspace().
-	 * False otherwise.
-	 */
-	bool in_copy_from_uspace;
-
-	/**
-	 * True if this thread is executing copy_to_uspace().
-	 * False otherwise.
-	 */
-	bool in_copy_to_uspace;
-
 	/*
 	 * FPU context is a special case. If lazy FPU switching is disabled,
 	 * it acts as a regular local field. However, if lazy switching is enabled,
@@ -188,9 +174,6 @@ typedef struct thread {
 
 	/* The thread will not be migrated if nomigrate is non-zero. */
 	unsigned int nomigrate;
-
-	/** Thread was migrated to another CPU and has not run yet. */
-	bool stolen;
 
 	/** Last sampled cycle. */
 	uint64_t last_cycle;

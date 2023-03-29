@@ -45,10 +45,14 @@ typedef enum {
 	Invalid,
 	/** State of a thread that is currently executing on some CPU. */
 	Running,
+	/** Like Running, but only set withing copy_to/from_uspace. */
+	UspaceCopy,
 	/** Thread in this state is waiting for an event. */
 	Sleeping,
 	/** State of threads in a run queue. */
 	Ready,
+	/** State after being stolen from one CPU's run queue to another. */
+	Stolen,
 	/** Threads are in this state before they are first readied. */
 	Entering,
 	/** After a thread calls thread_exit(), it is put into Exiting state. */

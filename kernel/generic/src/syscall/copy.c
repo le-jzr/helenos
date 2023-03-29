@@ -64,7 +64,6 @@ errno_t copy_from_uspace(void *dst, uspace_addr_t uspace_src, size_t size)
 	errno_t rc;
 
 	assert(THREAD);
-	assert(!THREAD->in_copy_from_uspace);
 
 	if (!KERNEL_ADDRESS_SPACE_SHADOWED) {
 		if (overlaps(uspace_src, size,
@@ -87,12 +86,11 @@ errno_t copy_from_uspace(void *dst, uspace_addr_t uspace_src, size_t size)
 #endif
 
 	ipl = interrupts_disable();
-	THREAD->in_copy_from_uspace = true;
+	atomic_set_unordered(&THREAD->state, UspaceCopy);
 
 	rc = !memcpy_from_uspace(dst, uspace_src, size) ? EPERM : EOK;
 
-	THREAD->in_copy_from_uspace = false;
-
+	atomic_set_unordered(&THREAD->state, Running);
 	interrupts_restore(ipl);
 	return rc;
 }
@@ -115,7 +113,6 @@ errno_t copy_to_uspace(uspace_addr_t uspace_dst, const void *src, size_t size)
 	errno_t rc;
 
 	assert(THREAD);
-	assert(!THREAD->in_copy_to_uspace);
 
 	if (!KERNEL_ADDRESS_SPACE_SHADOWED) {
 		if (overlaps(uspace_dst, size,
@@ -138,12 +135,11 @@ errno_t copy_to_uspace(uspace_addr_t uspace_dst, const void *src, size_t size)
 #endif
 
 	ipl = interrupts_disable();
-	THREAD->in_copy_to_uspace = true;
+	atomic_set_unordered(&THREAD->state, UspaceCopy);
 
 	rc = !memcpy_to_uspace(uspace_dst, src, size) ? EPERM : EOK;
 
-	THREAD->in_copy_to_uspace = false;
-
+	atomic_set_unordered(&THREAD->state, Running);
 	interrupts_restore(ipl);
 	return rc;
 }

@@ -71,13 +71,15 @@
 
 /** Thread states */
 const char *thread_states[] = {
-	"Invalid",
-	"Running",
-	"Sleeping",
-	"Ready",
-	"Entering",
-	"Exiting",
-	"Lingering"
+	[Invalid] = "Invalid",
+	[Running] = "Running",
+	[UspaceCopy] = "Uspace Copy",
+	[Sleeping] = "Sleeping",
+	[Ready] = "Ready",
+	[Stolen] = "Stolen",
+	[Entering] = "Entering",
+	[Exiting] = "Exiting",
+	[Lingering] = "Lingering"
 };
 
 /** Lock protecting the @c threads ordered dictionary .
@@ -262,7 +264,6 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	    ((flags & THREAD_FLAG_UNCOUNTED) == THREAD_FLAG_UNCOUNTED);
 	atomic_set_unordered(&thread->priority, 0);
 	atomic_set_unordered(&thread->cpu, NULL);
-	thread->stolen = false;
 	thread->uspace =
 	    ((flags & THREAD_FLAG_USPACE) == THREAD_FLAG_USPACE);
 
@@ -270,9 +271,6 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	atomic_set_unordered(&thread->state, Entering);
 
 	atomic_init(&thread->sleep_queue, NULL);
-
-	thread->in_copy_from_uspace = false;
-	thread->in_copy_to_uspace = false;
 
 	thread->interrupted = false;
 	atomic_init(&thread->sleep_state, SLEEP_INITIAL);

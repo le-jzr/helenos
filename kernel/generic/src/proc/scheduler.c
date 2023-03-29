@@ -321,11 +321,6 @@ static void prepare_to_run_thread(int rq_index)
 
 	assert(atomic_get_unordered(&THREAD->cpu) == CPU);
 
-	/*
-	 * Clear the stolen flag so that it can be migrated
-	 * when load balancing needs emerge.
-	 */
-	THREAD->stolen = false;
 	atomic_set_unordered(&THREAD->state, Running);
 	atomic_set_unordered(&THREAD->priority, rq_index);  /* Correct rq index */
 
@@ -660,14 +655,15 @@ static thread_t *steal_thread_from(cpu_t *old_cpu, int i)
 		 * was temporarily disabled or threads whose
 		 * FPU context is still in the CPU.
 		 */
-		if (thread->stolen || thread->nomigrate ||
+		if (atomic_get_unordered(&thread->state) == Stolen ||
+		    thread->nomigrate ||
 		    thread == fpu_owner(old_cpu)) {
 			continue;
 		}
 
 		fpu_owner_unlock(old_cpu);
 
-		thread->stolen = true;
+		atomic_set_unordered(&thread->state, Stolen);
 		atomic_set_unordered(&thread->cpu, CPU);
 
 		/*
