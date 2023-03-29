@@ -301,14 +301,15 @@ static void produce_stats_thread(thread_t *thread, stats_thread_t *stats_thread)
 
 	stats_thread->thread_id = thread->tid;
 	stats_thread->task_id = thread->task->taskid;
-	stats_thread->state = thread->state_;
-	stats_thread->priority = thread->priority_;
+	stats_thread->state = atomic_get_unordered(&thread->state);
+	stats_thread->priority = atomic_get_unordered(&thread->priority);
 	stats_thread->ucycles = atomic_time_read(&thread->ucycles);
 	stats_thread->kcycles = atomic_time_read(&thread->kcycles);
 
-	if (thread->cpu_ != NULL) {
+	cpu_t *cpu = atomic_get_unordered(&thread->cpu);
+	if (cpu != NULL) {
 		stats_thread->on_cpu = true;
-		stats_thread->cpu = thread->cpu_->id;
+		stats_thread->cpu = cpu->id;
 	} else
 		stats_thread->on_cpu = false;
 }

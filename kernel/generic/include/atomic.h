@@ -39,6 +39,9 @@
 #include <typedefs.h>
 #include <stdatomic.h>
 
+#define atomic_set_unordered(var, val) atomic_store_explicit((var), (val), memory_order_relaxed)
+#define atomic_get_unordered(var) atomic_load_explicit((var), memory_order_relaxed)
+
 #define atomic_predec(val) \
 	(atomic_fetch_sub((val), 1) - 1)
 

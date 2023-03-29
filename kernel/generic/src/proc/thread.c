@@ -196,7 +196,7 @@ void thread_init(void)
 void thread_wire(thread_t *thread, cpu_t *cpu)
 {
 	ipl_t ipl = interrupts_disable();
-	thread->cpu_ = cpu;
+	atomic_set_unordered(&thread->cpu, cpu);
 	thread->nomigrate++;
 	interrupts_restore(ipl);
 }
@@ -207,7 +207,7 @@ void thread_wire(thread_t *thread, cpu_t *cpu)
  */
 void thread_start(thread_t *thread)
 {
-	assert(thread->state_ == Entering);
+	assert(atomic_get_unordered(&thread->state) == Entering);
 	thread_requeue_sleeping(thread_ref(thread));
 }
 
@@ -260,14 +260,14 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	thread->kcycles = ATOMIC_TIME_INITIALIZER();
 	thread->uncounted =
 	    ((flags & THREAD_FLAG_UNCOUNTED) == THREAD_FLAG_UNCOUNTED);
-	thread->priority_ = 0;
-	thread->cpu_ = NULL;
+	atomic_set_unordered(&thread->priority, 0);
+	atomic_set_unordered(&thread->cpu, NULL);
 	thread->stolen = false;
 	thread->uspace =
 	    ((flags & THREAD_FLAG_USPACE) == THREAD_FLAG_USPACE);
 
 	thread->nomigrate = 0;
-	thread->state_ = Entering;
+	atomic_set_unordered(&thread->state, Entering);
 
 	atomic_init(&thread->sleep_queue, NULL);
 
@@ -338,15 +338,17 @@ static void thread_destroy(void *obj)
 
 	irq_spinlock_unlock(&thread->task->lock, false);
 
-	assert((thread->state_ == Exiting) || (thread->state_ == Lingering));
+	assert(atomic_get_unordered(&thread->state) == Exiting ||
+	    atomic_get_unordered(&thread->state) == Lingering);
 
 	/* Clear cpu->fpu_owner if set to this thread. */
 #ifdef CONFIG_FPU_LAZY
-	if (thread->cpu_) {
-		irq_spinlock_lock(&thread->cpu_->fpu_lock, false);
-		if (thread->cpu_->fpu_owner == thread)
-			thread->cpu_->fpu_owner = NULL;
-		irq_spinlock_unlock(&thread->cpu_->fpu_lock, false);
+	cpu_t *cpu = atomic_get_unordered(&thread->cpu);
+	if (cpu) {
+		irq_spinlock_lock(&cpu->fpu_lock, false);
+		if (cpu->fpu_owner == thread)
+			cpu->fpu_owner = NULL;
+		irq_spinlock_unlock(&cpu->fpu_lock, false);
 	}
 #endif
 
@@ -678,16 +680,18 @@ static void thread_print(thread_t *thread, bool additional)
 		    ucycles, usuffix, kcycles, ksuffix);
 	else
 		printf("%-8" PRIu64 " %-14s %p %-8s %p %-5" PRIu32 "\n",
-		    thread->tid, name, thread, thread_states[thread->state_],
+		    thread->tid, name, thread,
+		    thread_states[atomic_get_unordered(&thread->state)],
 		    thread->task, thread->task->container);
 
 	if (additional) {
-		if (thread->cpu_)
-			printf("%-5u", thread->cpu_->id);
+		cpu_t *cpu = atomic_get_unordered(&thread->cpu);
+		if (cpu)
+			printf("%-5u", cpu->id);
 		else
 			printf("none ");
 
-		if (thread->state_ == Sleeping) {
+		if (atomic_get_unordered(&thread->state) == Sleeping) {
 			printf(" %p", thread->sleep_queue);
 		}
 

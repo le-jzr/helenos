@@ -192,17 +192,21 @@ typedef struct thread {
 	/** Thread was migrated to another CPU and has not run yet. */
 	bool stolen;
 
-	/** Thread state. */
-	state_t state_;
-
-	/** Thread CPU. */
-	cpu_t *cpu_;
-
-	/** Thread's priority. Implemented as index to CPU->rq */
-	int priority_;
-
 	/** Last sampled cycle. */
 	uint64_t last_cycle;
+
+	/**
+	 * Thread state (state_t).
+	 * This is atomic because we read it via some commands for debug output,
+	 * otherwise it could just be a regular local.
+	 */
+	atomic_int_fast32_t state;
+
+	/** Thread's priority. Implemented as index to CPU->rq */
+	atomic_int_fast32_t priority;
+
+	/** Thread CPU. */
+	_Atomic(cpu_t *) cpu;
 } thread_t;
 
 IRQ_SPINLOCK_EXTERN(threads_lock);

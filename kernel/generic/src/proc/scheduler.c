@@ -319,15 +319,15 @@ static void prepare_to_run_thread(int rq_index)
 
 	switch_task(THREAD->task);
 
-	assert(THREAD->cpu_ == CPU);
+	assert(atomic_get_unordered(&THREAD->cpu) == CPU);
 
 	/*
 	 * Clear the stolen flag so that it can be migrated
 	 * when load balancing needs emerge.
 	 */
 	THREAD->stolen = false;
-	THREAD->state_ = Running;
-	THREAD->priority_ = rq_index;  /* Correct rq index */
+	atomic_set_unordered(&THREAD->state, Running);
+	atomic_set_unordered(&THREAD->priority, rq_index);  /* Correct rq index */
 
 #ifdef SCHEDULER_VERBOSE
 	log(LF_OTHER, LVL_DEBUG,
@@ -391,13 +391,17 @@ static void add_to_rq(thread_t *thread, cpu_t *cpu, int i)
 static void thread_requeue_preempted(thread_t *thread)
 {
 	assert(interrupts_disabled());
-	assert(thread->state_ == Running);
-	assert(thread->cpu_ == CPU);
+	assert(atomic_get_unordered(&thread->state) == Running);
+	assert(atomic_get_unordered(&thread->cpu) == CPU);
 
-	int i = (thread->priority_ < RQ_COUNT - 1) ?
-	    ++thread->priority_ : thread->priority_;
+	int i = atomic_get_unordered(&thread->priority);
 
-	thread->state_ = Ready;
+	if (i < RQ_COUNT - 1) {
+		i++;
+		atomic_set_unordered(&thread->priority, i);
+	}
+
+	atomic_set_unordered(&thread->state, Ready);
 
 	add_to_rq(thread, CPU, i);
 }
@@ -406,28 +410,32 @@ void thread_requeue_sleeping(thread_t *thread)
 {
 	ipl_t ipl = interrupts_disable();
 
-	assert(thread->state_ == Sleeping || thread->state_ == Entering);
+	assert(atomic_get_unordered(&thread->state) == Sleeping ||
+	    atomic_get_unordered(&thread->state) == Entering);
 
-	thread->priority_ = 0;
-	thread->state_ = Ready;
+	atomic_set_unordered(&thread->priority, 0);
+	atomic_set_unordered(&thread->state, Ready);
 
 	/* Prefer the CPU on which the thread ran last */
-	if (!thread->cpu_)
-		thread->cpu_ = CPU;
+	cpu_t *cpu = atomic_get_unordered(&thread->cpu);
+	if (cpu == NULL) {
+		cpu = CPU;
+		atomic_set_unordered(&thread->cpu, CPU);
+	}
 
-	add_to_rq(thread, thread->cpu_, 0);
+	add_to_rq(thread, cpu, 0);
 
 	interrupts_restore(ipl);
 }
 
-static void cleanup_after_thread(thread_t *thread, state_t out_state)
+static void cleanup_after_thread(thread_t *thread)
 {
 	assert(CURRENT->mutex_locks == 0);
 	assert(interrupts_disabled());
 
 	int expected;
 
-	switch (out_state) {
+	switch (atomic_get_unordered(&thread->state)) {
 	case Running:
 		thread_requeue_preempted(thread);
 		break;
@@ -462,7 +470,7 @@ static void cleanup_after_thread(thread_t *thread, state_t out_state)
 		 * Entering state is unexpected.
 		 */
 		panic("tid%" PRIu64 ": unexpected state %s.",
-		    thread->tid, thread_states[out_state]);
+		    thread->tid, thread_states[atomic_get_unordered(&thread->state)]);
 		break;
 	}
 }
@@ -496,12 +504,10 @@ void scheduler_enter(state_t new_state)
 
 	after_thread_ran_arch();
 
-	THREAD->state_ = new_state;
+	atomic_set_unordered(&THREAD->state, new_state);
 
 	/* Update thread kernel accounting */
 	atomic_time_increment(&THREAD->kcycles, get_cycle() - THREAD->last_cycle);
-
-	CPU_LOCAL->exiting_state = new_state;
 
 	if (new_thread) {
 		thread_t *old_thread = THREAD;
@@ -526,7 +532,7 @@ void scheduler_enter(state_t new_state)
 
 	/* Check if we need to clean up after another thread. */
 	if (CPU_LOCAL->prev_thread) {
-		cleanup_after_thread(CPU_LOCAL->prev_thread, CPU_LOCAL->exiting_state);
+		cleanup_after_thread(CPU_LOCAL->prev_thread);
 		CPU_LOCAL->prev_thread = NULL;
 	}
 
@@ -568,7 +574,7 @@ void scheduler_separated_stack(void)
 		assert(CURRENT->mutex_locks == 0);
 		assert(interrupts_disabled());
 
-		cleanup_after_thread(THREAD, CPU_LOCAL->exiting_state);
+		cleanup_after_thread(THREAD);
 
 		/*
 		 * Necessary because we're allowing interrupts in find_best_thread(),
@@ -596,7 +602,7 @@ void thread_main_func(void)
 
 	/* Check if we need to clean up after another thread. */
 	if (CPU_LOCAL->prev_thread) {
-		cleanup_after_thread(CPU_LOCAL->prev_thread, CPU_LOCAL->exiting_state);
+		cleanup_after_thread(CPU_LOCAL->prev_thread);
 		CPU_LOCAL->prev_thread = NULL;
 	}
 
@@ -662,7 +668,7 @@ static thread_t *steal_thread_from(cpu_t *old_cpu, int i)
 		fpu_owner_unlock(old_cpu);
 
 		thread->stolen = true;
-		thread->cpu_ = CPU;
+		atomic_set_unordered(&thread->cpu, CPU);
 
 		/*
 		 * Ready thread on local CPU
@@ -812,7 +818,7 @@ void sched_print_list(void)
 			list_foreach(cpus[cpu].rq[i].rq, rq_link, thread_t,
 			    thread) {
 				printf("%" PRIu64 "(%s) ", thread->tid,
-				    thread_states[thread->state_]);
+				    thread_states[atomic_get_unordered(&thread->state)]);
 			}
 			printf("\n");
 
