@@ -114,7 +114,6 @@ static errno_t thr_constructor(void *obj, unsigned int kmflags)
 {
 	thread_t *thread = (thread_t *) obj;
 
-	irq_spinlock_initialize(&thread->lock, "thread_t_lock");
 	link_initialize(&thread->rq_link);
 	link_initialize(&thread->wq_link);
 	link_initialize(&thread->th_link);

@@ -298,7 +298,6 @@ static void *get_stats_tasks(struct sysinfo_item *item, size_t *size,
 static void produce_stats_thread(thread_t *thread, stats_thread_t *stats_thread)
 {
 	assert(interrupts_disabled());
-	assert(irq_spinlock_locked(&thread->lock));
 
 	stats_thread->thread_id = thread->tid;
 	stats_thread->task_id = thread->task->taskid;
@@ -360,14 +359,9 @@ static void *get_stats_threads(struct sysinfo_item *item, size_t *size,
 
 	thread_t *thread = thread_first();
 	while (thread != NULL) {
-		/* Interrupts are already disabled */
-		irq_spinlock_lock(&thread->lock, false);
-
 		/* Record the statistics and increment the index */
 		produce_stats_thread(thread, &stats_threads[i]);
 		i++;
-
-		irq_spinlock_unlock(&thread->lock, false);
 
 		thread = thread_next(thread);
 	}
@@ -623,13 +617,7 @@ static sysinfo_return_t get_stats_thread(const char *name, bool dry_run,
 		ret.data.data = (void *) stats_thread;
 		ret.data.size = sizeof(stats_thread_t);
 
-		/*
-		 * Replaced hand-over-hand locking with regular nested sections
-		 * to avoid weak reference leak issues.
-		 */
-		irq_spinlock_lock(&thread->lock, false);
 		produce_stats_thread(thread, stats_thread);
-		irq_spinlock_unlock(&thread->lock, false);
 
 		irq_spinlock_unlock(&threads_lock, true);
 	}
