@@ -159,7 +159,6 @@ static void testthreads(void)
 			TPRINTF("Could not create thread %d\n", i);
 		} else {
 			thread_start(t);
-			thread_put(t);
 		}
 	}
 

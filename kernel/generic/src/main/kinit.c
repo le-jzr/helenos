@@ -119,7 +119,7 @@ void kinit(void *arg)
 			panic("Unable to create kmp thread.");
 
 		thread_wire(thread, &cpus[0]);
-		thread_start(thread);
+		thread_start(thread_ref(thread));
 		thread_join(thread);
 		thread_put(thread);
 

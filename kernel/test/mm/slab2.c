@@ -212,7 +212,6 @@ static void multitest(int size)
 			TPRINTF("Could not create thread %d\n", i);
 		} else {
 			thread_start(t);
-			thread_put(t);
 		}
 	}
 	thread_sleep(1);

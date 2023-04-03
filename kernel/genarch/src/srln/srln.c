@@ -155,7 +155,7 @@ indev_t *srln_wire(srln_instance_t *instance, indev_t *sink)
 	assert(sink);
 
 	instance->sink = sink;
-	thread_start(instance->thread);
+	thread_start(thread_ref(instance->thread));
 
 	return &instance->raw;
 }

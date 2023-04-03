@@ -246,7 +246,7 @@ errno_t ipc_connect_kbox(task_id_t taskid, cap_phone_handle_t *out_phone)
 			return ENOMEM;
 		}
 
-		task->kb.thread = kb_thread;
+		task->kb.thread = thread_ref(kb_thread);
 		thread_start(kb_thread);
 	}
 

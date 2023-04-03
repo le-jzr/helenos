@@ -123,7 +123,6 @@ const char *test_falloc2(void)
 			break;
 		}
 		thread_start(thrd);
-		thread_put(thrd);
 	}
 
 	while (atomic_load(&thread_cnt) > 0) {

@@ -210,7 +210,7 @@ void thread_wire(thread_t *thread, cpu_t *cpu)
 void thread_start(thread_t *thread)
 {
 	assert(atomic_get_unordered(&thread->state) == Entering);
-	thread_requeue_sleeping(thread_ref(thread));
+	thread_requeue_sleeping(thread);
 }
 
 /** Create new thread
@@ -985,7 +985,6 @@ sys_errno_t sys_thread_create(uspace_ptr_uspace_arg_t uspace_uarg, uspace_ptr_ch
 		thread_attach(thread, TASK);
 #endif
 		thread_start(thread);
-		thread_put(thread);
 
 		return 0;
 	} else

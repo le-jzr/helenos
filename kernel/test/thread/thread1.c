@@ -64,7 +64,6 @@ const char *test_thread1(void)
 			break;
 		}
 		thread_start(t);
-		thread_put(t);
 		total++;
 	}
 

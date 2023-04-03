@@ -90,7 +90,6 @@ const char *test_semaphore1(void)
 				    THREAD_FLAG_NONE, "consumer");
 				if (thrd) {
 					thread_start(thrd);
-					thread_put(thrd);
 				} else {
 					TPRINTF("could not create consumer %d\n", i);
 				}
@@ -100,7 +99,6 @@ const char *test_semaphore1(void)
 				    THREAD_FLAG_NONE, "producer");
 				if (thrd) {
 					thread_start(thrd);
-					thread_put(thrd);
 				} else {
 					TPRINTF("could not create producer %d\n", i);
 				}

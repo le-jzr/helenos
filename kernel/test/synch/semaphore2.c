@@ -93,7 +93,6 @@ const char *test_semaphore2(void)
 		    THREAD_FLAG_NONE, "consumer");
 		if (thrd) {
 			thread_start(thrd);
-			thread_put(thrd);
 		} else {
 			TPRINTF("Error creating thread\n");
 		}
