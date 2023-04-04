@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2003-2004 Jakub Jermar
+ * Copyright (c) 2023 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,17 +49,8 @@
  */
 #define SP_DELTA  (ABI_STACK_FRAME + ALIGN_UP(STACK_ITEM_SIZE, STACK_ALIGNMENT))
 
-#define context_set(ctx, pc, stack, size) \
-    context_set_generic(ctx, pc, stack, size)
-
-#define context_set_generic(ctx, _pc, stack, size) \
-	do { \
-		(ctx)->pc = (uintptr_t) (_pc); \
-		(ctx)->sp = ((uintptr_t) (stack)) + (size) - SP_DELTA; \
-	} while (0)
-
-extern int context_save_arch(context_t *ctx) __attribute__((returns_twice));
-extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
+extern void context_swap_arch(uintptr_t *self, uintptr_t *other);
+extern void context_replace_arch(uintptr_t pc, uintptr_t sp) __attribute__((noreturn));
 
 /**
  * Saves current context to the variable pointed to by `self`,
@@ -72,24 +64,31 @@ extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
  */
 _NO_TRACE static inline void context_swap(context_t *self, context_t *other)
 {
-	if (!self || context_save_arch(self))
-		context_restore_arch(other);
+	context_swap_arch(&self->sp, &other->sp);
 }
 
 _NO_TRACE static inline void context_create(context_t *context,
     void (*fn)(void), void *stack_base, size_t stack_size)
 {
-	*context = (context_t) { 0 };
-	context_set(context, FADDR(fn), stack_base, stack_size);
+	*context = (context_t) {
+		.sp = (uintptr_t) stack_base + stack_size - SP_DELTA - 48,
+	};
+
+	uintptr_t *sp = (uintptr_t *) context->sp;
+
+	/* Store PC on stack. */
+	sp[0] = (uintptr_t) fn;
+
+	/* Clear storage area for saved registers. */
+	for (int i = 1; i < 12; i++)
+		sp[i] = 0;
 }
 
 __attribute__((noreturn)) static inline void context_replace(void (*fn)(void),
     void *stack_base, size_t stack_size)
 {
-	context_t ctx;
-	context_create(&ctx, fn, stack_base, stack_size);
-	context_swap(NULL, &ctx);
-	unreachable();
+	uintptr_t sp = (uintptr_t) stack_base + stack_size - SP_DELTA;
+	context_replace_arch((uintptr_t) fn, sp);
 }
 
 #endif

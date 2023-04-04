@@ -1,5 +1,6 @@
 #
 # Copyright (c) 2003-2004 Jakub Jermar
+# Copyright (c) 2023 Jiří Zárevúcky
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,7 +28,6 @@
 #
 
 #include <abi/asmtool.h>
-#include <arch/context_struct.h>
 
 .text
 
@@ -35,44 +35,49 @@
 .set noreorder
 .set nomacro
 
-FUNCTION_BEGIN(context_save_arch)
-	sw $s0, CONTEXT_OFFSET_S0($a0)
-	sw $s1, CONTEXT_OFFSET_S1($a0)
-	sw $s2, CONTEXT_OFFSET_S2($a0)
-	sw $s3, CONTEXT_OFFSET_S3($a0)
-	sw $s4, CONTEXT_OFFSET_S4($a0)
-	sw $s5, CONTEXT_OFFSET_S5($a0)
-	sw $s6, CONTEXT_OFFSET_S6($a0)
-	sw $s7, CONTEXT_OFFSET_S7($a0)
-	sw $s8, CONTEXT_OFFSET_S8($a0)
-	sw $gp, CONTEXT_OFFSET_GP($a0)
-	sw $k1, CONTEXT_OFFSET_TP($a0)
+FUNCTION_BEGIN(context_swap_arch)
+	addiu $sp, $sp, -48
 
-	sw $ra, CONTEXT_OFFSET_PC($a0)
-	sw $sp, CONTEXT_OFFSET_SP($a0)
+	sw $ra,  0($sp)
+	sw $s0,  4($sp)
+	sw $s1,  8($sp)
+	sw $s2, 12($sp)
+	sw $s3, 16($sp)
+	sw $s4, 20($sp)
+	sw $s5, 24($sp)
+	sw $s6, 28($sp)
+	sw $s7, 32($sp)
+	sw $s8, 36($sp)
+	sw $gp, 40($sp)
+	sw $k1, 44($sp)
 
-	# context_save returns 1
-	j $31
-	li $2, 1
-FUNCTION_END(context_save_arch)
+	sw $sp, 0($a0)
+	lw $sp, 0($a1)
 
-FUNCTION_BEGIN(context_restore_arch)
-	lw $s0, CONTEXT_OFFSET_S0($a0)
-	lw $s1, CONTEXT_OFFSET_S1($a0)
-	lw $s2, CONTEXT_OFFSET_S2($a0)
-	lw $s3, CONTEXT_OFFSET_S3($a0)
-	lw $s4, CONTEXT_OFFSET_S4($a0)
-	lw $s5, CONTEXT_OFFSET_S5($a0)
-	lw $s6, CONTEXT_OFFSET_S6($a0)
-	lw $s7, CONTEXT_OFFSET_S7($a0)
-	lw $s8, CONTEXT_OFFSET_S8($a0)
-	lw $gp, CONTEXT_OFFSET_GP($a0)
-	lw $k1, CONTEXT_OFFSET_TP($a0)
+	lw $ra,  0($sp)
+	lw $s0,  4($sp)
+	lw $s1,  8($sp)
+	lw $s2, 12($sp)
+	lw $s3, 16($sp)
+	lw $s4, 20($sp)
+	lw $s5, 24($sp)
+	lw $s6, 28($sp)
+	lw $s7, 32($sp)
+	lw $s8, 36($sp)
+	lw $gp, 40($sp)
+	lw $k1, 44($sp)
 
-	lw $ra, CONTEXT_OFFSET_PC($a0)
-	lw $sp, CONTEXT_OFFSET_SP($a0)
+	j $ra
+	addiu $sp, $sp, 48
+FUNCTION_END(context_swap_arch)
 
-	# context_restore returns 0
-	j $31
-	xor $2, $2
-FUNCTION_END(context_restore_arch)
+FUNCTION_BEGIN(context_replace_arch)
+	li $fp, 0
+	li $k1, 0
+	li $ra, 0
+
+	addiu $sp, $a1, 0
+
+	j $a0
+	nop
+FUNCTION_END(context_replace_arch)

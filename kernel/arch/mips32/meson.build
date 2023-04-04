@@ -63,7 +63,6 @@ endif
 
 _check_headers = [
 	'include/arch/istate_struct.h',
-	'include/arch/context_struct.h',
 	'include/arch/fpu_context_struct.h',
 ]
 
