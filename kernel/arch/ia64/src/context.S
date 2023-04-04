@@ -344,3 +344,46 @@ FUNCTION_BEGIN(context_restore_arch)
 	br.ret.sptk.many b0
 FUNCTION_END(context_restore_arch)
 
+FUNCTION_BEGIN(context_replace_arch)
+	alloc loc0 = ar.pfs, 5, 1, 0, 0 ;;
+
+	.auto
+
+	/*
+	 * Invalidate the ALAT
+	 */
+	invala
+
+	/*
+	 * Put RSE to enforced lazy mode.
+	 * So that ar.bspstore and ar.rnat can be written.
+	 */
+	mov ar.rsc = 0
+
+	/*
+	 * Flush dirty registers to backing store.
+	 * We do this because we want the following move
+	 * to ar.bspstore to assign the same value to ar.bsp.
+	 */
+	flushrs
+
+	/* Restore registers */
+
+	/* Restore pc */
+	mov b0 = in0
+	/* Restore sp */
+	mov r12 = in1
+	/* rse.bspload = ar.bsp = ar.bspstore = in2 */
+	mov ar.bspstore = in2
+	/* Restore gp */
+	mov r1 = in3
+	mov ar.fpsr = in4
+	mov ar.rnat = 0
+	mov ar.pfs = 0
+	mov ar.rsc = 0
+	mov ar.unat = 0
+	mov ar.lc = 0
+
+	mov r8 = r0			/* context_restore returns 0 */
+	br.ret.sptk.many b0
+FUNCTION_END(context_replace_arch)

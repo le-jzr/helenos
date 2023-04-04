@@ -54,25 +54,11 @@
 #define SP_DELTA  (0 + ALIGN_UP(STACK_ITEM_SIZE, STACK_ALIGNMENT))
 
 extern void *__gp;
-/* RSE stack starts at the bottom of memory stack, hence the division by 2. */
-#define context_set(c, _pc, stack, size) \
-	do { \
-		(c)->pc = (uintptr_t) _pc; \
-		(c)->bsp = ((uintptr_t) stack) + ALIGN_UP((size / 2), REGISTER_STACK_ALIGNMENT); \
-		(c)->ar_pfs &= PFM_MASK; \
-		(c)->ar_fpsr = FPSR_TRAPS_ALL | FPSR_SF1_CTRL; \
-		(c)->sp = ((uintptr_t) stack) + ALIGN_UP((size / 2), STACK_ALIGNMENT) - SP_DELTA; \
-		(c)->r1 = (uintptr_t) &__gp; \
-	} while (0)
-
-#define context_set_generic(ctx, _pc, stack, size) \
-	do { \
-		(ctx)->pc = (uintptr_t) (_pc); \
-		(ctx)->sp = ((uintptr_t) (stack)) + (size) - SP_DELTA; \
-	} while (0)
 
 extern int context_save_arch(context_t *ctx) __attribute__((returns_twice));
 extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
+extern void context_replace_arch(uintptr_t pc, uintptr_t sp, uintptr_t bsp,
+    uintptr_t gp, uintptr_t fpsr) __attribute__((noreturn));
 
 /**
  * Saves current context to the variable pointed to by `self`,
@@ -93,16 +79,25 @@ _NO_TRACE static inline void context_swap(context_t *self, context_t *other)
 _NO_TRACE static inline void context_create(context_t *context,
     void (*fn)(void), void *stack_base, size_t stack_size)
 {
-	*context = (context_t) { 0 };
-	context_set(context, FADDR(fn), stack_base, stack_size);
+	/* RSE stack starts at the bottom of memory stack, hence the division by 2. */
+
+	*context = (context_t) {
+		.pc = FADDR(fn),
+		.sp = ((uintptr_t) stack_base) + ALIGN_UP((stack_size / 2), STACK_ALIGNMENT) - SP_DELTA,
+		.bsp = ((uintptr_t) stack_base) + ALIGN_UP((stack_size / 2), REGISTER_STACK_ALIGNMENT),
+		.ar_fpsr = FPSR_TRAPS_ALL | FPSR_SF1_CTRL,
+		.r1 = (uintptr_t) &__gp,
+	};
 }
 
 __attribute__((noreturn)) static inline void context_replace(void (*fn)(void),
     void *stack_base, size_t stack_size)
 {
-	context_t ctx;
-	context_create(&ctx, fn, stack_base, stack_size);
-	context_swap(NULL, &ctx);
+	uintptr_t sp = ((uintptr_t) stack_base) + ALIGN_UP((stack_size / 2), STACK_ALIGNMENT) - SP_DELTA;
+	uintptr_t bsp = ((uintptr_t) stack_base) + ALIGN_UP((stack_size / 2), REGISTER_STACK_ALIGNMENT);
+
+	context_replace_arch(FADDR(fn), sp, bsp, (uintptr_t) &__gp,
+	    FPSR_TRAPS_ALL | FPSR_SF1_CTRL);
 	unreachable();
 }
 
