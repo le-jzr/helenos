@@ -284,7 +284,8 @@ void main_bsp_separated_stack(void)
 	 * This call to scheduler_run() will return to kinit,
 	 * starting the thread of kernel threads.
 	 */
-	scheduler_run();
+	current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
+	context_replace(scheduler_run, CPU_LOCAL->stack, STACK_SIZE);
 	/* not reached */
 }
 

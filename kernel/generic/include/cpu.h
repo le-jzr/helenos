@@ -75,7 +75,6 @@ typedef struct cpu_local {
 	uint64_t last_cycle;
 
 	context_t scheduler_context;
-	bool scheduler_context_initialized;
 
 	struct thread *prev_thread;
 } cpu_local_t;

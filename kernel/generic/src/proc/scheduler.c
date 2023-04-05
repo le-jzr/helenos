@@ -65,8 +65,6 @@
 #include <log.h>
 #include <stacktrace.h>
 
-static void scheduler_separated_stack(void) __attribute__((noreturn));
-
 atomic_size_t nrdy;  /**< Number of ready threads in the system. */
 
 #ifdef CONFIG_FPU_LAZY
@@ -296,21 +294,6 @@ static void fpu_restore(void)
 #endif
 }
 
-/** Enter main scheduler loop. Never returns. */
-void scheduler_run(void)
-{
-	assert(interrupts_disabled());
-
-	assert(CPU != NULL);
-	assert(THREAD == NULL);
-	assert(TASK == NULL);
-
-	CPU_LOCAL->scheduler_context_initialized = true;
-
-	current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
-	context_replace(scheduler_separated_stack, CPU_LOCAL->stack, STACK_SIZE);
-}
-
 /** Things to do before we switch to THREAD context.
  */
 static void prepare_to_run_thread(int rq_index)
@@ -477,7 +460,6 @@ void scheduler_enter(state_t new_state)
 
 	assert(CPU != NULL);
 	assert(THREAD != NULL);
-	assert(CPU_LOCAL->scheduler_context_initialized);
 
 	fpu_cleanup();
 
@@ -534,18 +516,21 @@ void scheduler_enter(state_t new_state)
 	interrupts_restore(ipl);
 }
 
-/** Main scheduler loop.
+/** Enter main scheduler loop. Never returns.
  *
- * This function is only switched to when a thread is stopping and there is
+ * This function switches to a runnable thread as soon as one is available,
+ * after which it is only switched back to if a thread is stopping and there is
  * no other thread to run in its place. We need a separate context for that
  * because we're going to block the CPU, which means we need another context
  * to clean up after the previous thread.
  */
-void scheduler_separated_stack(void)
+void scheduler_run(void)
 {
+	assert(interrupts_disabled());
+
+	assert(CPU != NULL);
 	assert(TASK == NULL);
 	assert(THREAD == NULL);
-	assert(interrupts_disabled());
 
 	while (!atomic_load(&haltstate)) {
 		assert(CURRENT->mutex_locks == 0);
