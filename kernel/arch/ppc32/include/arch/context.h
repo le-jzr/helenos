@@ -38,53 +38,30 @@
 #include <arch/context_struct.h>
 #include <trace.h>
 #include <arch.h>
-#include <arch/faddr.h>
 #include <panic.h>
 
 #define SP_DELTA  16
 
-#define context_set(ctx, pc, stack, size) \
-    context_set_generic(ctx, pc, stack, size)
-
-#define context_set_generic(ctx, _pc, stack, size) \
-	do { \
-		(ctx)->pc = (uintptr_t) (_pc); \
-		(ctx)->sp = ((uintptr_t) (stack)) + (size) - SP_DELTA; \
-	} while (0)
-
-extern int context_save_arch(context_t *ctx) __attribute__((returns_twice));
-extern void context_restore_arch(context_t *ctx) __attribute__((noreturn));
-
-/**
- * Saves current context to the variable pointed to by `self`,
- * and restores the context denoted by `other`.
- *
- * When the `self` context is later restored by another call to
- * `context_swap()`, the control flow behaves as if the earlier call to
- * `context_swap()` just returned.
- *
- * If `self` is NULL, the currently running context is thrown away.
- */
-_NO_TRACE static inline void context_swap(context_t *self, context_t *other)
-{
-	if (!self || context_save_arch(self))
-		context_restore_arch(other);
-}
+extern void context_swap(context_t *self, context_t *other);
 
 _NO_TRACE static inline void context_create(context_t *context,
     void (*fn)(void), void *stack_base, size_t stack_size)
 {
-	*context = (context_t) { 0 };
-	context_set(context, FADDR(fn), stack_base, stack_size);
+	*context = (context_t) {
+		.pc = (uintptr_t) fn,
+		.sp = (uintptr_t) stack_base + stack_size - SP_DELTA,
+	};
 }
+
+extern void context_replace_arch(uintptr_t pc, uintptr_t sp)
+    __attribute__((noreturn));
 
 __attribute__((noreturn)) static inline void context_replace(void (*fn)(void),
     void *stack_base, size_t stack_size)
 {
-	context_t ctx;
-	context_create(&ctx, fn, stack_base, stack_size);
-	context_swap(NULL, &ctx);
-	unreachable();
+	uintptr_t pc = (uintptr_t) fn;
+	uintptr_t sp = (uintptr_t) stack_base + stack_size - SP_DELTA;
+	context_replace_arch(pc, sp);
 }
 
 #endif
