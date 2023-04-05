@@ -31,7 +31,7 @@
 
 .text
 
-FUNCTION_BEGIN(context_save_arch)
+FUNCTION_BEGIN(context_swap)
 	sd gp, CONTEXT_OFFSET_GP(a0)
 	sd tp, CONTEXT_OFFSET_TP(a0)
 	sd s0, CONTEXT_OFFSET_S0(a0)
@@ -50,31 +50,23 @@ FUNCTION_BEGIN(context_save_arch)
 	sd ra, CONTEXT_OFFSET_PC(a0)
 	sd sp, CONTEXT_OFFSET_SP(a0)
 
-	# context_save returns 1
-	li a0, 1
+	ld ra, CONTEXT_OFFSET_PC(a1)
+	ld sp, CONTEXT_OFFSET_SP(a1)
+
+	ld gp, CONTEXT_OFFSET_GP(a1)
+	ld tp, CONTEXT_OFFSET_TP(a1)
+	ld s0, CONTEXT_OFFSET_S0(a1)
+	ld s1, CONTEXT_OFFSET_S1(a1)
+	ld s2, CONTEXT_OFFSET_S2(a1)
+	ld s3, CONTEXT_OFFSET_S3(a1)
+	ld s4, CONTEXT_OFFSET_S4(a1)
+	ld s5, CONTEXT_OFFSET_S5(a1)
+	ld s6, CONTEXT_OFFSET_S6(a1)
+	ld s7, CONTEXT_OFFSET_S7(a1)
+	ld s8, CONTEXT_OFFSET_S8(a1)
+	ld s9, CONTEXT_OFFSET_S9(a1)
+	ld s10, CONTEXT_OFFSET_S10(a1)
+	ld s11, CONTEXT_OFFSET_S11(a1)
+
 	ret
-FUNCTION_END(context_save_arch)
-
-FUNCTION_BEGIN(context_restore_arch)
-	ld gp, CONTEXT_OFFSET_GP(a0)
-	ld tp, CONTEXT_OFFSET_TP(a0)
-	ld s0, CONTEXT_OFFSET_S0(a0)
-	ld s1, CONTEXT_OFFSET_S1(a0)
-	ld s2, CONTEXT_OFFSET_S2(a0)
-	ld s3, CONTEXT_OFFSET_S3(a0)
-	ld s4, CONTEXT_OFFSET_S4(a0)
-	ld s5, CONTEXT_OFFSET_S5(a0)
-	ld s6, CONTEXT_OFFSET_S6(a0)
-	ld s7, CONTEXT_OFFSET_S7(a0)
-	ld s8, CONTEXT_OFFSET_S8(a0)
-	ld s9, CONTEXT_OFFSET_S9(a0)
-	ld s10, CONTEXT_OFFSET_S10(a0)
-	ld s11, CONTEXT_OFFSET_S11(a0)
-
-	ld ra, CONTEXT_OFFSET_PC(a0)
-	ld sp, CONTEXT_OFFSET_SP(a0)
-
-	# context_restore returns 0
-	li a0, 0
-	ret
-FUNCTION_END(context_restore_arch)
+FUNCTION_END(context_swap)
