@@ -182,7 +182,7 @@ loop:
 		 * until a hardware interrupt or an IPI comes.
 		 * This improves energy saving and hyperthreading.
 		 */
-		CPU->idle = true;
+		CPU_LOCAL->idle = true;
 
 		/*
 		 * Go to sleep with interrupts enabled.
@@ -196,7 +196,7 @@ loop:
 		goto loop;
 	}
 
-	assert(!CPU->idle);
+	assert(!CPU_LOCAL->idle);
 
 	unsigned int i;
 	for (i = 0; i < RQ_COUNT; i++) {
@@ -229,7 +229,8 @@ loop:
 		uint64_t time_to_run = (i + 1) * 10000;
 
 		/* This is safe because interrupts are disabled. */
-		CPU->preempt_deadline = CPU->current_clock_tick + us2ticks(time_to_run);
+		CPU_LOCAL->preempt_deadline =
+		    CPU_LOCAL->current_clock_tick + us2ticks(time_to_run);
 
 		/*
 		 * Clear the stolen flag so that it can be migrated
@@ -280,10 +281,10 @@ static void switch_task(task_t *task)
  */
 static void relink_rq(int start)
 {
-	if (CPU->current_clock_tick < CPU->relink_deadline)
+	if (CPU_LOCAL->current_clock_tick < CPU_LOCAL->relink_deadline)
 		return;
 
-	CPU->relink_deadline = CPU->current_clock_tick + NEEDS_RELINK_MAX;
+	CPU_LOCAL->relink_deadline = CPU_LOCAL->current_clock_tick + NEEDS_RELINK_MAX;
 
 	/* Temporary cache for lists we are moving. */
 	list_t list;
@@ -376,7 +377,7 @@ void scheduler_locked(ipl_t ipl)
 	 * from THREAD's or CPU's stack.
 	 *
 	 */
-	current_copy(CURRENT, (current_t *) CPU->stack);
+	current_copy(CURRENT, (current_t *) CPU_LOCAL->stack);
 
 	/*
 	 * We may not keep the old stack.
@@ -394,7 +395,7 @@ void scheduler_locked(ipl_t ipl)
 	context_t ctx;
 	context_save(&ctx);
 	context_set(&ctx, FADDR(scheduler_separated_stack),
-	    (uintptr_t) CPU->stack, STACK_SIZE);
+	    (uintptr_t) CPU_LOCAL->stack, STACK_SIZE);
 	context_restore(&ctx);
 
 	/* Not reached */
@@ -686,7 +687,7 @@ void sched_print_list(void)
 			continue;
 
 		/* Technically a data race, but we don't really care in this case. */
-		int needs_relink = cpus[cpu].relink_deadline - cpus[cpu].current_clock_tick;
+		int needs_relink = cpus[cpu].local.relink_deadline - cpus[cpu].local.current_clock_tick;
 
 		printf("cpu%u: address=%p, nrdy=%zu, needs_relink=%d\n",
 		    cpus[cpu].id, &cpus[cpu], atomic_load(&cpus[cpu].nrdy),
