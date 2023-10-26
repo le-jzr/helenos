@@ -39,18 +39,12 @@
 #include <arch/asm.h>
 #include <typedefs.h>
 #include <str.h>
+#include <console/console.h>
 
 static int vprintf_str_write(const char *str, size_t size, void *data)
 {
-	size_t offset = 0;
-	size_t chars = 0;
-
-	while (offset < size) {
-		putuchar(str_decode(str, &offset, size));
-		chars++;
-	}
-
-	return chars;
+	kio_write(str, size);
+	return size;
 }
 
 static int vprintf_wstr_write(const char32_t *str, size_t size, void *data)
@@ -69,17 +63,11 @@ static int vprintf_wstr_write(const char32_t *str, size_t size, void *data)
 
 int puts(const char *str)
 {
-	size_t offset = 0;
-	size_t chars = 0;
-	char32_t uc;
+	size_t size = str_size(str);
 
-	while ((uc = str_decode(str, &offset, STR_NO_LIMIT)) != 0) {
-		putuchar(uc);
-		chars++;
-	}
-
+	kio_write(str, size);
 	putuchar('\n');
-	return chars;
+	return size + 1;
 }
 
 int vprintf(const char *fmt, va_list ap)

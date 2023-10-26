@@ -35,7 +35,7 @@
 #include <debug/sections.h>
 #include <debug.h>
 
-#define DEBUGF dummy_printf
+#define DEBUGF printf
 
 extern bool skip_data(unsigned, const uint8_t **const, const uint8_t *, unsigned);
 extern void print_format(const char *, const uint8_t *, const uint8_t *);

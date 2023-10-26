@@ -242,6 +242,55 @@ sysarg_t sys_debug_console(void)
 #endif
 }
 
+/** Get string from input character device.
+ *
+ * Read characters from input character device until first occurrence
+ * of newline character.
+ *
+ * @param indev  Input character device.
+ * @param buf    Buffer where to store string terminated by NULL.
+ * @param buflen Size of the buffer.
+ *
+ * @return Number of characters read.
+ *
+ */
+size_t gets(indev_t *indev, char *buf, size_t buflen)
+{
+	size_t offset = 0;
+	size_t count = 0;
+	buf[offset] = 0;
+
+	char32_t ch;
+	while ((ch = indev_pop_character(indev)) != '\n') {
+		if (ch == '\b') {
+			if (count > 0) {
+				/* Space, backspace, space */
+				kio_write("\b \b", 3);
+
+				count--;
+				offset = str_lsize(buf, count);
+				buf[offset] = 0;
+			}
+		}
+
+		if (chr_encode(ch, buf, &offset, buflen - 1) == EOK) {
+			putuchar(ch);
+			count++;
+			buf[offset] = 0;
+		}
+	}
+
+	return count;
+}
+
+/** Get character from input device & echo it to screen */
+char32_t getc(indev_t *indev)
+{
+	char32_t ch = indev_pop_character(indev);
+	putuchar(ch);
+	return ch;
+}
+
 void kio_update(void *event)
 {
 	if (!atomic_load(&kio_inited))
@@ -306,6 +355,44 @@ void kio_push_char(const char32_t ch)
 	/* The character is stored for uspace */
 	if (kio_uspace < kio_len)
 		kio_uspace++;
+}
+
+// Poor man's memchr().
+static bool contains_byte(const char *s, int c, size_t n)
+{
+	for (size_t i = 0; i < n; i++) {
+		if (s[i] == c)
+			return true;
+	}
+	return false;
+}
+
+/** Outputs n bytes from string s, then flushes kio.
+ */
+void kio_write(const char *s, size_t n)
+{
+	bool ordy = ((stdout) && (stdout->op->write));
+
+	spinlock_lock(&kio_lock);
+
+	size_t offset = 0;
+	while (offset < n) {
+		kio_push_char(str_decode(s, &offset, n));
+	}
+
+	spinlock_unlock(&kio_lock);
+
+	if (ordy) {
+		kio_flush();
+	} else {
+		size_t offset = 0;
+		while (offset < n) {
+			early_putuchar(str_decode(s, &offset, n));
+		}
+	}
+
+	if (contains_byte(s, '\n', n))
+		kio_update(NULL);
 }
 
 void putuchar(const char32_t ch)
