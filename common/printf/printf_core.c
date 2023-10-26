@@ -93,6 +93,12 @@
  */
 #define PRINT_NUMBER_BUFFER_SIZE  (64 + 5)
 
+/**
+ * Buffer for conversion from UTF-32 string to UTF-8 string.
+ * The longer the better, but must fit on stack. Also, probably never used.
+ */
+#define BYTE_BUFFER_SIZE 64
+
 /** Get signed or unsigned integer argument */
 #define PRINTF_GET_INT_ARGUMENT(type, ap, flags) \
 	({ \
@@ -148,18 +154,35 @@ static int printf_putnchars(const char *buf, size_t size,
 
 /** Print one or more wide characters without adding newline.
  *
- * @param buf  Buffer holding wide characters with size of
- *             at least size bytes. NULL is not allowed!
- * @param size Size of the buffer in bytes.
- * @param ps   Output method and its data.
+ * @param buf        Buffer holding at least max_chars wide characters
+ * @param max_chars  Maximum number of characters to print
+ * @param ps         Output method and its data.
  *
- * @return Number of wide characters printed.
+ * @return Number of characters printed.
  *
  */
-static int printf_wputnchars(const char32_t *buf, size_t size,
+static int put_wstr(const char32_t *s, size_t max_chars,
     printf_spec_t *ps)
 {
-	return ps->wstr_write((void *) buf, size, ps->data);
+	int printed = 0;
+
+	char buf[BYTE_BUFFER_SIZE];
+	size_t buf_used = 0;
+
+	for (; max_chars > 0 && *s; max_chars--, s++) {
+		chr_encode(*s, buf, &buf_used, BYTE_BUFFER_SIZE);
+
+		if (buf_used + 5 > BYTE_BUFFER_SIZE) {
+			buf[buf_used] = '\0';
+			printed += printf_putnchars(buf, buf_used, ps);
+			buf_used = 0;
+		}
+	}
+
+	buf[buf_used] = '\0';
+	printed += printf_putnchars(buf, buf_used, ps);
+
+	return printed;
 }
 
 /** Print string without adding a newline.
@@ -204,10 +227,7 @@ static int printf_putchar(const char ch, printf_spec_t *ps)
  */
 static int printf_putuchar(const char32_t ch, printf_spec_t *ps)
 {
-	if (!chr_check(ch))
-		return ps->str_write((void *) &invalch, 1, ps->data);
-
-	return ps->wstr_write(&ch, sizeof(char32_t), ps->data);
+	return put_wstr(&ch, 1, ps);
 }
 
 /** Print one formatted ASCII character.
@@ -368,8 +388,7 @@ static int print_wstr(char32_t *str, int width, unsigned int precision,
 
 	/* Part of @a wstr fitting into the alloted space. */
 	int retval;
-	size_t size = wstr_lsize(str, precision);
-	if ((retval = printf_wputnchars(str, size, ps)) < 0)
+	if ((retval = put_wstr(str, precision, ps)) < 0)
 		return -counter;
 
 	counter += retval;

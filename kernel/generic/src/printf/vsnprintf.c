@@ -115,58 +115,6 @@ static int vsnprintf_str_write(const char *str, size_t size, vsnprintf_data_t *d
 	return ((int) size);
 }
 
-/** Write wide string to given buffer.
- *
- * Write at most data->size plain characters including trailing zero.
- * According to C99, snprintf() has to return number of characters that
- * would have been written if enough space had been available. Hence
- * the return value is not the number of actually printed characters
- * but size of the input string.
- *
- * @param str  Source wide string to print.
- * @param size Number of bytes in str.
- * @param data Structure describing destination string, counter
- *             of used space and total string size.
- *
- * @return Number of wide characters to print (not characters actually
- *         printed).
- *
- */
-static int vsnprintf_wstr_write(const char32_t *str, size_t size, vsnprintf_data_t *data)
-{
-	size_t index = 0;
-
-	while (index < (size / sizeof(char32_t))) {
-		size_t left = data->size - data->len;
-
-		if (left == 0)
-			return ((int) size);
-
-		if (left == 1) {
-			/*
-			 * We have only one free byte left in buffer
-			 * -> store trailing zero
-			 */
-			data->dst[data->size - 1] = 0;
-			data->len = data->size;
-			return ((int) size);
-		}
-
-		if (chr_encode(str[index], data->dst, &data->len, data->size - 1) != EOK)
-			break;
-
-		index++;
-	}
-
-	/*
-	 * Put trailing zero at end, but not count it
-	 * into data->len so it could be rewritten next time
-	 */
-	data->dst[data->len] = 0;
-
-	return ((int) size);
-}
-
 int vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
 {
 	vsnprintf_data_t data = {
@@ -176,7 +124,6 @@ int vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
 	};
 	printf_spec_t ps = {
 		(int (*) (const char *, size_t, void *)) vsnprintf_str_write,
-		(int (*) (const char32_t *, size_t, void *)) vsnprintf_wstr_write,
 		&data
 	};
 

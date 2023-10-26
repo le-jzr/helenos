@@ -47,20 +47,6 @@ static int vprintf_str_write(const char *str, size_t size, void *data)
 	return size;
 }
 
-static int vprintf_wstr_write(const char32_t *str, size_t size, void *data)
-{
-	size_t offset = 0;
-	size_t chars = 0;
-
-	while (offset < size) {
-		putuchar(str[chars]);
-		chars++;
-		offset += sizeof(char32_t);
-	}
-
-	return chars;
-}
-
 int puts(const char *str)
 {
 	size_t size = str_size(str);
@@ -74,7 +60,6 @@ int vprintf(const char *fmt, va_list ap)
 {
 	printf_spec_t ps = {
 		vprintf_str_write,
-		vprintf_wstr_write,
 		NULL
 	};
 

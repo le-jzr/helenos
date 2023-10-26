@@ -213,27 +213,6 @@ static int log_printf_str_write(const char *str, size_t size, void *data)
 	return chars;
 }
 
-static int log_printf_wstr_write(const char32_t *wstr, size_t size, void *data)
-{
-	char buffer[16];
-	size_t offset = 0;
-	size_t chars = 0;
-
-	for (offset = 0; offset < size; offset += sizeof(char32_t), chars++) {
-		kio_push_char(wstr[chars]);
-
-		size_t buffer_offset = 0;
-		errno_t rc = chr_encode(wstr[chars], buffer, &buffer_offset, 16);
-		if (rc != EOK) {
-			return EOF;
-		}
-
-		log_append((const uint8_t *)buffer, buffer_offset);
-	}
-
-	return chars;
-}
-
 /** Append a message to the currently being written entry.
  *
  * Requires that an entry has been started using log_begin()
@@ -244,7 +223,6 @@ int log_vprintf(const char *fmt, va_list args)
 
 	printf_spec_t ps = {
 		log_printf_str_write,
-		log_printf_wstr_write,
 		NULL
 	};
 

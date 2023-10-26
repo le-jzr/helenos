@@ -44,9 +44,6 @@ typedef struct {
 	/* String output function, returns number of printed characters or EOF */
 	int (*str_write)(const char *, size_t, void *);
 
-	/* Wide string output function, returns number of printed characters or EOF */
-	int (*wstr_write)(const char32_t *, size_t, void *);
-
 	/* User data - output stream specification, state, locks, etc. */
 	void *data;
 } printf_spec_t;
