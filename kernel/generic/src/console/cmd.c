@@ -238,6 +238,25 @@ static cmd_info_t printbench_info = {
 	.argc = 0,
 };
 
+static int cmd_profile(cmd_arg_t *argv);
+static cmd_arg_t profile_argv[] = {
+	{
+		.type = ARG_TYPE_STRING,
+		.buffer = test_buf,
+		.len = sizeof(test_buf),
+	},
+	{
+		.type = ARG_TYPE_INT,
+	},
+};
+static cmd_info_t profile_info = {
+	.name = "profile",
+	.description = "<test> <count> Run kernel test as benchmark and display profiling data.",
+	.func = cmd_profile,
+	.argc = 2,
+	.argv = profile_argv,
+};
+
 #endif /* CONFIG_TEST */
 
 /* Data and methods for 'description' command. */
@@ -623,6 +642,7 @@ static cmd_info_t *basic_commands[] = {
 	&test_info,
 	&bench_info,
 	&printbench_info,
+	&profile_info,
 #endif
 #ifdef CONFIG_UDEBUG
 	&btrace_info,
@@ -1644,6 +1664,50 @@ int cmd_printbench(cmd_arg_t *argv)
 	free(data);
 
 	return true;
+}
+
+/** Command for returning kernel tests as benchmarks
+ *
+ * @param argv Argument vector.
+ *
+ * return Always 1.
+ */
+int cmd_profile(cmd_arg_t *argv)
+{
+	test_t *test;
+	uint32_t cnt = argv[1].intval;
+
+	if (str_cmp((char *) argv->buffer, "*") == 0) {
+		for (test = tests; test->name != NULL; test++) {
+			if (test->safe) {
+				if (!run_bench(test, cnt))
+					break;
+			}
+		}
+	} else {
+		bool fnd = false;
+
+		for (test = tests; test->name != NULL; test++) {
+			if (str_cmp(test->name, (char *) argv->buffer) == 0) {
+				fnd = true;
+
+				if (test->safe) {
+					debug_profile_start();
+					run_bench(test, cnt);
+					debug_profile_stop();
+				} else {
+					printf("Unsafe test\n");
+				}
+
+				break;
+			}
+		}
+
+		if (!fnd)
+			printf("Unknown test\n");
+	}
+
+	return 1;
 }
 
 #endif

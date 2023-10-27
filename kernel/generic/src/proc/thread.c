@@ -352,6 +352,7 @@ thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
 	waitq_initialize(&thread->join_wq);
 
 	thread->task = task;
+	thread->profdata = NULL;
 
 	thread->fpu_context_exists = false;
 

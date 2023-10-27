@@ -35,12 +35,162 @@
  * @brief Kernel instrumentation functions.
  */
 
-#ifdef CONFIG_TRACE
+#include <debug/profile.h>
 
+#include <stdalign.h>
 #include <debug.h>
 #include <symtab.h>
 #include <errno.h>
 #include <stdio.h>
+#include <mm/slab.h>
+#include <proc/thread.h>
+#include <mem.h>
+#include <stacktrace.h>
+
+static slab_cache_t *data_cache = NULL;
+
+#define PROFILE_TRACE_DEPTH 16
+
+void debug_profile_init(void)
+{
+	data_cache = slab_cache_create("thread_profile_data_t",
+	    sizeof(thread_profile_data_t), alignof(thread_profile_data_t),
+	    NULL, NULL, 0);
+}
+
+void debug_profile_start(void)
+{
+	void *data = slab_alloc(data_cache, 0);
+	if (data)
+		memset(data, 0, sizeof(thread_profile_data_t));
+
+	THREAD->profdata = data;
+}
+
+static void free_profile(thread_profile_data_t *p)
+{
+	while (p != NULL) {
+		for (int i = 0; i < THREAD_PROFILE_DATA_LEN; i++)
+			free_profile(p->child[i]);
+
+		thread_profile_data_t *next = p->next;
+		slab_free(data_cache, p);
+		p = next;
+	}
+}
+
+static void print_profile(thread_profile_data_t *p, uintptr_t total, char *prefix, size_t prefix_len, size_t prefix_cap)
+{
+	if (total == 0)
+		total = 1;
+
+	uintptr_t percent = (p->count * 100) / total;
+
+	printf("%s%zu (%zu %%) 0x%zx\n", prefix, p->count, percent, p->address);
+
+	prefix[prefix_len] = ' ';
+	prefix[prefix_len + 1] = ' ';
+	prefix[prefix_len + 2] = 0;
+
+	while (p != NULL) {
+		for (int i = 0; i < THREAD_PROFILE_DATA_LEN; i++) {
+			if (p->child[i] == NULL)
+				return;
+
+			print_profile(p->child[i], p->count, prefix, prefix_len + 2, prefix_cap);
+		}
+
+		p = p->next;
+	}
+
+	prefix[prefix_len] = 0;
+}
+
+#define MAX_PREFIX_LEN (2 * PROFILE_TRACE_DEPTH + 1)
+
+void debug_profile_stop(void)
+{
+	thread_profile_data_t *data = THREAD->profdata;
+	THREAD->profdata = NULL;
+
+	char prefix_buffer[MAX_PREFIX_LEN] = {};
+
+	if (data)
+		print_profile(data, data->count, prefix_buffer, 0, MAX_PREFIX_LEN);
+
+	free_profile(data);
+}
+
+static thread_profile_data_t *descend(thread_profile_data_t *p, uintptr_t pc)
+{
+	while (true) {
+		for (int i = 0; i < THREAD_PROFILE_DATA_LEN; i++) {
+			if (p->child[i] == NULL) {
+				// New child node.
+
+				p->child[i] = slab_alloc(data_cache, FRAME_ATOMIC);
+				if (p->child[i] == NULL) {
+					LOG("can't allocate more memory for profile\n");
+					return NULL;
+				}
+				memset(p->child[i], 0, sizeof(thread_profile_data_t));
+
+				p->child[i]->address = pc;
+				p->child[i]->count = 1;
+				return p->child[i];
+			}
+
+			if (p->child[i]->address == pc) {
+				// Existing child node.
+
+				p->child[i]->count++;
+				return p->child[i];
+			}
+		}
+
+		// Move to the sibling node.
+
+		if (p->next == NULL) {
+			// New sibling node.
+
+			p->next = slab_alloc(data_cache, FRAME_ATOMIC);
+			if (p->next == NULL) {
+				LOG("can't allocate more memory for profile\n");
+				return NULL;
+			}
+			memset(p->next, 0, sizeof(thread_profile_data_t));
+		}
+
+		p = p->next;
+	}
+}
+
+void debug_profile_gather(void)
+{
+	if (THREAD == NULL || THREAD->profdata == NULL)
+		return;
+
+	//printf("gather data\n");
+
+	uintptr_t trace[PROFILE_TRACE_DEPTH];
+	size_t trace_len = PROFILE_TRACE_DEPTH;
+
+	stack_trace_gather_pc(trace, &trace_len);
+
+	if (trace_len == PROFILE_TRACE_DEPTH) {
+		//LOG("profile data point lost: stack too deep!\n");
+		return;
+	}
+
+	thread_profile_data_t *data = THREAD->profdata;
+	data->count++;
+
+	for (; data && trace_len > 0; trace_len--) {
+		data = descend(data, trace[trace_len - 1]);
+	}
+}
+
+#ifdef CONFIG_TRACE
 
 void __cyg_profile_func_enter(void *fn, void *call_site)
 {

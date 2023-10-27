@@ -97,6 +97,38 @@ void stack_trace_ctx(stack_trace_ops_t *ops, stack_trace_context_t *ctx)
 	}
 }
 
+void stack_trace_gather_pc(uintptr_t *buffer, size_t *buffer_len)
+{
+	uintptr_t *const buffer_end = buffer + *buffer_len;
+
+	stack_trace_context_t ctx = {
+		.fp = frame_pointer_get(),
+		.pc = program_counter_get(),
+		.istate = NULL
+	};
+
+	uintptr_t fp;
+	uintptr_t pc;
+
+	while (buffer < buffer_end) {
+		if (!kst_ops.stack_trace_context_validate(&ctx))
+			break;
+
+		if (!kst_ops.return_address_get(&ctx, &pc))
+			break;
+
+		if (!kst_ops.frame_pointer_prev(&ctx, &fp))
+			break;
+
+		ctx.fp = fp;
+		ctx.pc = pc;
+
+		*(buffer++) = pc;
+	}
+
+	*buffer_len -= (buffer_end - buffer);
+}
+
 void stack_trace(void)
 {
 	stack_trace_context_t ctx = {

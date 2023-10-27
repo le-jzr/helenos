@@ -60,6 +60,7 @@ extern stack_trace_ops_t ust_ops;
 extern void stack_trace(void);
 extern void stack_trace_istate(struct istate *);
 extern void stack_trace_ctx(stack_trace_ops_t *, stack_trace_context_t *);
+extern void stack_trace_gather_pc(uintptr_t *, size_t *);
 
 /*
  * The following interface is to be implemented by each architecture.

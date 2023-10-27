@@ -146,6 +146,8 @@ void clock(void)
 	/* Account CPU usage */
 	cpu_update_accounting();
 
+	debug_profile_gather();
+
 	/*
 	 * To avoid lock ordering problems,
 	 * run all expired timeouts as you visit them.

@@ -49,6 +49,7 @@
 #include <abi/proc/thread.h>
 #include <abi/sysinfo.h>
 #include <arch.h>
+#include <debug/profile.h>
 
 #define THREAD              CURRENT->thread
 
@@ -93,6 +94,8 @@ typedef struct thread {
 
 	/** Waitq for thread_join_timeout(). */
 	waitq_t join_wq;
+
+	thread_profile_data_t *volatile profdata;
 
 	/** Lock protecting thread structure.
 	 *
