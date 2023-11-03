@@ -51,6 +51,10 @@ typedef struct {
 	/** Write to stream */
 	size_t (*write)(const void *buf, size_t size, size_t nmemb,
 	    FILE *stream);
+	/** Seek on the stream */
+	errno_t (*seek)(FILE *stream, int64_t offset, int whence);
+	/** Retrieve current stream offset */
+	int64_t (*tell)(FILE *stream);
 	/** Close stream */
 	errno_t (*close)(FILE *stream);
 	/** Flush stream */

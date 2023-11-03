@@ -51,6 +51,8 @@ static int stdio_kio_flush(FILE *);
 static size_t stdio_vfs_read(void *, size_t, size_t, FILE *);
 static size_t stdio_vfs_write(const void *, size_t, size_t, FILE *);
 static int stdio_vfs_flush(FILE *);
+static errno_t stdio_vfs_seek(FILE *, int64_t offset, int whence);
+static int64_t stdio_vfs_tell(FILE *);
 static errno_t stdio_vfs_close(FILE *);
 
 /** KIO stream ops */
@@ -58,7 +60,6 @@ static __stream_ops_t stdio_kio_ops = {
 	.read = stdio_kio_read,
 	.write = stdio_kio_write,
 	.flush = stdio_kio_flush,
-	.close = NULL,
 };
 
 /** VFS stream ops */
@@ -66,6 +67,8 @@ static __stream_ops_t stdio_vfs_ops = {
 	.read = stdio_vfs_read,
 	.write = stdio_vfs_write,
 	.flush = stdio_vfs_flush,
+	.seek = stdio_vfs_seek,
+	.tell = stdio_vfs_tell,
 	.close = stdio_vfs_close,
 };
 
@@ -545,6 +548,32 @@ static errno_t stdio_vfs_close(FILE *stream)
 		return vfs_put(stream->fd);
 
 	return EOK;
+}
+
+static errno_t stdio_vfs_seek(FILE *stream, int64_t offset, int whence)
+{
+	switch (whence) {
+	case SEEK_SET:
+		stream->pos = offset;
+		return EOK;
+	case SEEK_CUR:
+		stream->pos += offset;
+		return EOK;
+	case SEEK_END:
+		vfs_stat_t st;
+		errno_t rc = vfs_stat(stream->fd, &st);
+		if (rc != EOK)
+			return rc;
+		stream->pos = st.size + offset;
+		return EOK;
+	default:
+		return EINVAL;
+	}
+}
+
+static int64_t stdio_vfs_tell(FILE *stream)
+{
+	return stream->pos;
 }
 
 /** @}

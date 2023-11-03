@@ -477,7 +477,10 @@ int ungetc(int c, FILE *stream)
 
 int fseek64(FILE *stream, off64_t offset, int whence)
 {
-	errno_t rc;
+	if (stream->ops->seek == NULL) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	if (stream->error)
 		return -1;
@@ -490,31 +493,24 @@ int fseek64(FILE *stream, off64_t offset, int whence)
 
 	stream->ungetc_chars = 0;
 
-	vfs_stat_t st;
-	switch (whence) {
-	case SEEK_SET:
-		stream->pos = offset;
-		break;
-	case SEEK_CUR:
-		stream->pos += offset;
-		break;
-	case SEEK_END:
-		rc = vfs_stat(stream->fd, &st);
-		if (rc != EOK) {
-			errno = rc;
-			stream->error = true;
-			return -1;
-		}
-		stream->pos = st.size + offset;
-		break;
+	errno_t rc = stream->ops->seek(stream, offset, whence);
+
+	if (rc != EOK) {
+		errno = rc;
+		stream->error = true;
+		return -1;
 	}
 
-	stream->eof = false;
 	return 0;
 }
 
 off64_t ftell64(FILE *stream)
 {
+	if (stream->ops->tell == NULL) {
+		errno = EINVAL;
+		return EOF;
+	}
+
 	if (stream->error)
 		return EOF;
 
@@ -524,7 +520,7 @@ off64_t ftell64(FILE *stream)
 		return EOF;
 	}
 
-	return stream->pos - stream->ungetc_chars;
+	return stream->ops->tell(stream) - stream->ungetc_chars;
 }
 
 int fseek(FILE *stream, long offset, int whence)
