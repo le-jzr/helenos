@@ -50,21 +50,23 @@ static int stdio_kio_flush(FILE *);
 
 static size_t stdio_vfs_read(void *, size_t, size_t, FILE *);
 static size_t stdio_vfs_write(const void *, size_t, size_t, FILE *);
-
 static int stdio_vfs_flush(FILE *);
+static errno_t stdio_vfs_close(FILE *);
 
 /** KIO stream ops */
 static __stream_ops_t stdio_kio_ops = {
 	.read = stdio_kio_read,
 	.write = stdio_kio_write,
-	.flush = stdio_kio_flush
+	.flush = stdio_kio_flush,
+	.close = NULL,
 };
 
 /** VFS stream ops */
 static __stream_ops_t stdio_vfs_ops = {
 	.read = stdio_vfs_read,
 	.write = stdio_vfs_write,
-	.flush = stdio_vfs_flush
+	.flush = stdio_vfs_flush,
+	.close = stdio_vfs_close,
 };
 
 static FILE stdin_null = {
@@ -368,15 +370,12 @@ FILE *fdopen(int fd, const char *mode)
 
 static int _fclose_nofree(FILE *stream)
 {
-	errno_t rc = 0;
+	errno_t rc = EOK;
 
 	fflush(stream);
 
-	if (stream->sess != NULL)
-		async_hangup(stream->sess);
-
-	if (stream->fd >= 0)
-		rc = vfs_put(stream->fd);
+	if (stream->ops->close)
+		rc = stream->ops->close(stream);
 
 	list_remove(&stream->link);
 
@@ -535,6 +534,17 @@ static int stdio_vfs_flush(FILE *stream)
 	}
 
 	return 0;
+}
+
+static errno_t stdio_vfs_close(FILE *stream)
+{
+	if (stream->sess != NULL)
+		async_hangup(stream->sess);
+
+	if (stream->fd >= 0)
+		return vfs_put(stream->fd);
+
+	return EOK;
 }
 
 /** @}
