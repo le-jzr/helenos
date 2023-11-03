@@ -153,6 +153,7 @@ void __stdio_init(void)
 			(void) vfs_clone(outfd, -1, false, &stdoutfd);
 		vfs_open(stdoutfd, MODE_APPEND);
 		stdout = fdopen(stdoutfd, "a");
+		setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
 	} else {
 		stdout = &stdout_kio;
 		list_append(&stdout->link, &files);
@@ -167,6 +168,7 @@ void __stdio_init(void)
 			(void) vfs_clone(errfd, -1, false, &stderrfd);
 		vfs_open(stderrfd, MODE_APPEND);
 		stderr = fdopen(stderrfd, "a");
+		setvbuf(stderr, NULL, _IOLBF, BUFSIZ);
 	} else {
 		stderr = &stderr_kio;
 		list_append(&stderr->link, &files);
@@ -259,23 +261,6 @@ static bool parse_mode(const char *fmode, int *mode, bool *create, bool *excl,
 	return true;
 }
 
-static void _setvbuf(FILE *stream)
-{
-	/* FIXME: Use more complex rules for setting buffering options. */
-
-	switch (stream->fd) {
-	case 1:
-		setvbuf(stream, NULL, _IOLBF, BUFSIZ);
-		break;
-	case 0:
-	case 2:
-		setvbuf(stream, NULL, _IONBF, 0);
-		break;
-	default:
-		setvbuf(stream, NULL, _IOFBF, BUFSIZ);
-	}
-}
-
 /** Open a stream.
  *
  * @param path Path of the file to open.
@@ -338,7 +323,7 @@ FILE *fopen(const char *path, const char *fmode)
 	stream->arg = NULL;
 	stream->sess = NULL;
 	stream->need_sync = false;
-	_setvbuf(stream);
+	setvbuf(stream, NULL, _IOFBF, BUFSIZ);
 	stream->ungetc_chars = 0;
 
 	list_append(&stream->link, &files);
@@ -363,7 +348,7 @@ FILE *fdopen(int fd, const char *mode)
 	stream->arg = NULL;
 	stream->sess = NULL;
 	stream->need_sync = false;
-	_setvbuf(stream);
+	setvbuf(stream, NULL, _IOFBF, BUFSIZ);
 	stream->ungetc_chars = 0;
 
 	list_append(&stream->link, &files);
