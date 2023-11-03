@@ -51,6 +51,8 @@ typedef struct {
 	/** Write to stream */
 	size_t (*write)(const void *buf, size_t size, size_t nmemb,
 	    FILE *stream);
+	/** Close stream */
+	errno_t (*close)(FILE *stream);
 	/** Flush stream */
 	int (*flush)(FILE *stream);
 } __stream_ops_t;
