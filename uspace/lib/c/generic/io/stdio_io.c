@@ -132,31 +132,23 @@ static size_t _fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 	return (nwritten / size);
 }
 
+static bool _buffer_empty(FILE *stream)
+{
+	return stream->buf_head == stream->buf_tail;
+}
+
 /** Read some data in stream buffer.
  *
  * On error, stream error indicator is set and errno is set.
  */
 static void _ffillbuf(FILE *stream)
 {
-	errno_t rc;
-	size_t nread;
+	assert(_buffer_empty(stream));
 
-	stream->buf_head = stream->buf_tail = stream->buf;
+	size_t nread = _fread(stream->buf, 1, stream->buf_size, stream);
 
-	rc = vfs_read(stream->fd, &stream->pos, stream->buf, stream->buf_size,
-	    &nread);
-	if (rc != EOK) {
-		errno = rc;
-		stream->error = true;
-		return;
-	}
-
-	if (nread == 0) {
-		stream->eof = true;
-		return;
-	}
-
-	stream->buf_head += nread;
+	stream->buf_head = stream->buf + nread;
+	stream->buf_tail = stream->buf;
 	stream->buf_state = _bs_read;
 }
 
