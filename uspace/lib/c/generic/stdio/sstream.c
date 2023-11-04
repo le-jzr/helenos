@@ -39,8 +39,8 @@
 #include <uchar.h>
 #include "../private/sstream.h"
 
-static size_t stdio_str_read(void *, size_t, size_t, FILE *);
-static size_t stdio_str_write(const void *, size_t, size_t, FILE *);
+static size_t stdio_str_read(FILE *, void *, size_t);
+static size_t stdio_str_write(FILE *, const void *, size_t);
 static int stdio_str_flush(FILE *);
 
 static __stream_ops_t stdio_str_ops = {
@@ -50,31 +50,26 @@ static __stream_ops_t stdio_str_ops = {
 };
 
 /** Read from string stream. */
-static size_t stdio_str_read(void *buf, size_t size, size_t nmemb, FILE *stream)
+static size_t stdio_str_read(FILE *stream, void *buf, size_t size)
 {
-	size_t nread;
+	size_t n;
 	char *cp = (char *)stream->user.arg;
 	char *bp = (char *)buf;
 
-	nread = 0;
-	while (nread < size * nmemb) {
-		if (*cp == '\0') {
-			stream->eof = true;
-			break;
-		}
-
-		bp[nread] = *cp;
-		++nread;
-		++cp;
-		stream->user.arg = (void *)cp;
+	for (n = 0; n < size && cp[n] != '\0'; n++) {
+		bp[n] = cp[n];
 	}
 
-	return (nread / size);
+	stream->user.arg = cp + n;
+
+	if (n == 0)
+		stream->eof = true;
+
+	return n;
 }
 
 /** Write to string stream. */
-static size_t stdio_str_write(const void *buf, size_t size, size_t nmemb,
-    FILE *stream)
+static size_t stdio_str_write(FILE *stream, const void *buf, size_t size)
 {
 	return 0;
 }
