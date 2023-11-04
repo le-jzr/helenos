@@ -293,5 +293,19 @@ void *memchr(const void *s, int c, size_t n)
 	return NULL;
 }
 
+void *memrchr(const void *s, int c, size_t n)
+{
+	const uint8_t *buf = s;
+	uint8_t uc = c;
+	const uint8_t *found = NULL;
+
+	for (size_t i = 0; i < n; i++) {
+		if (buf[i] == uc)
+			found = buf + i;
+	}
+
+	return (void *) found;
+}
+
 /** @}
  */
