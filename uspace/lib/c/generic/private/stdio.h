@@ -62,7 +62,7 @@ typedef struct {
 
 enum __buffer_state {
 	/** Buffer is empty */
-	_bs_empty,
+	_bs_empty = 0,
 
 	/** Buffer contains data to be written */
 	_bs_write,
@@ -79,16 +79,16 @@ struct _IO_FILE {
 	__stream_ops_t *ops;
 
 	/** Buffer */
-	uint8_t *buf;
+	uint8_t *buffer;
 
 	/** Buffer I/O pointer */
-	uint8_t *buf_head;
+	uint8_t *buffer_tail;
 
 	/** Points to end of occupied space when in read mode. */
-	uint8_t *buf_tail;
+	uint8_t *buffer_head;
 
 	/** Buffer size */
-	size_t buf_size;
+	size_t buffer_size;
 
 	/** Error indicator. */
 	int error;
@@ -109,7 +109,7 @@ struct _IO_FILE {
 	enum __buffer_type btype;
 
 	/** Buffer state */
-	enum __buffer_state buf_state;
+	enum __buffer_state buffer_state;
 
 	/** Pushed back characters */
 	uint8_t ungetc_buf[UNGETC_MAX];
