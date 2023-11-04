@@ -40,6 +40,7 @@
 #include <uchar.h>
 #include <vfs/vfs.h>
 #include <wchar.h>
+#include <macros.h>
 
 /* We only access the generic fields here. */
 struct _IO_FILE_user_data {
@@ -47,7 +48,6 @@ struct _IO_FILE_user_data {
 
 #include "../private/stdio.h"
 
-static void _ffillbuf(FILE *stream);
 static void _fflushbuf(FILE *stream);
 
 /** Set stream buffer. */
@@ -193,6 +193,39 @@ static void _fflushbuf(FILE *stream)
 	stream->buffer_state = _bs_empty;
 }
 
+static size_t _fread(FILE *stream, void *dest, size_t total)
+{
+	size_t nread = 0;
+
+	if (_buffer_empty(stream)) {
+		/* If the read is longer than the buffer, read in directly first. */
+		while (total - nread >= _buffer_size(stream)) {
+			size_t n = stream->ops->read(stream, dest + nread, total - nread);
+			if (n == 0)
+				return nread;
+
+			nread += n;
+		}
+	}
+
+	while (nread < total) {
+		if (_buffer_empty(stream)) {
+			_ffillbuf(stream);
+
+			if (_buffer_empty(stream))
+				/* error/eof/errno set by _ffillbuf() */
+				break;
+		}
+
+		size_t n = min(_buffer_used(stream), total - nread);
+
+		memcpy(dest + nread, stream->buffer_head, n);
+		stream->buffer_head += n;
+		nread += n;
+	}
+
+	return nread;
+}
 
 /** Read from a stream.
  *
@@ -204,19 +237,8 @@ static void _fflushbuf(FILE *stream)
  */
 size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
 {
-	uint8_t *dp;
-	size_t bytes_left;
-	size_t now;
-	size_t data_avail;
-	size_t total_read;
-	size_t i;
-
 	if (size == 0 || nmemb == 0)
 		return 0;
-
-	bytes_left = size * nmemb;
-	total_read = 0;
-	dp = (uint8_t *) dest;
 
 	_lazy_alloc_buffer(stream);
 
@@ -224,39 +246,8 @@ size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
 	if (stream->buffer_state == _bs_write)
 		_fflushbuf(stream);
 
-	/* If the read is longer than buffer, read in directly. */
-	if (_buffer_empty(stream) && bytes_left >= _buffer_size(stream)) {
-		total_read += stream->ops->read(stream, dest, bytes_left);
-		return total_read / size;
-	}
-
-	while ((!stream->error) && (!stream->eof) && (bytes_left > 0)) {
-		if (_buffer_empty(stream))
-			_ffillbuf(stream);
-
-		if (stream->error || stream->eof) {
-			/* On error errno was set by _ffillbuf() */
-			break;
-		}
-
-		data_avail = _buffer_used(stream);
-
-		if (bytes_left > data_avail)
-			now = data_avail;
-		else
-			now = bytes_left;
-
-		for (i = 0; i < now; i++) {
-			dp[i] = stream->buffer_head[i];
-		}
-
-		dp += now;
-		stream->buffer_head += now;
-		bytes_left -= now;
-		total_read += now;
-	}
-
-	return (total_read / size);
+	size_t nread = _fread(stream, dest, size * nmemb);
+	return nread / size;
 }
 
 static size_t _fwrite(FILE *stream, const void *buf, size_t size)
