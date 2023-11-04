@@ -88,37 +88,20 @@ static FILE stdin_null = {
 	.eof = true,
 	.ops = &stdio_vfs_ops,
 	.btype = _IONBF,
-	.buf = NULL,
-	.buf_size = 0,
-	.buf_head = NULL,
-	.buf_tail = NULL,
-	.buf_state = _bs_empty
 };
 
 static FILE stdout_kio = {
 	.user.fd = -1,
-	.error = false,
-	.eof = false,
 	.ops = &stdio_kio_ops,
 	.btype = _IOLBF,
-	.buf = NULL,
-	.buf_size = BUFSIZ,
-	.buf_head = NULL,
-	.buf_tail = NULL,
-	.buf_state = _bs_empty
+	.buffer_size = BUFSIZ,
 };
 
 static FILE stderr_kio = {
 	.user.fd = -1,
-	.error = false,
-	.eof = false,
 	.ops = &stdio_kio_ops,
 	.btype = _IOLBF,
-	.buf = NULL,
-	.buf_size = 0,
-	.buf_head = NULL,
-	.buf_tail = NULL,
-	.buf_state = _bs_empty
+	.buffer_size = BUFSIZ,
 };
 
 FILE *stdin = NULL;

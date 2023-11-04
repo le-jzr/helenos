@@ -57,11 +57,11 @@ int setvbuf(FILE *stream, void *buf, int mode, size_t size)
 		return -1;
 
 	stream->btype = mode;
-	stream->buf = buf;
-	stream->buf_size = size;
-	stream->buf_head = stream->buf;
-	stream->buf_tail = stream->buf;
-	stream->buf_state = _bs_empty;
+	stream->buffer = buf;
+	stream->buffer_size = size;
+	stream->buffer_head = stream->buffer;
+	stream->buffer_tail = stream->buffer;
+	stream->buffer_state = _bs_empty;
 
 	return 0;
 }
@@ -83,16 +83,16 @@ void setbuf(FILE *stream, void *buf)
 /** Allocate stream buffer. */
 static int _fallocbuf(FILE *stream)
 {
-	assert(stream->buf == NULL);
+	assert(stream->buffer == NULL);
 
-	stream->buf = malloc(stream->buf_size);
-	if (stream->buf == NULL) {
+	stream->buffer = malloc(stream->buffer_size);
+	if (stream->buffer == NULL) {
 		errno = ENOMEM;
 		return EOF;
 	}
 
-	stream->buf_head = stream->buf;
-	stream->buf_tail = stream->buf;
+	stream->buffer_head = stream->buffer;
+	stream->buffer_tail = stream->buffer;
 	return 0;
 }
 
@@ -140,7 +140,12 @@ static size_t _fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 
 static bool _buffer_empty(FILE *stream)
 {
-	return stream->buf_head == stream->buf_tail;
+	return stream->buffer_tail == stream->buffer_head;
+}
+
+static size_t _buffer_used(FILE *stream)
+{
+	return stream->buffer_tail - stream->buffer_head;
 }
 
 /** Read some data in stream buffer.
@@ -151,11 +156,11 @@ static void _ffillbuf(FILE *stream)
 {
 	assert(_buffer_empty(stream));
 
-	size_t nread = _fread(stream->buf, 1, stream->buf_size, stream);
+	size_t nread = _fread(stream->buffer, 1, stream->buffer_size, stream);
 
-	stream->buf_head = stream->buf + nread;
-	stream->buf_tail = stream->buf;
-	stream->buf_state = _bs_read;
+	stream->buffer_head = stream->buffer;
+	stream->buffer_tail = stream->buffer + nread;
+	stream->buffer_state = _bs_read;
 }
 
 /** Write out stream buffer, do not sync stream. */
@@ -163,26 +168,26 @@ static void _fflushbuf(FILE *stream)
 {
 	size_t bytes_used;
 
-	if ((!stream->buf) || (stream->btype == _IONBF) || (stream->error))
+	if ((!stream->buffer) || (stream->btype == _IONBF) || (stream->error))
 		return;
 
-	bytes_used = stream->buf_head - stream->buf_tail;
+	bytes_used = _buffer_used(stream);
 
 	/* If buffer has prefetched read data, we need to seek back. */
-	if (bytes_used > 0 && stream->buf_state == _bs_read && stream->ops->seek)
+	if (bytes_used > 0 && stream->buffer_state == _bs_read && stream->ops->seek)
 		stream->ops->seek(stream, -(int64_t) bytes_used, SEEK_CUR);
 
 	/* If buffer has unwritten data, we need to write them out. */
-	if (bytes_used > 0 && stream->buf_state == _bs_write) {
-		(void) _fwrite(stream->buf_tail, 1, bytes_used, stream);
+	if (bytes_used > 0 && stream->buffer_state == _bs_write) {
+		(void) _fwrite(stream->buffer_head, 1, bytes_used, stream);
 		/* On error stream error indicator and errno are set by _fwrite */
 		if (stream->error)
 			return;
 	}
 
-	stream->buf_head = stream->buf;
-	stream->buf_tail = stream->buf;
-	stream->buf_state = _bs_empty;
+	stream->buffer_head = stream->buffer;
+	stream->buffer_tail = stream->buffer;
+	stream->buffer_state = _bs_empty;
 }
 
 /** Read from a stream.
@@ -223,17 +228,17 @@ size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
 	}
 
 	/* Make sure no data is pending write. */
-	if (stream->buf_state == _bs_write)
+	if (stream->buffer_state == _bs_write)
 		_fflushbuf(stream);
 
 	/* Perform lazy allocation of stream buffer. */
-	if (stream->buf == NULL) {
+	if (stream->buffer == NULL) {
 		if (_fallocbuf(stream) != 0)
 			return 0; /* Errno set by _fallocbuf(). */
 	}
 
 	while ((!stream->error) && (!stream->eof) && (bytes_left > 0)) {
-		if (stream->buf_head == stream->buf_tail)
+		if (_buffer_empty(stream))
 			_ffillbuf(stream);
 
 		if (stream->error || stream->eof) {
@@ -241,7 +246,7 @@ size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
 			break;
 		}
 
-		data_avail = stream->buf_head - stream->buf_tail;
+		data_avail = _buffer_used(stream);
 
 		if (bytes_left > data_avail)
 			now = data_avail;
@@ -249,11 +254,11 @@ size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
 			now = bytes_left;
 
 		for (i = 0; i < now; i++) {
-			dp[i] = stream->buf_tail[i];
+			dp[i] = stream->buffer_head[i];
 		}
 
 		dp += now;
-		stream->buf_tail += now;
+		stream->buffer_head += now;
 		bytes_left -= now;
 		total_read += now;
 	}
@@ -291,11 +296,11 @@ size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 	}
 
 	/* Make sure buffer contains no prefetched data. */
-	if (stream->buf_state == _bs_read)
+	if (stream->buffer_state == _bs_read)
 		_fflushbuf(stream);
 
 	/* Perform lazy allocation of stream buffer. */
-	if (stream->buf == NULL) {
+	if (stream->buffer == NULL) {
 		if (_fallocbuf(stream) != 0)
 			return 0; /* Errno set by _fallocbuf(). */
 	}
@@ -306,7 +311,7 @@ size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 	need_flush = false;
 
 	while ((!stream->error) && (bytes_left > 0)) {
-		buf_free = stream->buf_size - (stream->buf_head - stream->buf);
+		buf_free = stream->buffer_size - (stream->buffer_tail - stream->buffer);
 		if (bytes_left > buf_free)
 			now = buf_free;
 		else
@@ -314,18 +319,18 @@ size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 
 		for (i = 0; i < now; i++) {
 			b = data[i];
-			stream->buf_head[i] = b;
+			stream->buffer_tail[i] = b;
 
 			if ((b == '\n') && (stream->btype == _IOLBF))
 				need_flush = true;
 		}
 
 		data += now;
-		stream->buf_head += now;
+		stream->buffer_tail += now;
 		buf_free -= now;
 		bytes_left -= now;
 		total_written += now;
-		stream->buf_state = _bs_write;
+		stream->buffer_state = _bs_write;
 
 		if (buf_free == 0) {
 			/* Only need to drain buffer. */
