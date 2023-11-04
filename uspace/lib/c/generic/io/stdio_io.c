@@ -53,15 +53,23 @@ static void _fflushbuf(FILE *stream);
 /** Set stream buffer. */
 int setvbuf(FILE *stream, void *buf, int mode, size_t size)
 {
-	if (mode != _IONBF && mode != _IOLBF && mode != _IOFBF)
+	if (mode != _IONBF && mode != _IOLBF && mode != _IOFBF) {
+		errno = EINVAL;
 		return -1;
+	}
+
+	if (stream->buffer != NULL) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	stream->btype = mode;
-	stream->buffer = buf;
-	stream->buffer_size = size;
-	stream->buffer_head = stream->buffer;
-	stream->buffer_tail = stream->buffer;
-	stream->buffer_state = _bs_empty;
+	if (buf != NULL) {
+		stream->buffer = buf;
+		stream->buffer_end = stream->buffer + size;
+		stream->buffer_head = stream->buffer;
+		stream->buffer_tail = stream->buffer;
+	}
 
 	return 0;
 }
@@ -80,62 +88,57 @@ void setbuf(FILE *stream, void *buf)
 	}
 }
 
-/** Allocate stream buffer. */
-static int _fallocbuf(FILE *stream)
+static void _use_backup_buffer(FILE *stream)
 {
-	assert(stream->buffer == NULL);
-
-	stream->buffer = malloc(stream->buffer_size);
 	if (stream->buffer == NULL) {
-		errno = ENOMEM;
-		return EOF;
+		stream->buffer = stream->backup_buffer;
+		stream->buffer_end = stream->buffer + UNGETC_MAX;
+		stream->buffer_head = stream->buffer;
+		stream->buffer_tail = stream->buffer;
+	}
+}
+
+/**
+ * Try to allocate buffer for this stream.
+ *
+ * If allocation fails, or the stream is not supposed to have a buffer,
+ * a small backup buffer is used to ensure ungetc() still works.
+ * Allocation is retried before every operation if it has failed.
+ *
+ * @param stream
+ */
+static void _lazy_alloc_buffer(FILE *stream)
+{
+	if (stream->buffer_requested_size == 0) {
+		_use_backup_buffer(stream);
+		return;
 	}
 
+	if (stream->buffer != NULL && stream->buffer != stream->backup_buffer)
+		return;
+
+	void *buf = malloc(stream->buffer_requested_size);
+	if (buf == NULL) {
+		_use_backup_buffer(stream);
+		return;
+	}
+
+	/* Make sure we transfer any ungetc data if we were using a backup buffer. */
+	size_t buffer_used = stream->buffer_tail - stream->buffer_head;
+	memcpy(buf, stream->buffer_head, buffer_used);
+
+	stream->buffer = buf;
+	stream->buffer_end = buf + stream->buffer_requested_size;
 	stream->buffer_head = stream->buffer;
-	stream->buffer_tail = stream->buffer;
-	return 0;
+	stream->buffer_tail = stream->buffer + buffer_used;
+	stream->allocated_buffer = true;
 }
 
-/** Read from a stream (unbuffered).
- *
- * @param buf    Destination buffer.
- * @param size   Size of each record.
- * @param nmemb  Number of records to read.
- * @param stream Pointer to the stream.
- *
- * @return Number of elements successfully read. On error this is less than
- *         nmemb, stream error indicator is set and errno is set.
- */
-static size_t _fread(void *buf, size_t size, size_t nmemb, FILE *stream)
+/** Write to a stream (unbuffered). */
+static size_t _write(FILE *stream, const void *buf, size_t size)
 {
-	if (size == 0 || nmemb == 0)
-		return 0;
-
-	size_t nread = stream->ops->read(stream, buf, size * nmemb);
-	return nread / size;
-}
-
-/** Write to a stream (unbuffered).
- *
- * @param buf    Source buffer.
- * @param size   Size of each record.
- * @param nmemb  Number of records to write.
- * @param stream Pointer to the stream.
- *
- * @return Number of elements successfully written. On error this is less than
- *         nmemb, stream error indicator is set and errno is set.
- */
-static size_t _fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
-{
-	if (size == 0 || nmemb == 0)
-		return 0;
-
-	size_t nwritten = stream->ops->write(stream, buf, size * nmemb);
-
-	if (nwritten > 0)
-		stream->need_sync = true;
-
-	return nwritten / size;
+	stream->need_sync = true;
+	return stream->ops->write(stream, buf, size);
 }
 
 static bool _buffer_empty(FILE *stream)
@@ -148,6 +151,11 @@ static size_t _buffer_used(FILE *stream)
 	return stream->buffer_tail - stream->buffer_head;
 }
 
+static size_t _buffer_size(FILE *stream)
+{
+	return stream->buffer_end - stream->buffer;
+}
+
 /** Read some data in stream buffer.
  *
  * On error, stream error indicator is set and errno is set.
@@ -155,8 +163,7 @@ static size_t _buffer_used(FILE *stream)
 static void _ffillbuf(FILE *stream)
 {
 	assert(_buffer_empty(stream));
-
-	size_t nread = _fread(stream->buffer, 1, stream->buffer_size, stream);
+	size_t nread = stream->ops->read(stream, stream->buffer, _buffer_size(stream));
 
 	stream->buffer_head = stream->buffer;
 	stream->buffer_tail = stream->buffer + nread;
@@ -166,20 +173,16 @@ static void _ffillbuf(FILE *stream)
 /** Write out stream buffer, do not sync stream. */
 static void _fflushbuf(FILE *stream)
 {
-	size_t bytes_used;
-
-	if ((!stream->buffer) || (stream->btype == _IONBF) || (stream->error))
+	if (_buffer_empty(stream) || stream->error)
 		return;
 
-	bytes_used = _buffer_used(stream);
-
 	/* If buffer has prefetched read data, we need to seek back. */
-	if (bytes_used > 0 && stream->buffer_state == _bs_read && stream->ops->seek)
-		stream->ops->seek(stream, -(int64_t) bytes_used, SEEK_CUR);
+	if (stream->buffer_state == _bs_read && stream->ops->seek)
+		stream->ops->seek(stream, -(int64_t) _buffer_used(stream), SEEK_CUR);
 
 	/* If buffer has unwritten data, we need to write them out. */
-	if (bytes_used > 0 && stream->buffer_state == _bs_write) {
-		(void) _fwrite(stream->buffer_head, 1, bytes_used, stream);
+	if (stream->buffer_state == _bs_write) {
+		(void) _write(stream, stream->buffer_head, _buffer_used(stream));
 		/* On error stream error indicator and errno are set by _fwrite */
 		if (stream->error)
 			return;
@@ -189,6 +192,7 @@ static void _fflushbuf(FILE *stream)
 	stream->buffer_tail = stream->buffer;
 	stream->buffer_state = _bs_empty;
 }
+
 
 /** Read from a stream.
  *
@@ -214,27 +218,16 @@ size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
 	total_read = 0;
 	dp = (uint8_t *) dest;
 
-	/* Bytes from ungetc() buffer */
-	while (stream->ungetc_chars > 0 && bytes_left > 0) {
-		*dp++ = stream->ungetc_buf[--stream->ungetc_chars];
-		++total_read;
-		--bytes_left;
-	}
-
-	/* If not buffered stream, read in directly. */
-	if (stream->btype == _IONBF) {
-		total_read += _fread(dest, 1, bytes_left, stream);
-		return total_read / size;
-	}
+	_lazy_alloc_buffer(stream);
 
 	/* Make sure no data is pending write. */
 	if (stream->buffer_state == _bs_write)
 		_fflushbuf(stream);
 
-	/* Perform lazy allocation of stream buffer. */
-	if (stream->buffer == NULL) {
-		if (_fallocbuf(stream) != 0)
-			return 0; /* Errno set by _fallocbuf(). */
+	/* If the read is longer than buffer, read in directly. */
+	if (_buffer_empty(stream) && bytes_left >= _buffer_size(stream)) {
+		total_read += stream->ops->read(stream, dest, bytes_left);
+		return total_read / size;
 	}
 
 	while ((!stream->error) && (!stream->eof) && (bytes_left > 0)) {
@@ -266,15 +259,7 @@ size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
 	return (total_read / size);
 }
 
-/** Write to a stream.
- *
- * @param buf    Source buffer.
- * @param size   Size of each record.
- * @param nmemb  Number of records to write.
- * @param stream Pointer to the stream.
- *
- */
-size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
+static size_t _fwrite(FILE *stream, const void *buf, size_t size)
 {
 	uint8_t *data;
 	size_t bytes_left;
@@ -283,35 +268,27 @@ size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 	size_t total_written;
 	size_t i;
 	uint8_t b;
-	bool need_flush;
+	bool need_flush = false;
 
-	if (size == 0 || nmemb == 0)
-		return 0;
-
-	/* If not buffered stream, write out directly. */
-	if (stream->btype == _IONBF) {
-		now = _fwrite(buf, size, nmemb, stream);
-		fflush(stream);
-		return now;
-	}
+	_lazy_alloc_buffer(stream);
 
 	/* Make sure buffer contains no prefetched data. */
 	if (stream->buffer_state == _bs_read)
 		_fflushbuf(stream);
 
-	/* Perform lazy allocation of stream buffer. */
-	if (stream->buffer == NULL) {
-		if (_fallocbuf(stream) != 0)
-			return 0; /* Errno set by _fallocbuf(). */
+	/* If not buffered stream, write out directly. */
+	if (_buffer_empty(stream) && stream->btype == _IONBF) {
+		now = _write(stream, buf, size);
+		fflush(stream);
+		return now;
 	}
 
 	data = (uint8_t *) buf;
-	bytes_left = size * nmemb;
+	bytes_left = size;
 	total_written = 0;
-	need_flush = false;
 
 	while ((!stream->error) && (bytes_left > 0)) {
-		buf_free = stream->buffer_size - (stream->buffer_tail - stream->buffer);
+		buf_free = stream->buffer_end - stream->buffer_tail;
 		if (bytes_left > buf_free)
 			now = buf_free;
 		else
@@ -343,7 +320,24 @@ size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 	if (need_flush)
 		fflush(stream);
 
-	return (total_written / size);
+	return total_written;
+}
+
+/** Write to a stream.
+ *
+ * @param buf    Source buffer.
+ * @param size   Size of each record.
+ * @param nmemb  Number of records to write.
+ * @param stream Pointer to the stream.
+ *
+ */
+size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
+{
+	if (size == 0 || nmemb == 0)
+		return 0;
+
+	size_t nwritten = _fwrite(stream, buf, size * nmemb);
+	return nwritten / size;
 }
 
 wint_t fputwc(wchar_t wc, FILE *stream)
@@ -476,12 +470,21 @@ int ungetc(int c, FILE *stream)
 	if (c == EOF)
 		return EOF;
 
-	if (stream->ungetc_chars >= UNGETC_MAX)
+	if (stream->buffer_state == _bs_write)
 		return EOF;
 
-	stream->ungetc_buf[stream->ungetc_chars++] =
-	    (uint8_t)c;
+	/* Maximize space for ungetc() */
+	if (_buffer_empty(stream)) {
+		stream->buffer_head = stream->buffer_end;
+		stream->buffer_tail = stream->buffer_end;
+	}
 
+	if (stream->buffer_head == stream->buffer)
+		return EOF;
+
+	stream->buffer_head--;
+	stream->buffer_head[0] = (uint8_t) c;
+	stream->error = false;
 	stream->eof = false;
 	return (uint8_t)c;
 }
@@ -501,8 +504,6 @@ int fseek64(FILE *stream, off64_t offset, int whence)
 		/* errno was set by _fflushbuf() */
 		return -1;
 	}
-
-	stream->ungetc_chars = 0;
 
 	errno_t rc = stream->ops->seek(stream, offset, whence);
 
@@ -525,13 +526,13 @@ off64_t ftell64(FILE *stream)
 	if (stream->error)
 		return EOF;
 
-	_fflushbuf(stream);
-	if (stream->error) {
-		/* errno was set by _fflushbuf() */
-		return EOF;
-	}
+	size_t buffer_bytes = _buffer_used(stream);
+	off64_t pos = stream->ops->tell(stream);
 
-	return stream->ops->tell(stream) - stream->ungetc_chars;
+	if (stream->buffer_state == _bs_read)
+		return pos - buffer_bytes;
+	else
+		return pos + buffer_bytes;
 }
 
 int fseek(FILE *stream, long offset, int whence)
