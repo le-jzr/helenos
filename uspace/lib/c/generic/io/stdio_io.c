@@ -108,7 +108,11 @@ static int _fallocbuf(FILE *stream)
  */
 static size_t _fread(void *buf, size_t size, size_t nmemb, FILE *stream)
 {
-	return stream->ops->read(buf, size, nmemb, stream);
+	if (size == 0 || nmemb == 0)
+		return 0;
+
+	size_t nread = stream->ops->read(stream, buf, size * nmemb);
+	return nread / size;
 }
 
 /** Write to a stream (unbuffered).
@@ -123,17 +127,15 @@ static size_t _fread(void *buf, size_t size, size_t nmemb, FILE *stream)
  */
 static size_t _fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 {
-	size_t nwritten;
-
 	if (size == 0 || nmemb == 0)
 		return 0;
 
-	nwritten = stream->ops->write(buf, size, nmemb, stream);
+	size_t nwritten = stream->ops->write(stream, buf, size * nmemb);
 
 	if (nwritten > 0)
 		stream->need_sync = true;
 
-	return (nwritten / size);
+	return nwritten / size;
 }
 
 static bool _buffer_empty(FILE *stream)

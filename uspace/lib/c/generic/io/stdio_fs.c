@@ -54,12 +54,12 @@ struct _IO_FILE_user_data {
 #include "../private/io.h"
 #include "../private/stdio.h"
 
-static size_t stdio_kio_read(void *, size_t, size_t, FILE *);
-static size_t stdio_kio_write(const void *, size_t, size_t, FILE *);
+static size_t stdio_kio_read(FILE *, void *, size_t);
+static size_t stdio_kio_write(FILE *, const void *, size_t);
 static int stdio_kio_flush(FILE *);
 
-static size_t stdio_vfs_read(void *, size_t, size_t, FILE *);
-static size_t stdio_vfs_write(const void *, size_t, size_t, FILE *);
+static size_t stdio_vfs_read(FILE *, void *, size_t);
+static size_t stdio_vfs_write(FILE *, const void *, size_t);
 static int stdio_vfs_flush(FILE *);
 static errno_t stdio_vfs_seek(FILE *, int64_t offset, int whence);
 static int64_t stdio_vfs_tell(FILE *);
@@ -443,26 +443,25 @@ errno_t vfs_fhandle(FILE *stream, int *handle)
 }
 
 /** Read from KIO stream. */
-static size_t stdio_kio_read(void *buf, size_t size, size_t nmemb, FILE *stream)
+static size_t stdio_kio_read(FILE *stream, void *buf, size_t size)
 {
-	stream->eof = true;
 	return 0;
 }
 
 /** Write to KIO stream. */
-static size_t stdio_kio_write(const void *buf, size_t size, size_t nmemb,
-    FILE *stream)
+static size_t stdio_kio_write(FILE *stream, const void *buf, size_t size)
 {
 	errno_t rc;
 	size_t nwritten;
 
-	rc = kio_write(buf, size * nmemb, &nwritten);
+	rc = kio_write(buf, size, &nwritten);
 	if (rc != EOK) {
+		errno = rc;
 		stream->error = true;
 		nwritten = 0;
 	}
 
-	return nwritten / size;
+	return nwritten;
 }
 
 /** Flush KIO stream. */
@@ -473,15 +472,15 @@ static int stdio_kio_flush(FILE *stream)
 }
 
 /** Read from VFS stream. */
-static size_t stdio_vfs_read(void *buf, size_t size, size_t nmemb, FILE *stream)
+static size_t stdio_vfs_read(FILE *stream, void *buf, size_t size)
 {
 	errno_t rc;
 	size_t nread;
 
-	if (size == 0 || nmemb == 0)
+	if (size == 0)
 		return 0;
 
-	rc = vfs_read(stream->user.fd, &stream->user.pos, buf, size * nmemb, &nread);
+	rc = vfs_read(stream->user.fd, &stream->user.pos, buf, size, &nread);
 	if (rc != EOK) {
 		errno = rc;
 		stream->error = true;
@@ -489,23 +488,25 @@ static size_t stdio_vfs_read(void *buf, size_t size, size_t nmemb, FILE *stream)
 		stream->eof = true;
 	}
 
-	return (nread / size);
+	return nread;
 }
 
 /** Write to VFS stream. */
-static size_t stdio_vfs_write(const void *buf, size_t size, size_t nmemb,
-    FILE *stream)
+static size_t stdio_vfs_write(FILE *stream, const void *buf, size_t size)
 {
 	errno_t rc;
 	size_t nwritten;
 
-	rc = vfs_write(stream->user.fd, &stream->user.pos, buf, size * nmemb, &nwritten);
+	if (size == 0)
+		return 0;
+
+	rc = vfs_write(stream->user.fd, &stream->user.pos, buf, size, &nwritten);
 	if (rc != EOK) {
 		errno = rc;
 		stream->error = true;
 	}
 
-	return nwritten / size;
+	return nwritten;
 }
 
 /** Flush VFS stream. */

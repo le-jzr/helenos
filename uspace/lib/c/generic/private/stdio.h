@@ -47,10 +47,9 @@
 /** Stream operations */
 typedef struct {
 	/** Read from stream */
-	size_t (*read)(void *buf, size_t size, size_t nmemb, FILE *stream);
+	size_t (*read)(FILE *stream, void *buf, size_t size);
 	/** Write to stream */
-	size_t (*write)(const void *buf, size_t size, size_t nmemb,
-	    FILE *stream);
+	size_t (*write)(FILE *stream, const void *buf, size_t size);
 	/** Seek on the stream */
 	errno_t (*seek)(FILE *stream, int64_t offset, int whence);
 	/** Retrieve current stream offset */
