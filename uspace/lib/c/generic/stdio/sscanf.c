@@ -36,14 +36,12 @@
 
 #include <stdarg.h>
 #include <stdio.h>
-#include "../private/stdio.h"
+
 #include "../private/sstream.h"
 
 int vsscanf(const char *s, const char *fmt, va_list ap)
 {
-	FILE f;
-
-	__sstream_init(s, &f);
+	FILE f = __sstream_init(s);
 	return vfscanf(&f, fmt, ap);
 }
 

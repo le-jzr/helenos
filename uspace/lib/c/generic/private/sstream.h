@@ -37,7 +37,13 @@
 
 #include <stdio.h>
 
-extern void __sstream_init(const char *, FILE *);
+struct _IO_FILE_user_data {
+	void *arg;
+};
+
+#include "../private/stdio.h"
+
+extern FILE __sstream_init(const char *);
 extern const char *__sstream_getpos(FILE *);
 
 #endif

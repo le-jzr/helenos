@@ -41,6 +41,10 @@
 #include <vfs/vfs.h>
 #include <wchar.h>
 
+/* We only access the generic fields here. */
+struct _IO_FILE_user_data {
+};
+
 #include "../private/stdio.h"
 
 static void _ffillbuf(FILE *stream);
@@ -163,8 +167,8 @@ static void _fflushbuf(FILE *stream)
 	bytes_used = stream->buf_head - stream->buf_tail;
 
 	/* If buffer has prefetched read data, we need to seek back. */
-	if (bytes_used > 0 && stream->buf_state == _bs_read)
-		stream->pos -= bytes_used;
+	if (bytes_used > 0 && stream->buf_state == _bs_read && stream->ops->seek)
+		stream->ops->seek(stream, -(int64_t) bytes_used, SEEK_CUR);
 
 	/* If buffer has unwritten data, we need to write them out. */
 	if (bytes_used > 0 && stream->buf_state == _bs_write) {

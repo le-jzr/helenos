@@ -40,7 +40,6 @@
 #include "private/libc.h"
 #include "private/scanf.h"
 #include "private/stdlib.h"
-#include "private/stdio.h"
 #include "private/sstream.h"
 
 static int glbl_seed = 1;
@@ -59,10 +58,9 @@ long double strtold(const char *nptr, char **endptr)
 	int numchar;
 	long double ld;
 	errno_t rc;
-	FILE f;
-
 	numchar = 0;
-	__sstream_init(nptr, &f);
+
+	FILE f = __sstream_init(nptr);
 
 	rc = __fstrtold(&f, &numchar, SIZE_MAX, &ld);
 	if (rc != EOK) {
