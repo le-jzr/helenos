@@ -36,10 +36,20 @@
 
 #include <errno.h>
 #include <io/kio.h>
+#include <mem.h>
 #include <stdlib.h>
 #include <vfs/inbox.h>
 #include <vfs/vfs_sess.h>
 #include <vfs/vfs.h>
+
+struct _IO_FILE_user_data {
+	/** File position. */
+	aoff64_t pos;
+	/** Session to the file provider */
+	async_sess_t *sess;
+	/** Underlying file descriptor. */
+	int fd;
+};
 
 #include "../private/io.h"
 #include "../private/stdio.h"
@@ -73,13 +83,10 @@ static __stream_ops_t stdio_vfs_ops = {
 };
 
 static FILE stdin_null = {
-	.fd = -1,
-	.pos = 0,
+	.user.fd = -1,
 	.error = true,
 	.eof = true,
 	.ops = &stdio_vfs_ops,
-	.arg = NULL,
-	.sess = NULL,
 	.btype = _IONBF,
 	.buf = NULL,
 	.buf_size = 0,
@@ -89,13 +96,10 @@ static FILE stdin_null = {
 };
 
 static FILE stdout_kio = {
-	.fd = -1,
-	.pos = 0,
+	.user.fd = -1,
 	.error = false,
 	.eof = false,
 	.ops = &stdio_kio_ops,
-	.arg = NULL,
-	.sess = NULL,
 	.btype = _IOLBF,
 	.buf = NULL,
 	.buf_size = BUFSIZ,
@@ -105,14 +109,11 @@ static FILE stdout_kio = {
 };
 
 static FILE stderr_kio = {
-	.fd = -1,
-	.pos = 0,
+	.user.fd = -1,
 	.error = false,
 	.eof = false,
 	.ops = &stdio_kio_ops,
-	.arg = NULL,
-	.sess = NULL,
-	.btype = _IONBF,
+	.btype = _IOLBF,
 	.buf = NULL,
 	.buf_size = 0,
 	.buf_head = NULL,
@@ -278,7 +279,7 @@ FILE *fopen(const char *path, const char *fmode)
 		return NULL;
 
 	/* Open file. */
-	FILE *stream = malloc(sizeof(FILE));
+	FILE *stream = calloc(1, sizeof(FILE));
 	if (stream == NULL) {
 		errno = ENOMEM;
 		return NULL;
@@ -315,16 +316,9 @@ FILE *fopen(const char *path, const char *fmode)
 		}
 	}
 
-	stream->fd = file;
-	stream->pos = 0;
-	stream->error = false;
-	stream->eof = false;
+	stream->user.fd = file;
 	stream->ops = &stdio_vfs_ops;
-	stream->arg = NULL;
-	stream->sess = NULL;
-	stream->need_sync = false;
 	setvbuf(stream, NULL, _IOFBF, BUFSIZ);
-	stream->ungetc_chars = 0;
 
 	list_append(&stream->link, &files);
 
@@ -334,22 +328,15 @@ FILE *fopen(const char *path, const char *fmode)
 FILE *fdopen(int fd, const char *mode)
 {
 	/* Open file. */
-	FILE *stream = malloc(sizeof(FILE));
+	FILE *stream = calloc(1, sizeof(FILE));
 	if (stream == NULL) {
 		errno = ENOMEM;
 		return NULL;
 	}
 
-	stream->fd = fd;
-	stream->pos = 0;
-	stream->error = false;
-	stream->eof = false;
+	stream->user.fd = fd;
 	stream->ops = &stdio_vfs_ops;
-	stream->arg = NULL;
-	stream->sess = NULL;
-	stream->need_sync = false;
 	setvbuf(stream, NULL, _IOFBF, BUFSIZ);
-	stream->ungetc_chars = 0;
 
 	list_append(&stream->link, &files);
 
@@ -389,6 +376,11 @@ int fclose(FILE *stream)
 
 FILE *freopen(const char *path, const char *mode, FILE *stream)
 {
+	if (stream->ops != &stdio_vfs_ops && stream->ops != &stdio_kio_ops) {
+		errno = EINVAL;
+		return NULL;
+	}
+
 	FILE *nstr;
 
 	if (path == NULL) {
@@ -419,16 +411,19 @@ int fileno(FILE *stream)
 		return EOF;
 	}
 
-	return stream->fd;
+	return stream->user.fd;
 }
 
 async_sess_t *vfs_fsession(FILE *stream, iface_t iface)
 {
-	if (stream->fd >= 0) {
-		if (stream->sess == NULL)
-			stream->sess = vfs_fd_session(stream->fd, iface);
+	if (stream->ops != &stdio_vfs_ops)
+		return NULL;
 
-		return stream->sess;
+	if (stream->user.fd >= 0) {
+		if (stream->user.sess == NULL)
+			stream->user.sess = vfs_fd_session(stream->user.fd, iface);
+
+		return stream->user.sess;
 	}
 
 	return NULL;
@@ -436,8 +431,11 @@ async_sess_t *vfs_fsession(FILE *stream, iface_t iface)
 
 errno_t vfs_fhandle(FILE *stream, int *handle)
 {
-	if (stream->fd >= 0) {
-		*handle = stream->fd;
+	if (stream->ops != &stdio_vfs_ops)
+		return EBADF;
+
+	if (stream->user.fd >= 0) {
+		*handle = stream->user.fd;
 		return EOK;
 	}
 
@@ -483,7 +481,7 @@ static size_t stdio_vfs_read(void *buf, size_t size, size_t nmemb, FILE *stream)
 	if (size == 0 || nmemb == 0)
 		return 0;
 
-	rc = vfs_read(stream->fd, &stream->pos, buf, size * nmemb, &nread);
+	rc = vfs_read(stream->user.fd, &stream->user.pos, buf, size * nmemb, &nread);
 	if (rc != EOK) {
 		errno = rc;
 		stream->error = true;
@@ -501,7 +499,7 @@ static size_t stdio_vfs_write(const void *buf, size_t size, size_t nmemb,
 	errno_t rc;
 	size_t nwritten;
 
-	rc = vfs_write(stream->fd, &stream->pos, buf, size * nmemb, &nwritten);
+	rc = vfs_write(stream->user.fd, &stream->user.pos, buf, size * nmemb, &nwritten);
 	if (rc != EOK) {
 		errno = rc;
 		stream->error = true;
@@ -515,7 +513,7 @@ static int stdio_vfs_flush(FILE *stream)
 {
 	errno_t rc;
 
-	rc = vfs_sync(stream->fd);
+	rc = vfs_sync(stream->user.fd);
 	if (rc != EOK) {
 		errno = rc;
 		return EOF;
@@ -526,30 +524,34 @@ static int stdio_vfs_flush(FILE *stream)
 
 static errno_t stdio_vfs_close(FILE *stream)
 {
-	if (stream->sess != NULL)
-		async_hangup(stream->sess);
+	if (stream->user.sess != NULL)
+		async_hangup(stream->user.sess);
 
-	if (stream->fd >= 0)
-		return vfs_put(stream->fd);
+	errno_t rc = EOK;
 
-	return EOK;
+	if (stream->user.fd >= 0)
+		rc = vfs_put(stream->user.fd);
+
+	stream->user.fd = -1;
+	stream->user.sess = NULL;
+	return rc;
 }
 
 static errno_t stdio_vfs_seek(FILE *stream, int64_t offset, int whence)
 {
 	switch (whence) {
 	case SEEK_SET:
-		stream->pos = offset;
+		stream->user.pos = offset;
 		return EOK;
 	case SEEK_CUR:
-		stream->pos += offset;
+		stream->user.pos += offset;
 		return EOK;
 	case SEEK_END:
 		vfs_stat_t st;
-		errno_t rc = vfs_stat(stream->fd, &st);
+		errno_t rc = vfs_stat(stream->user.fd, &st);
 		if (rc != EOK)
 			return rc;
-		stream->pos = st.size + offset;
+		stream->user.pos = st.size + offset;
 		return EOK;
 	default:
 		return EINVAL;
@@ -558,7 +560,7 @@ static errno_t stdio_vfs_seek(FILE *stream, int64_t offset, int whence)
 
 static int64_t stdio_vfs_tell(FILE *stream)
 {
-	return stream->pos;
+	return stream->user.pos;
 }
 
 /** @}

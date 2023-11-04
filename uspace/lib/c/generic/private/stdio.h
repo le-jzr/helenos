@@ -79,41 +79,8 @@ struct _IO_FILE {
 	/** Stream operations */
 	__stream_ops_t *ops;
 
-	/** Underlying file descriptor. */
-	int fd;
-
-	/** Instance argument */
-	void *arg;
-
-	/** File position. */
-	aoff64_t pos;
-
-	/** Error indicator. */
-	int error;
-
-	/** End-of-file indicator. */
-	int eof;
-
-	/** Session to the file provider */
-	async_sess_t *sess;
-
-	/**
-	 * Non-zero if the stream needs sync on fflush(). XXX change
-	 * console semantics so that sync is not needed.
-	 */
-	int need_sync;
-
-	/** Buffering type */
-	enum __buffer_type btype;
-
 	/** Buffer */
 	uint8_t *buf;
-
-	/** Buffer size */
-	size_t buf_size;
-
-	/** Buffer state */
-	enum __buffer_state buf_state;
 
 	/** Buffer I/O pointer */
 	uint8_t *buf_head;
@@ -121,11 +88,35 @@ struct _IO_FILE {
 	/** Points to end of occupied space when in read mode. */
 	uint8_t *buf_tail;
 
-	/** Pushed back characters */
-	uint8_t ungetc_buf[UNGETC_MAX];
+	/** Buffer size */
+	size_t buf_size;
+
+	/** Error indicator. */
+	int error;
+
+	/** End-of-file indicator. */
+	int eof;
+
+	/**
+	 * Non-zero if the stream needs sync on fflush(). XXX change
+	 * console semantics so that sync is not needed.
+	 */
+	int need_sync;
 
 	/** Number of pushed back characters */
 	int ungetc_chars;
+
+	/** Buffering type */
+	enum __buffer_type btype;
+
+	/** Buffer state */
+	enum __buffer_state buf_state;
+
+	/** Pushed back characters */
+	uint8_t ungetc_buf[UNGETC_MAX];
+
+	/** Non-generic userdata. Contents defined by each user. */
+	struct _IO_FILE_user_data user;
 };
 
 #endif

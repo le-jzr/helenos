@@ -37,7 +37,6 @@
 #include <errno.h>
 #include <adt/list.h>
 #include <uchar.h>
-#include "../private/stdio.h"
 #include "../private/sstream.h"
 
 static size_t stdio_str_read(void *, size_t, size_t, FILE *);
@@ -54,7 +53,7 @@ static __stream_ops_t stdio_str_ops = {
 static size_t stdio_str_read(void *buf, size_t size, size_t nmemb, FILE *stream)
 {
 	size_t nread;
-	char *cp = (char *)stream->arg;
+	char *cp = (char *)stream->user.arg;
 	char *bp = (char *)buf;
 
 	nread = 0;
@@ -67,7 +66,7 @@ static size_t stdio_str_read(void *buf, size_t size, size_t nmemb, FILE *stream)
 		bp[nread] = *cp;
 		++nread;
 		++cp;
-		stream->arg = (void *)cp;
+		stream->user.arg = (void *)cp;
 	}
 
 	return (nread / size);
@@ -91,11 +90,13 @@ static int stdio_str_flush(FILE *stream)
  * @param str String used as backend for reading
  * @param stream Stream to initialize
  */
-void __sstream_init(const char *str, FILE *stream)
+FILE __sstream_init(const char *str)
 {
-	memset(stream, 0, sizeof(FILE));
-	stream->ops = &stdio_str_ops;
-	stream->arg = (void *)str;
+	FILE stream;
+	memset(&stream, 0, sizeof(stream));
+	stream.ops = &stdio_str_ops;
+	stream.user.arg = (void *)str;
+	return stream;
 }
 
 /** Return current string stream position.
@@ -106,7 +107,7 @@ void __sstream_init(const char *str, FILE *stream)
 const char *__sstream_getpos(FILE *stream)
 {
 	assert(stream->ops == &stdio_str_ops);
-	return (char *) stream->arg;
+	return (char *) stream->user.arg;
 }
 
 /** @}
