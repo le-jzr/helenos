@@ -94,14 +94,14 @@ static FILE stdout_kio = {
 	.user.fd = -1,
 	.ops = &stdio_kio_ops,
 	.btype = _IOLBF,
-	.buffer_size = BUFSIZ,
+	.buffer_requested_size = BUFSIZ,
 };
 
 static FILE stderr_kio = {
 	.user.fd = -1,
 	.ops = &stdio_kio_ops,
 	.btype = _IOLBF,
-	.buffer_size = BUFSIZ,
+	.buffer_requested_size = BUFSIZ,
 };
 
 FILE *stdin = NULL;
@@ -299,6 +299,7 @@ FILE *fopen(const char *path, const char *fmode)
 		}
 	}
 
+	stream->allocated_file = true;
 	stream->user.fd = file;
 	stream->ops = &stdio_vfs_ops;
 	setvbuf(stream, NULL, _IOFBF, BUFSIZ);
@@ -317,6 +318,7 @@ FILE *fdopen(int fd, const char *mode)
 		return NULL;
 	}
 
+	stream->allocated_file = true;
 	stream->user.fd = fd;
 	stream->ops = &stdio_vfs_ops;
 	setvbuf(stream, NULL, _IOFBF, BUFSIZ);
@@ -349,10 +351,18 @@ int fclose(FILE *stream)
 {
 	int rc = _fclose_nofree(stream);
 
-	if ((stream != &stdin_null) &&
-	    (stream != &stdout_kio) &&
-	    (stream != &stderr_kio))
+	if (stream->allocated_buffer)
+		free(stream->buffer);
+
+	if (stream->allocated_file) {
 		free(stream);
+	} else {
+		stream->allocated_buffer = false;
+		stream->buffer = NULL;
+		stream->buffer_end = NULL;
+		stream->buffer_head = NULL;
+		stream->buffer_tail = NULL;
+	}
 
 	return rc;
 }

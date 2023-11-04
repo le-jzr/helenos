@@ -80,15 +80,12 @@ struct _IO_FILE {
 
 	/** Buffer */
 	uint8_t *buffer;
-
-	/** Buffer I/O pointer */
+	uint8_t *buffer_end;
 	uint8_t *buffer_tail;
-
-	/** Points to end of occupied space when in read mode. */
 	uint8_t *buffer_head;
 
-	/** Buffer size */
-	size_t buffer_size;
+	/** Buffer size we're supposed to have. */
+	size_t buffer_requested_size;
 
 	/** Error indicator. */
 	int error;
@@ -102,17 +99,17 @@ struct _IO_FILE {
 	 */
 	int need_sync;
 
-	/** Number of pushed back characters */
-	int ungetc_chars;
-
 	/** Buffering type */
 	enum __buffer_type btype;
 
 	/** Buffer state */
 	enum __buffer_state buffer_state;
 
-	/** Pushed back characters */
-	uint8_t ungetc_buf[UNGETC_MAX];
+	/** A backup buffer for an unbuffered stream, for ungetc to work. */
+	uint8_t backup_buffer[UNGETC_MAX];
+
+	bool allocated_buffer;
+	bool allocated_file;
 
 	/** Non-generic userdata. Contents defined by each user. */
 	struct _IO_FILE_user_data user;
