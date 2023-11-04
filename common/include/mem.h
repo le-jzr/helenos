@@ -51,6 +51,8 @@ extern int memcmp(const void *, const void *, size_t)
     __attribute__((nonnull(1, 2)));
 extern void *memchr(const void *, int, size_t)
     __attribute__((nonnull(1)));
+extern void *memrchr(const void *, int, size_t)
+    __attribute__((nonnull(1)));
 
 __C_DECLS_END;
 

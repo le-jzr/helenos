@@ -146,9 +146,19 @@ static bool _buffer_empty(FILE *stream)
 	return stream->buffer_tail == stream->buffer_head;
 }
 
+static bool _buffer_full(FILE *stream)
+{
+	return stream->buffer_tail == stream->buffer_end;
+}
+
 static size_t _buffer_used(FILE *stream)
 {
 	return stream->buffer_tail - stream->buffer_head;
+}
+
+static size_t _buffer_free(FILE *stream)
+{
+	return stream->buffer_end - stream->buffer_tail;
 }
 
 static size_t _buffer_size(FILE *stream)
@@ -182,10 +192,13 @@ static void _fflushbuf(FILE *stream)
 
 	/* If buffer has unwritten data, we need to write them out. */
 	if (stream->buffer_state == _bs_write) {
-		(void) _write(stream, stream->buffer_head, _buffer_used(stream));
-		/* On error stream error indicator and errno are set by _fwrite */
-		if (stream->error)
-			return;
+		while (!_buffer_empty(stream)) {
+			stream->buffer_head += _write(stream, stream->buffer_head, _buffer_used(stream));
+
+			/* On error stream error indicator and errno are set by _write */
+			if (stream->error)
+				return;
+		}
 	}
 
 	stream->buffer_head = stream->buffer;
@@ -193,19 +206,47 @@ static void _fflushbuf(FILE *stream)
 	stream->buffer_state = _bs_empty;
 }
 
-static size_t _fread(FILE *stream, void *dest, size_t total)
+static void _flush_to_newline(FILE *stream)
 {
-	size_t nread = 0;
+	uint8_t *endl = memrchr(stream->buffer_head, '\n', _buffer_used(stream));
+	if (endl == NULL)
+		return;
+
+	while (stream->buffer_head <= endl) {
+		size_t n = _write(stream, stream->buffer_head, _buffer_used(stream));
+		if (n == 0)
+			return;
+
+		stream->buffer_head += n;
+	}
 
 	if (_buffer_empty(stream)) {
-		/* If the read is longer than the buffer, read in directly first. */
-		while (total - nread >= _buffer_size(stream)) {
-			size_t n = stream->ops->read(stream, dest + nread, total - nread);
-			if (n == 0)
-				return nread;
+		stream->buffer_head = stream->buffer;
+		stream->buffer_tail = stream->buffer;
+		stream->buffer_state = _bs_empty;
+	}
+}
 
-			nread += n;
-		}
+static size_t _read_from_buffer(FILE *stream, void *dest, size_t size)
+{
+	size_t n = min(_buffer_used(stream), size);
+	memcpy(dest, stream->buffer_head, n);
+	stream->buffer_head += n;
+	return n;
+}
+
+static size_t _fread(FILE *stream, void *dest, size_t total)
+{
+	/* Empty the buffer first. */
+	size_t nread = _read_from_buffer(stream, dest, total);
+
+	/* If the read is longer than the buffer, read in directly first. */
+	while (total - nread >= _buffer_size(stream)) {
+		size_t n = stream->ops->read(stream, dest + nread, total - nread);
+		if (n == 0)
+			return nread;
+
+		nread += n;
 	}
 
 	while (nread < total) {
@@ -217,11 +258,7 @@ static size_t _fread(FILE *stream, void *dest, size_t total)
 				break;
 		}
 
-		size_t n = min(_buffer_used(stream), total - nread);
-
-		memcpy(dest + nread, stream->buffer_head, n);
-		stream->buffer_head += n;
-		nread += n;
+		nread += _read_from_buffer(stream, dest + nread, total - nread);
 	}
 
 	return nread;
@@ -250,68 +287,62 @@ size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
 	return nread / size;
 }
 
-static size_t _fwrite(FILE *stream, const void *buf, size_t size)
+static size_t _write_to_buffer(FILE *stream, const void *src, size_t size)
 {
-	uint8_t *data;
-	size_t bytes_left;
-	size_t now;
-	size_t buf_free;
-	size_t total_written;
-	size_t i;
-	uint8_t b;
-	bool need_flush = false;
+	assert(stream->buffer_state != _bs_read);
+	size_t n = min(_buffer_free(stream), size);
+	memcpy(stream->buffer_tail, src, n);
+	stream->buffer_tail += n;
+	stream->buffer_state = _bs_write;
+	return n;
+}
 
-	_lazy_alloc_buffer(stream);
+static size_t _fwrite(FILE *stream, const void *buf, size_t total)
+{
+	size_t nwritten = 0;
 
-	/* Make sure buffer contains no prefetched data. */
-	if (stream->buffer_state == _bs_read)
+	if (stream->error)
+		return 0;
+
+	/* First, fill & empty buffer. */
+	if (!_buffer_empty(stream)) {
+		nwritten += _write_to_buffer(stream, buf, total);
+		if (nwritten == total) {
+			if (stream->btype == _IOLBF)
+				_flush_to_newline(stream);
+
+			return nwritten;
+		}
+
+		assert(_buffer_full(stream));
+
 		_fflushbuf(stream);
-
-	/* If not buffered stream, write out directly. */
-	if (_buffer_empty(stream) && stream->btype == _IONBF) {
-		now = _write(stream, buf, size);
-		fflush(stream);
-		return now;
+		if (stream->error)
+			return nwritten;
 	}
 
-	data = (uint8_t *) buf;
-	bytes_left = size;
-	total_written = 0;
+	assert(_buffer_empty(stream));
 
-	while ((!stream->error) && (bytes_left > 0)) {
-		buf_free = stream->buffer_end - stream->buffer_tail;
-		if (bytes_left > buf_free)
-			now = buf_free;
-		else
-			now = bytes_left;
-
-		for (i = 0; i < now; i++) {
-			b = data[i];
-			stream->buffer_tail[i] = b;
-
-			if ((b == '\n') && (stream->btype == _IOLBF))
-				need_flush = true;
-		}
-
-		data += now;
-		stream->buffer_tail += now;
-		buf_free -= now;
-		bytes_left -= now;
-		total_written += now;
-		stream->buffer_state = _bs_write;
-
-		if (buf_free == 0) {
-			/* Only need to drain buffer. */
-			_fflushbuf(stream);
-			if (!stream->error)
-				need_flush = false;
-		}
+	/*
+	 * Now, with empty buffer, write directly to backend as long as the output
+	 * exceeds buffer capacity.
+	 */
+	while (total - nwritten >= _buffer_size(stream)) {
+		nwritten += _write(stream, buf + nwritten, total - nwritten);
+		if (stream->error)
+			return nwritten;
 	}
 
-	if (need_flush)
-		fflush(stream);
+	if (nwritten < total) {
+		/* Write the remaining output to buffer. */
+		nwritten += _write_to_buffer(stream, buf + nwritten, total - nwritten);
+		assert(nwritten == total);
 
-	return total_written;
+		if (stream->btype == _IOLBF)
+			_flush_to_newline(stream);
+	}
+
+	return nwritten;
 }
 
 /** Write to a stream.
@@ -327,7 +358,18 @@ size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 	if (size == 0 || nmemb == 0)
 		return 0;
 
+	_lazy_alloc_buffer(stream);
+
+	/* Make sure buffer contains no prefetched data. */
+	if (stream->buffer_state == _bs_read)
+		_fflushbuf(stream);
+
 	size_t nwritten = _fwrite(stream, buf, size * nmemb);
+
+	/* If not buffered stream, ensure the buffer is clear on return. */
+	if (!_buffer_empty(stream) && stream->btype == _IONBF)
+		_fflushbuf(stream);
+
 	return nwritten / size;
 }
 

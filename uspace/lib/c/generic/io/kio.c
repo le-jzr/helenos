@@ -72,31 +72,32 @@ errno_t kio_write(const void *buf, size_t size, size_t *nwritten)
 	/* Using down/up instead of lock/unlock so we can print very early. */
 	futex_down(&kio_buffer.futex);
 
-	const char *s = buf;
-	while (true) {
-		const char *endl = memchr(s, '\n', size);
-		if (endl) {
-			size_t used = kio_buffer.used;
+	size_t n = 0;
 
-			size_t sz = min(KIO_BUFFER_SIZE - used, (size_t) (endl - s));
-			memcpy(&kio_buffer.data[used], s, sz);
+	while (true) {
+		const void *endl = memchr(buf + n, '\n', size - n);
+		size_t used = kio_buffer.used;
+
+		if (endl) {
+			size_t sz = min(KIO_BUFFER_SIZE - used, endl - buf - n);
+			memcpy(&kio_buffer.data[used], buf + n, sz);
 
 			__SYSCALL3(SYS_KIO, KIO_WRITE,
 			    (sysarg_t) &kio_buffer.data[0], used + sz);
 
 			kio_buffer.used = 0;
-			size -= endl + 1 - s;
-			s = endl + 1;
+			n = endl - buf + 1;
 		} else {
-			size_t used = kio_buffer.used;
-			size_t sz = min(KIO_BUFFER_SIZE - used, size);
-			memcpy(&kio_buffer.data[used], s, sz);
+			/* Anything that doesn't fit into the buffer is silently dropped. */
+			size_t sz = min(KIO_BUFFER_SIZE - used, size - n);
+			memcpy(&kio_buffer.data[used], buf + n, sz);
 			kio_buffer.used += sz;
 			break;
 		}
 	}
 
 	futex_up(&kio_buffer.futex);
+	/* Deliberately original size and not n. */
 	if (nwritten)
 		*nwritten = size;
 	return EOK;
