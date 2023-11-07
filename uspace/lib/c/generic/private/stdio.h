@@ -46,18 +46,15 @@
 
 /** Stream operations */
 typedef struct {
-	/** Read from stream */
 	size_t (*read)(FILE *stream, void *buf, size_t size);
-	/** Write to stream */
 	size_t (*write)(FILE *stream, const void *buf, size_t size);
-	/** Seek on the stream */
 	errno_t (*seek)(FILE *stream, int64_t offset, int whence);
-	/** Retrieve current stream offset */
 	int64_t (*tell)(FILE *stream);
-	/** Close stream */
 	errno_t (*close)(FILE *stream);
-	/** Flush stream */
-	int (*flush)(FILE *stream);
+	void (*lock)(FILE *stream);
+	void (*unlock)(FILE *stream);
+	bool (*try_lock)(FILE *stream);
+	errno_t (*flush)(FILE *stream);
 } __stream_ops_t;
 
 enum __buffer_state {
@@ -87,12 +84,6 @@ struct _IO_FILE {
 	/** Buffer size we're supposed to have. */
 	size_t buffer_requested_size;
 
-	/** Error indicator. */
-	int error;
-
-	/** End-of-file indicator. */
-	int eof;
-
 	/**
 	 * Non-zero if the stream needs sync on fflush(). XXX change
 	 * console semantics so that sync is not needed.
@@ -107,6 +98,12 @@ struct _IO_FILE {
 
 	/** A backup buffer for an unbuffered stream, for ungetc to work. */
 	uint8_t backup_buffer[UNGETC_MAX];
+
+	/** Error indicator. */
+	bool error;
+
+	/** End-of-file indicator. */
+	bool eof;
 
 	bool allocated_buffer;
 	bool allocated_file;

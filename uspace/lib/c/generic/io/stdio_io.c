@@ -264,6 +264,15 @@ static size_t _fread(FILE *stream, void *dest, size_t total)
 	return nread;
 }
 
+static void _before_read(FILE *stream)
+{
+	_lazy_alloc_buffer(stream);
+
+	/* Make sure no data is pending write. */
+	if (stream->buffer_state == _bs_write)
+		_fflushbuf(stream);
+}
+
 /** Read from a stream.
  *
  * @param dest   Destination buffer.
@@ -277,13 +286,10 @@ size_t fread(void *dest, size_t size, size_t nmemb, FILE *stream)
 	if (size == 0 || nmemb == 0)
 		return 0;
 
-	_lazy_alloc_buffer(stream);
-
-	/* Make sure no data is pending write. */
-	if (stream->buffer_state == _bs_write)
-		_fflushbuf(stream);
-
+	flockfile(stream);
+	_before_read(stream);
 	size_t nread = _fread(stream, dest, size * nmemb);
+	funlockfile(stream);
 	return nread / size;
 }
 
@@ -307,12 +313,8 @@ static size_t _fwrite(FILE *stream, const void *buf, size_t total)
 	/* First, fill & empty buffer. */
 	if (!_buffer_empty(stream)) {
 		nwritten += _write_to_buffer(stream, buf, total);
-		if (nwritten == total) {
-			if (stream->btype == _IOLBF)
-				_flush_to_newline(stream);
-
+		if (nwritten == total)
 			return nwritten;
-		}
 
 		assert(_buffer_full(stream));
 
@@ -333,16 +335,31 @@ static size_t _fwrite(FILE *stream, const void *buf, size_t total)
 			return nwritten;
 	}
 
-	if (nwritten < total) {
-		/* Write the remaining output to buffer. */
+	/* Write the remaining output to buffer. */
+	if (nwritten < total)
 		nwritten += _write_to_buffer(stream, buf + nwritten, total - nwritten);
-		assert(nwritten == total);
 
-		if (stream->btype == _IOLBF)
-			_flush_to_newline(stream);
-	}
+	assert(nwritten == total);
 
 	return nwritten;
+}
+
+static void _before_write(FILE *stream)
+{
+	_lazy_alloc_buffer(stream);
+
+	/* Make sure buffer contains no prefetched data. */
+	if (stream->buffer_state == _bs_read)
+		_fflushbuf(stream);
+}
+
+static void _after_write(FILE* stream)
+{
+	/* If not buffered stream, ensure the buffer is clear on return. */
+	if (!_buffer_empty(stream) && stream->btype == _IONBF)
+		_fflushbuf(stream);
+	else if (stream->btype == _IOLBF)
+		_flush_to_newline(stream);
 }
 
 /** Write to a stream.
@@ -358,18 +375,11 @@ size_t fwrite(const void *buf, size_t size, size_t nmemb, FILE *stream)
 	if (size == 0 || nmemb == 0)
 		return 0;
 
-	_lazy_alloc_buffer(stream);
-
-	/* Make sure buffer contains no prefetched data. */
-	if (stream->buffer_state == _bs_read)
-		_fflushbuf(stream);
-
+	flockfile(stream);
+	_before_write(stream);
 	size_t nwritten = _fwrite(stream, buf, size * nmemb);
-
-	/* If not buffered stream, ensure the buffer is clear on return. */
-	if (!_buffer_empty(stream) && stream->btype == _IONBF)
-		_fflushbuf(stream);
-
+	_after_write(stream);
+	funlockfile(stream);
 	return nwritten / size;
 }
 
@@ -445,36 +455,35 @@ int fputs(const char *str, FILE *stream)
 
 int puts(const char *str)
 {
-	if (fputs(str, stdout) < 0)
-		return EOF;
-	return putchar('\n');
+	flockfile(stdout);
+	_before_write(stdout);
+	_fwrite(stdout, str, str_size(str));
+	uint8_t b = '\n';
+	_fwrite(stdout, &b, 1);
+	bool error = ferror(stdout);
+	funlockfile(stdout);
+
+	return error ? EOF : 0;
 }
 
 int fgetc(FILE *stream)
 {
-	char c;
-
-	/* This could be made faster by only flushing when needed. */
-	if (stdout)
-		fflush(stdout);
-	if (stderr)
-		fflush(stderr);
-
-	if (fread(&c, sizeof(char), 1, stream) < sizeof(char))
+	unsigned char c;
+	if (fread(&c, sizeof(c), 1, stream) == 0)
 		return EOF;
-
-	return (int) c;
+	else
+		return (int) c;
 }
 
 char *fgets(char *str, int size, FILE *stream)
 {
-	int c;
-	int idx;
+	flockfile(stream);
+	_before_read(stream);
 
-	idx = 0;
+	int idx = 0;
 	while (idx < size - 1) {
-		c = fgetc(stream);
-		if (c == EOF)
+		unsigned char c;
+		if (_fread(stream, &c, sizeof(c)) == 0)
 			break;
 
 		str[idx++] = c;
@@ -483,10 +492,11 @@ char *fgets(char *str, int size, FILE *stream)
 			break;
 	}
 
-	if (ferror(stream))
-		return NULL;
+	bool error = ferror(stream);
 
-	if (idx == 0)
+	funlockfile(stream);
+
+	if (error || idx == 0)
 		return NULL;
 
 	str[idx] = '\0';
@@ -503,23 +513,30 @@ int ungetc(int c, FILE *stream)
 	if (c == EOF)
 		return EOF;
 
-	if (stream->buffer_state == _bs_write)
-		return EOF;
+	flockfile(stream);
 
-	/* Maximize space for ungetc() */
+	if (stream->buffer_state == _bs_write) {
+		funlockfile(stream);
+		return EOF;
+	}
+
 	if (_buffer_empty(stream)) {
+		/* Maximize space for ungetc() */
 		stream->buffer_head = stream->buffer_end;
 		stream->buffer_tail = stream->buffer_end;
 	}
 
-	if (stream->buffer_head == stream->buffer)
+	if (stream->buffer_head == stream->buffer) {
+		/* No space for ungetc() */
+		funlockfile(stream);
 		return EOF;
+	}
 
 	stream->buffer_head--;
 	stream->buffer_head[0] = (uint8_t) c;
-	stream->error = false;
 	stream->eof = false;
-	return (uint8_t)c;
+	funlockfile(stream);
+	return (uint8_t) c;
 }
 
 int fseek64(FILE *stream, off64_t offset, int whence)
@@ -529,24 +546,24 @@ int fseek64(FILE *stream, off64_t offset, int whence)
 		return -1;
 	}
 
-	if (stream->error)
-		return -1;
+	flockfile(stream);
 
 	_fflushbuf(stream);
-	if (stream->error) {
+	if (!_buffer_empty()) {
 		/* errno was set by _fflushbuf() */
+		funlockfile(stream);
 		return -1;
 	}
 
 	errno_t rc = stream->ops->seek(stream, offset, whence);
-
 	if (rc != EOK) {
 		errno = rc;
 		stream->error = true;
-		return -1;
 	}
 
-	return 0;
+	funlockfile(stream);
+
+	return rc == EOK ? 0 : -1;
 }
 
 off64_t ftell64(FILE *stream)
@@ -556,16 +573,18 @@ off64_t ftell64(FILE *stream)
 		return EOF;
 	}
 
-	if (stream->error)
-		return EOF;
+	flockfile(stream);
 
 	size_t buffer_bytes = _buffer_used(stream);
 	off64_t pos = stream->ops->tell(stream);
 
 	if (stream->buffer_state == _bs_read)
-		return pos - buffer_bytes;
+		pos -= buffer_bytes;
 	else
-		return pos + buffer_bytes;
+		pos += buffer_bytes;
+
+	funlockfile(stream);
+	return pos;
 }
 
 int fseek(FILE *stream, long offset, int whence)
@@ -591,29 +610,34 @@ void rewind(FILE *stream)
 	(void) fseek(stream, 0, SEEK_SET);
 }
 
-int fflush(FILE *stream)
+static int _fflush(FILE *stream)
 {
-	if (stream->error)
-		return EOF;
-
 	_fflushbuf(stream);
-	if (stream->error) {
+	if (!_buffer_empty()) {
 		/* errno was set by _fflushbuf() */
 		return EOF;
 	}
 
 	if (stream->need_sync) {
-		/**
-		 * Better than syncing always, but probably still not the
-		 * right thing to do.
-		 */
-		if (stream->ops->flush(stream) == EOF)
+		errno_t rc = stream->ops->flush(stream);
+		if (rc != EOK) {
+			errno = rc;
+			stream->error = true;
 			return EOF;
+		}
 
 		stream->need_sync = false;
 	}
 
 	return 0;
+}
+
+int fflush(FILE *stream)
+{
+	flockfile(stream);
+	int ret = _fflush(stream);
+	funlockfile(stream);
+	return ret;
 }
 
 int feof(FILE *stream)
@@ -630,6 +654,27 @@ void clearerr(FILE *stream)
 {
 	stream->eof = false;
 	stream->error = false;
+}
+
+void flockfile(FILE *stream)
+{
+	if (stream->ops->lock)
+		stream->ops->lock(stream);
+}
+
+int ftrylockfile(FILE *stream)
+{
+	if (stream->ops->try_lock) {
+		return stream->ops->try_lock(stream) ? 0 : -1;
+	} else {
+		return 0;
+	}
+}
+
+void funlockfile(FILE *stream)
+{
+	if (stream->ops->unlock)
+		stream->ops->unlock(stream);
 }
 
 /** @}
