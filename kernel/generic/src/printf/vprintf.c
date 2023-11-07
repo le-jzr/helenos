@@ -39,14 +39,38 @@
 #include <arch/asm.h>
 #include <typedefs.h>
 #include <str.h>
+#include <console/console.h>
+
+static void _putuchar(const char32_t ch)
+{
+	kio_push_char(ch);
+
+	if (!stdout || !stdout->op->write) {
+		/*
+		 * No standard output routine defined yet.
+		 * The character is still stored in the kernel log
+		 * for possible future output.
+		 *
+		 * The early_putuchar() function is used to output
+		 * the character for low-level debugging purposes.
+		 * Note that the early_putuchar() function might be
+		 * a no-op on certain hardware configurations.
+		 */
+		early_putuchar(ch);
+	}
+}
 
 static int vprintf_str_write(const char *str, size_t size, void *data)
 {
+	bool *newline = data;
 	size_t offset = 0;
 	size_t chars = 0;
 
 	while (offset < size) {
-		putuchar(str_decode(str, &offset, size));
+		char32_t ch = str_decode(str, &offset, size);
+		_putuchar(ch);
+		if (ch == '\n')
+			*newline = true;
 		chars++;
 	}
 
@@ -55,11 +79,14 @@ static int vprintf_str_write(const char *str, size_t size, void *data)
 
 static int vprintf_wstr_write(const char32_t *str, size_t size, void *data)
 {
+	bool *newline = data;
 	size_t offset = 0;
 	size_t chars = 0;
 
 	while (offset < size) {
-		putuchar(str[chars]);
+		_putuchar(str[chars]);
+		if (str[chars] == '\n')
+			*newline = true;
 		chars++;
 		offset += sizeof(char32_t);
 	}
@@ -84,13 +111,21 @@ int puts(const char *str)
 
 int vprintf(const char *fmt, va_list ap)
 {
+	bool newline = false;
+
 	printf_spec_t ps = {
 		vprintf_str_write,
 		vprintf_wstr_write,
-		NULL
+		&newline,
 	};
 
-	return printf_core(fmt, &ps, ap);
+	spinlock_lock(&kio_lock);
+	int ret = printf_core(fmt, &ps, ap);
+	spinlock_unlock(&kio_lock);
+	kio_flush();
+	if (newline)
+		kio_update(NULL);
+	return ret;
 }
 
 /** @}
