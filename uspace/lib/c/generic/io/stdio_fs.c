@@ -56,11 +56,11 @@ struct _IO_FILE_user_data {
 
 static size_t stdio_kio_read(FILE *, void *, size_t);
 static size_t stdio_kio_write(FILE *, const void *, size_t);
-static int stdio_kio_flush(FILE *);
+static errno_t stdio_kio_flush(FILE *);
 
 static size_t stdio_vfs_read(FILE *, void *, size_t);
 static size_t stdio_vfs_write(FILE *, const void *, size_t);
-static int stdio_vfs_flush(FILE *);
+static errno_t stdio_vfs_flush(FILE *);
 static errno_t stdio_vfs_seek(FILE *, int64_t offset, int whence);
 static int64_t stdio_vfs_tell(FILE *);
 static errno_t stdio_vfs_close(FILE *);
@@ -341,6 +341,7 @@ static int _fclose_nofree(FILE *stream)
 
 	if (rc != EOK) {
 		errno = rc;
+		stream->error = true;
 		return EOF;
 	}
 
@@ -458,10 +459,10 @@ static size_t stdio_kio_write(FILE *stream, const void *buf, size_t size)
 }
 
 /** Flush KIO stream. */
-static int stdio_kio_flush(FILE *stream)
+static errno_t stdio_kio_flush(FILE *stream)
 {
 	kio_update();
-	return 0;
+	return EOK;
 }
 
 /** Read from VFS stream. */
@@ -503,17 +504,9 @@ static size_t stdio_vfs_write(FILE *stream, const void *buf, size_t size)
 }
 
 /** Flush VFS stream. */
-static int stdio_vfs_flush(FILE *stream)
+static errno_t stdio_vfs_flush(FILE *stream)
 {
-	errno_t rc;
-
-	rc = vfs_sync(stream->user.fd);
-	if (rc != EOK) {
-		errno = rc;
-		return EOF;
-	}
-
-	return 0;
+	return vfs_sync(stream->user.fd);
 }
 
 static errno_t stdio_vfs_close(FILE *stream)
