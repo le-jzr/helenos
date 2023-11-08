@@ -51,6 +51,7 @@
 #include <ddi/ddi.h>
 #include <typedefs.h>
 #include <byteorder.h>
+#include <proc/thread.h>
 
 #define BG_COLOR     0x001620
 #define FG_COLOR     0xf3cf65
@@ -81,6 +82,8 @@
 	((glyph) * (instance)->glyphbytes + (y) * (instance)->glyphscanline)
 
 #define TAB_WIDTH 8
+
+#define REFRESH_MAX_FPS 15
 
 typedef void (*rgb_conv_t)(void *, uint32_t);
 
@@ -123,6 +126,18 @@ typedef struct {
 	/** Current backbuffer position */
 	unsigned int row;
 	unsigned int column;
+
+	/** Periodic redraw thread. */
+	thread_t *thread;
+
+	/** Buffer changed since the last redraw. */
+	bool changed;
+
+	/** Force eager redraw after a manual refresh until lazy refresh runs again. */
+	bool eager_redraw;
+
+	/** Number of lines printed since the last periodic printed. */
+	unsigned int last_redraw;
 } fb_instance_t;
 
 static void fb_putuchar(outdev_t *, char32_t);
@@ -362,19 +377,33 @@ static void fb_redraw_internal(fb_instance_t *instance)
 	}
 }
 
+static void delayed_redraw_screen(fb_instance_t *instance)
+{
+	instance->changed = false;
+	instance->last_redraw = 0;
+
+	if ((!instance->parea.mapped) || (console_override)) {
+		fb_redraw_internal(instance);
+	}
+}
+
+/*
+ * Implement backbuffer scrolling by wrapping around
+ * the cyclic buffer.
+ */
+static void buffer_scroll(fb_instance_t *instance)
+{
+	instance->start_row++;
+	if (instance->start_row == instance->rows)
+		instance->start_row = 0;
+}
+
 /** Scroll screen down by one row
  *
  */
 static void screen_scroll(fb_instance_t *instance)
 {
-	/*
-	 * Implement backbuffer scrolling by wrapping around
-	 * the cyclic buffer.
-	 */
-
-	instance->start_row++;
-	if (instance->start_row == instance->rows)
-		instance->start_row = 0;
+	buffer_scroll(instance);
 
 	if ((!instance->parea.mapped) || (console_override)) {
 		fb_redraw_internal(instance);
@@ -385,6 +414,12 @@ static void _advance_row(fb_instance_t *instance)
 {
 	instance->column = 0;
 	instance->row++;
+
+	unsigned row = instance->row;
+
+	/* Clear the new row of stale data. */
+	for (unsigned col = 0; col < instance->cols; col++)
+		instance->backbuf[BB_POS(instance, col, row)] = fb_font_glyph(' ');
 }
 
 static void _advance_column(fb_instance_t *instance)
@@ -392,6 +427,100 @@ static void _advance_column(fb_instance_t *instance)
 	instance->column++;
 	if (instance->column == instance->cols)
 		_advance_row(instance);
+}
+
+static void fb_putuchar_post_thread(fb_instance_t *instance, char32_t ch)
+{
+	instance->changed = true;
+
+	switch (ch) {
+	case '\n':
+		_advance_row(instance);
+		break;
+	case '\r':
+		instance->column = 0;
+		break;
+	case '\b':
+		if (instance->column > 0)
+			instance->column--;
+		break;
+	case '\t':
+		do {
+			instance->backbuf[BB_POS(instance, instance->column, instance->row)] = fb_font_glyph(' ');
+			_advance_column(instance);
+		} while (instance->column % TAB_WIDTH != 0);
+		break;
+	default:
+		instance->backbuf[BB_POS(instance, instance->column, instance->row)] = fb_font_glyph(ch);
+		_advance_column(instance);
+	}
+
+	while (instance->row >= instance->rows) {
+		instance->row--;
+		instance->last_redraw++;
+
+		/*
+		 * If an entire screen worth of lines was written since last redraw,
+		 * redraw now to ensure we still get output when we print lots of stuff
+		 * in interrupt disabled code.
+		 */
+		if (instance->last_redraw >= instance->screen_rows) {
+			delayed_redraw_screen(instance);
+		}
+
+		buffer_scroll(instance);
+	}
+}
+
+static void fb_putuchar_pre_thread(fb_instance_t *instance, char32_t ch)
+{
+	cursor_remove(instance);
+
+	switch (ch) {
+	case '\n':
+		_advance_row(instance);
+		break;
+	case '\r':
+		instance->column = 0;
+		break;
+	case '\b':
+		if (instance->column > 0)
+			instance->column--;
+		break;
+	case '\t':
+		do {
+			glyph_draw(instance, fb_font_glyph(' '), instance->column,
+			    instance->row, false);
+			_advance_column(instance);
+		} while (instance->column % TAB_WIDTH != 0);
+		break;
+	default:
+		glyph_draw(instance, fb_font_glyph(ch), instance->column,
+		    instance->row, false);
+		_advance_column(instance);
+	}
+
+	while (instance->row >= instance->rows) {
+		instance->row--;
+		screen_scroll(instance);
+	}
+
+	cursor_put(instance);
+}
+
+/* Redraw the framebuffer REFRESH_FPS times per second. */
+static void fb_redraw_thread(void *data)
+{
+	fb_instance_t *instance = data;
+
+	while (true) {
+		thread_usleep(1000000 / REFRESH_MAX_FPS);
+		spinlock_lock(&instance->lock);
+		instance->eager_redraw = false;
+		if (instance->changed)
+			delayed_redraw_screen(instance);
+		spinlock_unlock(&instance->lock);
+	}
 }
 
 /** Print character to screen
@@ -404,42 +533,17 @@ static void fb_putuchar(outdev_t *dev, char32_t ch)
 	fb_instance_t *instance = (fb_instance_t *) dev->data;
 	spinlock_lock(&instance->lock);
 
-	switch (ch) {
-	case '\n':
-		cursor_remove(instance);
-		_advance_row(instance);
-		break;
-	case '\r':
-		cursor_remove(instance);
-		instance->column = 0;
-		break;
-	case '\b':
-		cursor_remove(instance);
-		if (instance->column > 0)
-			instance->column--;
-		break;
-	case '\t':
-		cursor_remove(instance);
-		do {
-			glyph_draw(instance, fb_font_glyph(' '),
-			    instance->column,
-			    instance->row, false);
-			_advance_column(instance);
-		} while (instance->column % TAB_WIDTH != 0);
-		break;
-	default:
-		glyph_draw(instance, fb_font_glyph(ch),
-		    instance->column,
-		    instance->row, false);
-		_advance_column(instance);
+	if (instance->thread == NULL && THREAD != NULL) {
+		/* Threads are initialized now, start the framebuffer update thread. */
+		instance->thread = thread_create(fb_redraw_thread, instance, NULL, THREAD_FLAG_NONE, "fb_update_thread");
+		thread_ready(instance->thread);
 	}
 
-	while (instance->row >= instance->rows) {
-		instance->row--;
-		screen_scroll(instance);
+	if (instance->thread && !instance->eager_redraw) {
+		fb_putuchar_post_thread(instance, ch);
+	} else {
+		fb_putuchar_pre_thread(instance, ch);
 	}
-
-	cursor_put(instance);
 
 	spinlock_unlock(&instance->lock);
 }
@@ -491,6 +595,7 @@ static void fb_redraw(outdev_t *dev)
 	fb_instance_t *instance = (fb_instance_t *) dev->data;
 
 	spinlock_lock(&instance->lock);
+	instance->eager_redraw = true;
 	fb_redraw_internal(instance);
 	spinlock_unlock(&instance->lock);
 }

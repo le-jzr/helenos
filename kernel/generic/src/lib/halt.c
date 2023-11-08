@@ -41,6 +41,7 @@
 #include <cpu.h>
 #include <arch/asm.h>
 #include <arch.h>
+#include <console/console.h>
 #include <console/kconsole.h>
 
 /** Halt flag */
@@ -65,6 +66,11 @@ void halt(void)
 #endif
 
 	interrupts_disable();
+
+	/*
+	 * Force console redraw, to switch framebuffer output to eager mode.
+	 */
+	redraw_console();
 
 #if (defined(CONFIG_DEBUG)) && (defined(CONFIG_KCONSOLE))
 	if ((rundebugger) && (kconsole_check_poll()))

@@ -140,6 +140,8 @@ IRQ_SPINLOCK_EXTERN(tasks_lock);
 /** Ordered dictionary of all tasks by ID (of task_t structures) */
 extern odict_t tasks;
 
+extern task_t *kernel_task;
+
 extern void task_init(void);
 extern void task_done(void);
 extern task_t *task_create(as_t *, const char *);

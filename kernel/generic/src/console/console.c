@@ -206,6 +206,13 @@ void kio_init(void)
 	atomic_store(&kio_inited, true);
 }
 
+void redraw_console(void)
+{
+	console_override = true;
+	if ((stdout) && (stdout->op->redraw))
+		stdout->op->redraw(stdout);
+}
+
 void grab_console(void)
 {
 	sysinfo_set_item_val("kconsole", NULL, true);

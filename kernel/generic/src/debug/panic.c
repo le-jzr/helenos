@@ -33,13 +33,15 @@
  */
 
 #include <panic.h>
-#include <stdio.h>
-#include <stacktrace.h>
+
+#include <console/console.h>
 #include <halt.h>
-#include <typedefs.h>
-#include <mm/as.h>
-#include <stdarg.h>
 #include <interrupt.h>
+#include <mm/as.h>
+#include <stacktrace.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <typedefs.h>
 
 #define BANNER_LEFT   "######>"
 #define BANNER_RIGHT  "<######"

@@ -212,8 +212,6 @@ static size_t thr_destructor(void *obj)
  */
 void thread_init(void)
 {
-	THREAD = NULL;
-
 	atomic_store(&nrdy, 0);
 	thread_cache = slab_cache_create("thread_t", sizeof(thread_t), _Alignof(thread_t),
 	    thr_constructor, thr_destructor, 0);
@@ -296,6 +294,9 @@ void thread_ready(thread_t *thread)
 thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
     thread_flags_t flags, const char *name)
 {
+	if (task == NULL)
+		task = kernel_task;
+
 	thread_t *thread = (thread_t *) slab_alloc(thread_cache, FRAME_ATOMIC);
 	if (!thread)
 		return NULL;

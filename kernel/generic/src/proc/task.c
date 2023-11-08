@@ -77,6 +77,8 @@ IRQ_SPINLOCK_INITIALIZE(tasks_lock);
  */
 odict_t tasks;
 
+task_t *kernel_task;
+
 static task_id_t task_counter = 0;
 
 static slab_cache_t *task_cache;

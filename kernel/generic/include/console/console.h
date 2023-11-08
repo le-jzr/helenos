@@ -72,6 +72,7 @@ extern sys_errno_t sys_kio(int cmd, uspace_addr_t buf, size_t size);
 
 extern void grab_console(void);
 extern void release_console(void);
+extern void redraw_console(void);
 
 extern sysarg_t sys_debug_console(void);
 
