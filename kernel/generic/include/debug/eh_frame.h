@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Jiří Zárevúcky
+ * Copyright (c) 2024 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,37 +26,4 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef DEBUG_DWARF_TYPES_H_
-#define DEBUG_DWARF_TYPES_H_
-
-typedef unsigned dw_access_t;
-typedef unsigned dw_at_t;
-typedef unsigned dw_ate_t;
-typedef unsigned dw_cc_t;
-typedef unsigned dw_cfa_t;
-typedef unsigned dw_defaulted_t;
-typedef unsigned dw_ds_t;
-typedef unsigned dw_dsc_t;
-typedef unsigned dw_eh_pe_t;
-typedef unsigned dw_end_t;
-typedef unsigned dw_form_t;
-typedef unsigned dw_id_t;
-typedef unsigned dw_idx_t;
-typedef unsigned dw_idx_t;
-typedef unsigned dw_inl_t;
-typedef unsigned dw_lang_t;
-typedef unsigned dw_lle_t;
-typedef unsigned dw_lnct_t;
-typedef unsigned dw_lne_t;
-typedef unsigned dw_lns_t;
-typedef unsigned dw_macro_t;
-typedef unsigned dw_op_t;
-typedef unsigned dw_ord_t;
-typedef unsigned dw_rle_t;
-typedef unsigned dw_sect_t;
-typedef unsigned dw_tag_t;
-typedef unsigned dw_ut_t;
-typedef unsigned dw_virtuality_t;
-typedef unsigned dw_vis_t;
-
-#endif /* DEBUG_DWARF_TYPES_H_ */
+extern void eh_frame_parse(void);

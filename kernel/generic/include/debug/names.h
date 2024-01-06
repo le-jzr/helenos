@@ -39,6 +39,7 @@ extern const char *dw_cfa_name(dw_cfa_t);
 extern const char *dw_defaulted_name(dw_defaulted_t);
 extern const char *dw_ds_name(dw_ds_t);
 extern const char *dw_dsc_name(dw_dsc_t);
+extern const char *dw_eh_pe_name(dw_eh_pe_t);
 extern const char *dw_end_name(dw_end_t);
 extern const char *dw_form_name(dw_form_t);
 extern const char *dw_id_name(dw_id_t);

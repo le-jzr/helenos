@@ -54,6 +54,7 @@ generic_src += files(
 	'src/console/prompt.c',
 	'src/cpu/cpu_mask.c',
 	'src/ddi/irq.c',
+	'src/debug/eh_frame.c',
 	'src/debug/line.c',
 	'src/debug/names.c',
 	'src/debug/panic.c',

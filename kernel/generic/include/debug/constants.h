@@ -802,6 +802,8 @@ enum {
 	DW_CFA_MAX,
 
 	DW_CFA_lo_user = 0x1c,
+	DW_CFA_GNU_args_size = 0x2e,
+	DW_CFA_GNU_negative_offset_extended = 0x2f,
 	DW_CFA_hi_user = 0x3f,
 
 	/* These hold extra data in the 6 low-order bits. */
@@ -821,6 +823,29 @@ enum {
 	DW_RLE_start_length = 0x07,
 
 	DW_RLE_MAX,
+};
+
+/* Definitions from Linux Standard Base Core - Generic 5.0 */
+enum {
+	DW_EH_PE_absptr   = 0x00,  // The Value is a literal pointer whose size is determined by the architecture.
+	DW_EH_PE_uleb128  = 0x01,  // Unsigned value is encoded using the Little Endian Base 128 (LEB128) as defined by DWARF Debugging Information Format, Version 4.
+	DW_EH_PE_udata2   = 0x02,  // A 2 bytes unsigned value.
+	DW_EH_PE_udata4	  = 0x03,  // A 4 bytes unsigned value.
+	DW_EH_PE_udata8	  = 0x04,  // An 8 bytes unsigned value.
+	DW_EH_PE_sleb128  = 0x09,  // Signed value is encoded using the Little Endian Base 128 (LEB128) as defined by DWARF Debugging Information Format, Version 4.
+	DW_EH_PE_sdata2   = 0x0a,  // A 2 bytes signed value.
+	DW_EH_PE_sdata4   = 0x0b,  // A 4 bytes signed value.
+	DW_EH_PE_sdata8   = 0x0c,  // An 8 bytes signed value.
+	DW_EH_PE_omit_low = 0x0f,  // No value is present.
+
+	DW_EH_PE_pcrel   = 0x10,  // Value is relative to the current program counter.
+	DW_EH_PE_textrel = 0x20,  // Value is relative to the beginning of the .text section.
+	DW_EH_PE_datarel = 0x30,  // Value is relative to the beginning of the .got or .eh_frame_hdr section.
+	DW_EH_PE_funcrel = 0x40,  // Value is relative to the beginning of the function.
+	DW_EH_PE_aligned = 0x50,  // Value is aligned to an address unit sized boundary.
+	DW_EH_PE_omit_high = 0xf0, // No value is present.
+
+	DW_EH_PE_omit    = 0xff,
 };
 
 #endif /* DWARFS_CONSTANTS_H_ */

@@ -29,6 +29,7 @@
 #include <debug/sections.h>
 #include <debug/register.h>
 #include <debug.h>
+#include <debug/eh_frame.h>
 
 #include <stdio.h>
 #include <str.h>
@@ -64,8 +65,6 @@ debug_sections_t get_debug_sections(const void *elf, size_t elf_size)
 		section(debug_str),
 		section(debug_line_str),
 		section(debug_rnglists),
-		section(eh_frame_hdr),
-		section(eh_frame),
 		section(symtab),
 		section(strtab),
 	};
@@ -176,4 +175,6 @@ debug_sections_t get_debug_sections(const void *elf, size_t elf_size)
 void register_debug_data(const void *elf, size_t elf_size)
 {
 	kernel_sections = get_debug_sections(elf, elf_size);
+
+	eh_frame_parse();
 }

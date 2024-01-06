@@ -749,6 +749,9 @@ static const char *const dw_cfa_names[] = {
 	ENTRY(DW_CFA_val_offset),
 	ENTRY(DW_CFA_val_offset_sf),
 	ENTRY(DW_CFA_val_expression),
+
+	ENTRY(DW_CFA_GNU_args_size),
+	ENTRY(DW_CFA_GNU_negative_offset_extended),
 };
 
 _Static_assert(DW_CFA_MAX == DW_CFA_val_expression + 1);
@@ -766,6 +769,26 @@ static const char *const dw_rle_names[] = {
 
 _Static_assert(DW_RLE_MAX == DW_RLE_start_length + 1);
 
+static const char *const dw_eh_pe_names[] = {
+	ENTRY(DW_EH_PE_absptr),
+	ENTRY(DW_EH_PE_uleb128),
+	ENTRY(DW_EH_PE_udata2),
+	ENTRY(DW_EH_PE_udata4),
+	ENTRY(DW_EH_PE_udata8),
+	ENTRY(DW_EH_PE_sleb128),
+	ENTRY(DW_EH_PE_sdata2),
+	ENTRY(DW_EH_PE_sdata4),
+	ENTRY(DW_EH_PE_sdata8),
+	ENTRY(DW_EH_PE_omit_low),
+	ENTRY(DW_EH_PE_pcrel),
+	ENTRY(DW_EH_PE_textrel),
+	ENTRY(DW_EH_PE_datarel),
+	ENTRY(DW_EH_PE_funcrel),
+	ENTRY(DW_EH_PE_aligned),
+	ENTRY(DW_EH_PE_omit_high),
+	ENTRY(DW_EH_PE_omit),
+};
+
 #define NAME_FUNC(prefix) \
 	const char *prefix##_name(prefix##_t val) \
 	{ \
@@ -781,6 +804,7 @@ NAME_FUNC(dw_cfa);
 NAME_FUNC(dw_defaulted);
 NAME_FUNC(dw_ds);
 NAME_FUNC(dw_dsc);
+NAME_FUNC(dw_eh_pe);
 NAME_FUNC(dw_end);
 NAME_FUNC(dw_form);
 NAME_FUNC(dw_id);

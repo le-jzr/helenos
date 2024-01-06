@@ -54,12 +54,6 @@ typedef struct {
 	const void *debug_rnglists;
 	size_t debug_rnglists_size;
 
-	const void *eh_frame_hdr;
-	size_t eh_frame_hdr_size;
-
-	const void *eh_frame;
-	size_t eh_frame_size;
-
 	const elf_symbol_t *symtab;
 	size_t symtab_size;
 
@@ -68,6 +62,11 @@ typedef struct {
 } debug_sections_t;
 
 extern debug_sections_t kernel_sections;
+
+extern uint8_t eh_frame_start;
+extern uint8_t eh_frame_end;
+extern uint8_t eh_frame_hdr_start;
+extern uint8_t eh_frame_hdr_end;
 
 debug_sections_t get_debug_sections(const void *elf, size_t elf_size);
 

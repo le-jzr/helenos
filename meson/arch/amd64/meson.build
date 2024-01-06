@@ -37,7 +37,6 @@ arch_kernel_c_args = arch_uspace_c_args + [
 	'-mno-sse2',
 	'-mcmodel=' + MEMORY_MODEL,
 	'-mno-red-zone',
-	'-fno-unwind-tables',
 ]
 
 if PROCESSOR == 'opteron'
