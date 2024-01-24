@@ -439,7 +439,6 @@ void thread_exit(void)
 			 *
 			 */
 			ipc_cleanup();
-			sys_waitq_task_cleanup();
 			LOG("Cleanup of task %" PRIu64 " completed.", TASK->taskid);
 		}
 	}
