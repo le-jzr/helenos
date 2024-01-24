@@ -155,6 +155,12 @@ errno_t tsk_constructor(void *obj, unsigned int kmflags)
 	if (rc != EOK)
 		return rc;
 
+	rc = kobj_table_initialize(&task->kobj_table);
+	if (rc != EOK) {
+		caps_task_free(task);
+		return rc;
+	}
+
 	atomic_store(&task->lifecount, 0);
 
 	irq_spinlock_initialize(&task->lock, "task_t_lock");
@@ -181,6 +187,7 @@ size_t tsk_destructor(void *obj)
 	task_t *task = (task_t *) obj;
 
 	caps_task_free(task);
+	kobj_table_destroy(&task->kobj_table);
 	return 0;
 }
 
