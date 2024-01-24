@@ -77,6 +77,7 @@ generic_src += files(
 	'src/ipc/ops/stchngath.c',
 	'src/ipc/sysipc.c',
 	'src/ipc/sysipc_ops.c',
+	'src/kobj/kobj.c',
 	'src/lib/elf.c',
 	'src/lib/halt.c',
 	'src/lib/mem.c',

@@ -245,6 +245,7 @@ void main_bsp_separated_stack(void)
 	timeout_init();
 	scheduler_init();
 	caps_init();
+	kobj_init();
 	task_init();
 	thread_init();
 	sys_waitq_init();

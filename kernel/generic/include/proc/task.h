@@ -58,6 +58,7 @@
 #include <synch/mutex.h>
 #include <synch/spinlock.h>
 #include <udebug/udebug.h>
+#include <kobj.h>
 
 #define TASK                 CURRENT->task
 
@@ -97,6 +98,9 @@ typedef struct task {
 
 	/** Capabilities */
 	cap_info_t *cap_info;
+
+	/** KOBJ table */
+	kobj_table_t kobj_table;
 
 	/* IPC stuff */
 
