@@ -81,7 +81,7 @@ typedef struct {
 errno_t kobj_table_initialize(kobj_table_t *table);
 void kobj_table_destroy(kobj_table_t *table);
 void *kobj_table_lookup(kobj_table_t *table, kobj_handle_t handle, const kobj_class_t *type);
-void *kobj_table_shallow_lookup(kobj_table_t *table, kobj_handle_t handle);
+kobj_t *kobj_table_shallow_lookup(kobj_table_t *table, kobj_handle_t handle);
 kobj_handle_t kobj_table_insert(kobj_table_t *table, void *kobj);
 kobj_t *kobj_table_remove(kobj_table_t *table, kobj_handle_t handle);
 
