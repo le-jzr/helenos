@@ -180,6 +180,7 @@ test_src = files(
 	'test/imath.c',
 	'test/inttypes.c',
 	'test/io/table.c',
+	'test/kobj.c',
 	'test/loc.c',
 	'test/main.c',
 	'test/mem.c',
