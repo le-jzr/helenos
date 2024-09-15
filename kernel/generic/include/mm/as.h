@@ -48,6 +48,7 @@
 #include <lib/elf.h>
 #include <arch.h>
 #include <lib/refcount.h>
+#include <mm/mem.h>
 
 #define AS                   CURRENT->as
 
@@ -243,6 +244,13 @@ typedef union mem_backend_data {
 		as_area_pager_info_t pager_info;
 	};
 
+	/** mem_backend members */
+	struct {
+		mem_t *mem;
+		uintptr_t mem_offset;
+		bool mem_cow;
+	};
+
 } mem_backend_data_t;
 
 /** Address space area structure.
@@ -298,7 +306,7 @@ typedef struct mem_backend {
 	bool (*is_shareable)(as_area_t *);
 
 	int (*page_fault)(as_area_t *, uintptr_t, pf_access_t);
-	void (*frame_free)(as_area_t *, uintptr_t, uintptr_t);
+	void (*frame_free)(as_area_t *, uintptr_t, uintptr_t, pte_t *);
 
 	bool (*create_shared_data)(as_area_t *);
 	void (*destroy_shared_data)(void *);
@@ -370,6 +378,7 @@ extern mem_backend_t anon_backend;
 extern mem_backend_t elf_backend;
 extern mem_backend_t phys_backend;
 extern mem_backend_t user_backend;
+extern mem_backend_t mem_backend;
 
 /* Address space area related syscalls. */
 extern sysarg_t sys_as_area_create(uintptr_t, size_t, unsigned int, uintptr_t,

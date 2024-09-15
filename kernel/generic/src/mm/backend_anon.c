@@ -62,7 +62,7 @@ static bool anon_is_resizable(as_area_t *);
 static bool anon_is_shareable(as_area_t *);
 
 static int anon_page_fault(as_area_t *, uintptr_t, pf_access_t);
-static void anon_frame_free(as_area_t *, uintptr_t, uintptr_t);
+static void anon_frame_free(as_area_t *, uintptr_t, uintptr_t, pte_t *);
 
 mem_backend_t anon_backend = {
 	.create = anon_create,
@@ -272,7 +272,7 @@ int anon_page_fault(as_area_t *area, uintptr_t upage, pf_access_t access)
  * @param page Virtual address of the page corresponding to the frame.
  * @param frame Frame to be released.
  */
-void anon_frame_free(as_area_t *area, uintptr_t page, uintptr_t frame)
+void anon_frame_free(as_area_t *area, uintptr_t page, uintptr_t frame, pte_t *pte)
 {
 	assert(page_table_locked(area->as));
 	assert(mutex_locked(&area->lock));

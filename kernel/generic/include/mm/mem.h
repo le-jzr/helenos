@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010 Jakub Jermar
+ * Copyright (c) 2022 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,51 +26,30 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup abi_generic
+/** @addtogroup kernel_generic_mm
  * @{
  */
 /** @file
  */
 
-#ifndef _ABI_AS_H_
-#define _ABI_AS_H_
+#ifndef KERN_MM_MEM_H_
+#define KERN_MM_MEM_H_
 
-#include <abi/cap.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <errno.h>
+#include <kobj.h>
 
-/** Address space area flags. */
-enum {
-	AS_AREA_READ         = 0x01,
-	AS_AREA_WRITE        = 0x02,
-	AS_AREA_EXEC         = 0x04,
-	AS_AREA_CACHEABLE    = 0x08,
-	AS_AREA_GUARD        = 0x10,
-	AS_AREA_LATE_RESERVE = 0x20,
-	AS_AREA_COW          = 0x40,
-};
+typedef uintptr_t physaddr_t;
+typedef struct mem mem_t;
 
-static void *const AS_AREA_ANY = (void *) -1;
-static void *const AS_MAP_FAILED = (void *) -1;
-static void *const AS_AREA_UNPAGED = NULL;
+void mem_init(void);
 
-/** Address space area info exported to uspace. */
-typedef struct {
-	/** Starting address */
-	uintptr_t start_addr;
+physaddr_t mem_lookup(mem_t *mem, uintptr_t offset, bool alloc);
+void mem_put(mem_t *);
 
-	/** Area size */
-	size_t size;
-
-	/** Area flags */
-	unsigned int flags;
-} as_area_info_t;
-
-typedef struct {
-	cap_phone_handle_t pager;
-	sysarg_t id1;
-	sysarg_t id2;
-	sysarg_t id3;
-} as_area_pager_info_t;
-
+sysarg_t sys_mem_create(sysarg_t size, sysarg_t flags);
+sys_errno_t sys_mem_map(sysarg_t mem_handle, sysarg_t offset, sysarg_t size, uspace_ptr_uintptr_t uspace_vaddr, sysarg_t flags);
 #endif
 
 /** @}

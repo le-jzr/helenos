@@ -61,7 +61,7 @@ static bool elf_is_resizable(as_area_t *);
 static bool elf_is_shareable(as_area_t *);
 
 static int elf_page_fault(as_area_t *, uintptr_t, pf_access_t);
-static void elf_frame_free(as_area_t *, uintptr_t, uintptr_t);
+static void elf_frame_free(as_area_t *, uintptr_t, uintptr_t, pte_t *);
 
 mem_backend_t elf_backend = {
 	.create = elf_create,
@@ -413,7 +413,7 @@ int elf_page_fault(as_area_t *area, uintptr_t upage, pf_access_t access)
  * @param frame		Frame to be released.
  *
  */
-void elf_frame_free(as_area_t *area, uintptr_t page, uintptr_t frame)
+void elf_frame_free(as_area_t *area, uintptr_t page, uintptr_t frame, pte_t *pte)
 {
 	elf_segment_header_t *entry = area->backend_data.segment;
 	uintptr_t start_anon;
