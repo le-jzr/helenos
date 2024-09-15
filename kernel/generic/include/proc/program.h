@@ -54,9 +54,9 @@ typedef struct program {
 
 extern void *program_loader;
 
-extern errno_t program_create(as_t *, uspace_addr_t, char *, program_t *);
-extern errno_t program_create_from_image(void *, size_t, char *, program_t *);
-extern errno_t program_create_loader(program_t *, char *);
+extern errno_t program_create(as_t *, uspace_addr_t, const char *, program_t *);
+extern errno_t program_create_from_image(void *, size_t, const char *, program_t *);
+extern errno_t program_create_loader(program_t *, const char *);
 extern void program_ready(program_t *);
 
 extern sys_errno_t sys_program_spawn_loader(uspace_ptr_char, size_t);
