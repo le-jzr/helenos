@@ -69,7 +69,7 @@ void *program_loader = NULL;
  * @return EOK on success or an error code.
  *
  */
-errno_t program_create(as_t *as, uspace_addr_t entry_addr, char *name, program_t *prg)
+errno_t program_create(as_t *as, uspace_addr_t entry_addr, const char *name, program_t *prg)
 {
 	uspace_arg_t *kernel_uarg = (uspace_arg_t *)
 	    malloc(sizeof(uspace_arg_t));
@@ -142,7 +142,7 @@ errno_t program_create(as_t *as, uspace_addr_t entry_addr, char *name, program_t
  * @return EOK on success or an error code.
  *
  */
-errno_t program_create_from_image(void *image_addr, size_t image_size, char *name, program_t *prg)
+errno_t program_create_from_image(void *image_addr, size_t image_size, const char *name, program_t *prg)
 {
 	as_t *as = as_create(0);
 	if (!as)
@@ -176,7 +176,7 @@ errno_t program_create_from_image(void *image_addr, size_t image_size, char *nam
  * @return EOK on success or an error code.
  *
  */
-errno_t program_create_loader(program_t *prg, char *name)
+errno_t program_create_loader(program_t *prg, const char *name)
 {
 	as_t *as = as_create(0);
 	if (!as)
