@@ -46,6 +46,12 @@
 #define ATTRIBUTE_OPTIMIZE_NO_TLDP \
     ATTRIBUTE_OPTIMIZE("-fno-tree-loop-distribute-patterns")
 
+#define PROTECTED \
+	__attribute__ ((visibility("protected")))
+
+#define INTERNAL \
+	__attribute__ ((visibility("internal")))
+
 #endif
 
 /** @}

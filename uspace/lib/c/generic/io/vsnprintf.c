@@ -37,6 +37,7 @@
 #include <str.h>
 #include <printf_core.h>
 #include <errno.h>
+#include "../private/cc.h"
 
 typedef struct {
 	size_t size;    /* Total size of the buffer (in bytes) */
@@ -167,7 +168,7 @@ static int vsnprintf_wstr_write(const char32_t *str, size_t size, vsnprintf_data
 	return ((int) size);
 }
 
-int vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
+PROTECTED int __vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
 {
 	vsnprintf_data_t data = {
 		size,
@@ -186,6 +187,11 @@ int vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
 
 	/* vsnprintf_write ensures that str will be terminated by zero. */
 	return printf_core(fmt, &ps, ap);
+}
+
+int vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
+{
+	return __vsnprintf(str, size, fmt, ap);
 }
 
 /** @}

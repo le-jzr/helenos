@@ -45,6 +45,7 @@
 #include <assert.h>
 #include <macros.h>
 #include <uchar.h>
+#include "../private/cc.h"
 
 /* Disable float support in kernel, because we usually disable floating operations there. */
 #if __STDC_HOSTED__
@@ -1330,7 +1331,7 @@ static int print_double(double g, char spec, int precision, int width,
  * @return Number of characters printed, negative value on failure.
  *
  */
-int printf_core(const char *fmt, printf_spec_t *ps, va_list ap)
+PROTECTED int printf_core(const char *fmt, printf_spec_t *ps, va_list ap)
 {
 	size_t i;        /* Index of the currently processed character from fmt */
 	size_t nxt = 0;  /* Index of the next character from fmt */

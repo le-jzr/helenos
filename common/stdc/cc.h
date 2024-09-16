@@ -52,6 +52,12 @@
 #define DO_NOT_DISCARD
 #endif
 
+#define PROTECTED \
+	__attribute__ ((visibility("protected")))
+
+#define INTERNAL \
+	__attribute__ ((visibility("internal")))
+
 #endif
 
 /** @}

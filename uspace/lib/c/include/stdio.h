@@ -145,6 +145,10 @@ extern int asprintf(char **, const char *, ...)
 #endif
 extern int vsnprintf(char *, size_t, const char *, va_list);
 
+extern int __snprintf(char *, size_t, const char *, ...)
+    _HELENOS_PRINTF_ATTRIBUTE(3, 4);
+extern int __vsnprintf(char *, size_t, const char *, va_list);
+
 extern int sprintf(char *, const char *, ...)
     __attribute__((deprecated)) _HELENOS_PRINTF_ATTRIBUTE(2, 3);
 extern int vsprintf(char *, const char *, va_list) __attribute__((deprecated));

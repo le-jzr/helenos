@@ -51,6 +51,7 @@
 
 #define FUNCTION_BEGIN(func) \
 	.type func STT_FUNC; \
+	.protected func; \
 	SYMBOL_BEGIN(func)
 #define FUNCTION_END(func) \
 	SYMBOL_END(func)

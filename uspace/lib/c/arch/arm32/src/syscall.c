@@ -34,6 +34,7 @@
  */
 
 #include <libc.h>
+#include "../../../generic/private/cc.h"
 
 /** Syscall routine.
  *
@@ -48,7 +49,7 @@
  *
  *  @return Syscall return value.
  */
-sysarg_t __syscall(const sysarg_t p1, const sysarg_t p2, const sysarg_t p3,
+PROTECTED sysarg_t __syscall(const sysarg_t p1, const sysarg_t p2, const sysarg_t p3,
     const sysarg_t p4, const sysarg_t p5, const sysarg_t p6, const syscall_t id)
 {
 	register sysarg_t __arm_reg_r0 asm("r0") = p1;

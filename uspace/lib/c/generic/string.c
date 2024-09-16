@@ -37,6 +37,12 @@
 #include <stdlib.h>
 #include <str_error.h>
 #include <string.h>
+#include "private/cc.h"
+
+/**
+ * Most functions in this file have PROTECTED visibility to make them
+ * safe to call from the dynamic linker code.
+ */
 
 /** Copy string.
  *
@@ -48,7 +54,7 @@
  * @param s2 Source string
  * @return @a s1
  */
-char *strcpy(char *s1, const char *s2)
+PROTECTED char *strcpy(char *s1, const char *s2)
 {
 	char *dp = s1;
 
@@ -77,7 +83,7 @@ char *strcpy(char *s1, const char *s2)
  * @param n Number of characters to copy
  * @return @a s1
  */
-char *strncpy(char *s1, const char *s2, size_t n)
+PROTECTED char *strncpy(char *s1, const char *s2, size_t n)
 {
 	char *dp = s1;
 	size_t i;
@@ -101,7 +107,7 @@ char *strncpy(char *s1, const char *s2, size_t n)
  * @param s2 String to be appended
  * @return @a s1
  */
-char *strcat(char *s1, const char *s2)
+PROTECTED char *strcat(char *s1, const char *s2)
 {
 	char *dp = s1;
 
@@ -129,7 +135,7 @@ char *strcat(char *s1, const char *s2)
  * @param n Maximum number of characters to copy
  * @return @a s1
  */
-char *strncat(char *s1, const char *s2, size_t n)
+PROTECTED char *strncat(char *s1, const char *s2, size_t n)
 {
 	char *dp = s1;
 
@@ -156,7 +162,7 @@ char *strncat(char *s1, const char *s2, size_t n)
  * @return Greater than, equal to, less than zero if @a s1 > @a s2,
  *         @a s1 == @a s2, @a s1 < @a s2, resp.
  */
-int strcmp(const char *s1, const char *s2)
+PROTECTED int strcmp(const char *s1, const char *s2)
 {
 	while (*s1 == *s2 && *s1 != '\0') {
 		++s1;
@@ -187,7 +193,7 @@ int strcoll(const char *s1, const char *s2)
  * @return Greater than, equal to, less than zero if @a s1 > @a s2,
  *         @a s1 == @a s2, @a s1 < @a s2, resp. (within the first @a n chars.)
  */
-int strncmp(const char *s1, const char *s2, size_t n)
+PROTECTED int strncmp(const char *s1, const char *s2, size_t n)
 {
 	while (*s1 == *s2 && *s1 != '\0' && n > 0) {
 		++s1;
@@ -242,7 +248,7 @@ size_t strxfrm(char *s1, const char *s2, size_t n)
  * @return Pointer to the located character or @c NULL if the character
  *         does not occur in the string.
  */
-char *strchr(const char *s, int c)
+PROTECTED char *strchr(const char *s, int c)
 {
 	do {
 		if (*s == (char) c)
@@ -263,7 +269,7 @@ char *strchr(const char *s, int c)
  * @return Size of initial segment of @a s1 consisting only of characters
  *         not from @a s2.
  */
-size_t strcspn(const char *s1, const char *s2)
+PROTECTED size_t strcspn(const char *s1, const char *s2)
 {
 	char *p;
 	size_t n;
@@ -291,7 +297,7 @@ size_t strcspn(const char *s1, const char *s2)
  *
  * @return Pointer to first character found or @c NULL if not found
  */
-char *strpbrk(const char *s1, const char *s2)
+PROTECTED char *strpbrk(const char *s1, const char *s2)
 {
 	char *p;
 
@@ -319,7 +325,7 @@ char *strpbrk(const char *s1, const char *s2)
  * @return Pointer to the located character or @c NULL if the character
  *         does not occur in the string.
  */
-char *strrchr(const char *s, int c)
+PROTECTED char *strrchr(const char *s, int c)
 {
 	size_t i = strlen(s);
 
@@ -342,7 +348,7 @@ char *strrchr(const char *s, int c)
  * @return Size of initial segment of @a s1 consisting only of characters
  *         from @a s2.
  */
-size_t strspn(const char *s1, const char *s2)
+PROTECTED size_t strspn(const char *s1, const char *s2)
 {
 	char *p;
 	size_t n;
@@ -373,7 +379,7 @@ size_t strspn(const char *s1, const char *s2)
  *
  * @return Pointer inside @a s1 or @c NULL if not found.
  */
-char *strstr(const char *s1, const char *s2)
+PROTECTED char *strstr(const char *s1, const char *s2)
 {
 	size_t len;
 
@@ -488,7 +494,7 @@ char *strerror(int errnum)
  * @param s String
  * @return Number of characters preceding the null character.
  */
-size_t strlen(const char *s)
+PROTECTED size_t strlen(const char *s)
 {
 	size_t n;
 
@@ -507,7 +513,7 @@ size_t strlen(const char *s)
  * @param maxlen Maximum number of characters to read
  * @return Number of characters preceding the null character, at most @a maxlen.
  */
-size_t strnlen(const char *s, size_t maxlen)
+PROTECTED size_t strnlen(const char *s, size_t maxlen)
 {
 	size_t n;
 

@@ -117,6 +117,7 @@
 
 #include <align.h>
 #include <mem.h>
+#include "stdc/cc.h"
 
 /** Byte mask consisting of lowest @n bits (out of 8) */
 #define LO_MASK_8(n)  ((uint8_t) ((1 << (n)) - 1))
@@ -145,7 +146,7 @@
  *         NULL if attempt to decode beyond @a size.
  *
  */
-char32_t str_decode(const char *str, size_t *offset, size_t size)
+PROTECTED char32_t str_decode(const char *str, size_t *offset, size_t size)
 {
 	if (*offset + 1 > size)
 		return 0;
@@ -215,7 +216,7 @@ char32_t str_decode(const char *str, size_t *offset, size_t size)
  *         NULL if attempt to decode beyond @a start of str.
  *
  */
-char32_t str_decode_reverse(const char *str, size_t *offset, size_t size)
+PROTECTED char32_t str_decode_reverse(const char *str, size_t *offset, size_t size)
 {
 	if (*offset == 0)
 		return 0;
@@ -258,7 +259,7 @@ char32_t str_decode_reverse(const char *str, size_t *offset, size_t size)
  *         was not enough space in the output buffer or EINVAL if the character
  *         code was invalid.
  */
-errno_t chr_encode(const char32_t ch, char *str, size_t *offset, size_t size)
+PROTECTED errno_t chr_encode(const char32_t ch, char *str, size_t *offset, size_t size)
 {
 	if (*offset >= size)
 		return EOVERFLOW;
@@ -324,7 +325,7 @@ errno_t chr_encode(const char32_t ch, char *str, size_t *offset, size_t size)
  * @return Number of bytes used by the string
  *
  */
-size_t str_size(const char *str)
+PROTECTED size_t str_size(const char *str)
 {
 	size_t size = 0;
 
@@ -344,7 +345,7 @@ size_t str_size(const char *str)
  * @return Number of bytes used by the wide string
  *
  */
-size_t wstr_size(const char32_t *str)
+PROTECTED size_t wstr_size(const char32_t *str)
 {
 	return (wstr_length(str) * sizeof(char32_t));
 }
@@ -362,7 +363,7 @@ size_t wstr_size(const char32_t *str)
  * @return Number of bytes used by the characters.
  *
  */
-size_t str_lsize(const char *str, size_t max_len)
+PROTECTED size_t str_lsize(const char *str, size_t max_len)
 {
 	size_t len = 0;
 	size_t offset = 0;
@@ -388,7 +389,7 @@ size_t str_lsize(const char *str, size_t max_len)
  * @return Number of bytes used by the string
  *
  */
-size_t str_nsize(const char *str, size_t max_size)
+PROTECTED size_t str_nsize(const char *str, size_t max_size)
 {
 	size_t size = 0;
 
@@ -409,7 +410,7 @@ size_t str_nsize(const char *str, size_t max_size)
  * @return Number of bytes used by the wide string
  *
  */
-size_t wstr_nsize(const char32_t *str, size_t max_size)
+PROTECTED size_t wstr_nsize(const char32_t *str, size_t max_size)
 {
 	return (wstr_nlength(str, max_size) * sizeof(char32_t));
 }
@@ -427,7 +428,7 @@ size_t wstr_nsize(const char32_t *str, size_t max_size)
  * @return Number of bytes used by the wide characters.
  *
  */
-size_t wstr_lsize(const char32_t *str, size_t max_len)
+PROTECTED size_t wstr_lsize(const char32_t *str, size_t max_len)
 {
 	return (wstr_nlength(str, max_len * sizeof(char32_t)) * sizeof(char32_t));
 }
@@ -439,7 +440,7 @@ size_t wstr_lsize(const char32_t *str, size_t max_len)
  * @return Number of characters in string.
  *
  */
-size_t str_length(const char *str)
+PROTECTED size_t str_length(const char *str)
 {
 	size_t len = 0;
 	size_t offset = 0;
@@ -457,7 +458,7 @@ size_t str_length(const char *str)
  * @return Number of characters in @a str.
  *
  */
-size_t wstr_length(const char32_t *wstr)
+PROTECTED size_t wstr_length(const char32_t *wstr)
 {
 	size_t len = 0;
 
@@ -475,7 +476,7 @@ size_t wstr_length(const char32_t *wstr)
  * @return Number of characters in string.
  *
  */
-size_t str_nlength(const char *str, size_t size)
+PROTECTED size_t str_nlength(const char *str, size_t size)
 {
 	size_t len = 0;
 	size_t offset = 0;
@@ -494,7 +495,7 @@ size_t str_nlength(const char *str, size_t size)
  * @return Number of characters in string.
  *
  */
-size_t wstr_nlength(const char32_t *str, size_t size)
+PROTECTED size_t wstr_nlength(const char32_t *str, size_t size)
 {
 	size_t len = 0;
 	size_t limit = ALIGN_DOWN(size, sizeof(char32_t));
@@ -513,7 +514,7 @@ size_t wstr_nlength(const char32_t *str, size_t size)
  * @param ch	Character
  * @return	Width of character in cells.
  */
-size_t chr_width(char32_t ch)
+PROTECTED size_t chr_width(char32_t ch)
 {
 	return 1;
 }
@@ -523,7 +524,7 @@ size_t chr_width(char32_t ch)
  * @param str	String
  * @return	Width of string in cells.
  */
-size_t str_width(const char *str)
+PROTECTED size_t str_width(const char *str)
 {
 	size_t width = 0;
 	size_t offset = 0;
@@ -540,7 +541,7 @@ size_t str_width(const char *str)
  * @return True if character is plain ASCII.
  *
  */
-bool ascii_check(char32_t ch)
+PROTECTED bool ascii_check(char32_t ch)
 {
 	if (ch <= 127)
 		return true;
@@ -553,7 +554,7 @@ bool ascii_check(char32_t ch)
  * @return True if character is a valid Unicode code point.
  *
  */
-bool chr_check(char32_t ch)
+PROTECTED bool chr_check(char32_t ch)
 {
 	if (ch <= 1114111)
 		return true;
@@ -579,7 +580,7 @@ bool chr_check(char32_t ch)
  *         1 if the second is less than the first.
  *
  */
-int str_cmp(const char *s1, const char *s2)
+PROTECTED int str_cmp(const char *s1, const char *s2)
 {
 	char32_t c1 = 0;
 	char32_t c2 = 0;
@@ -626,7 +627,7 @@ int str_cmp(const char *s1, const char *s2)
  *         1 if the second is less than the first.
  *
  */
-int str_lcmp(const char *s1, const char *s2, size_t max_len)
+PROTECTED int str_lcmp(const char *s1, const char *s2, size_t max_len)
 {
 	char32_t c1 = 0;
 	char32_t c2 = 0;
@@ -678,7 +679,7 @@ int str_lcmp(const char *s1, const char *s2, size_t max_len)
  *         1 if the second is less than the first.
  *
  */
-int str_casecmp(const char *s1, const char *s2)
+PROTECTED int str_casecmp(const char *s1, const char *s2)
 {
 	char32_t c1 = 0;
 	char32_t c2 = 0;
@@ -726,7 +727,7 @@ int str_casecmp(const char *s1, const char *s2)
  *         1 if the second is less than the first.
  *
  */
-int str_lcasecmp(const char *s1, const char *s2, size_t max_len)
+PROTECTED int str_lcasecmp(const char *s1, const char *s2, size_t max_len)
 {
 	char32_t c1 = 0;
 	char32_t c2 = 0;
@@ -770,7 +771,7 @@ int str_lcasecmp(const char *s1, const char *s2, size_t max_len)
  * @return true iff p is prefix of s else false
  *
  */
-bool str_test_prefix(const char *s, const char *p)
+PROTECTED bool str_test_prefix(const char *s, const char *p)
 {
 	char32_t c1 = 0;
 	char32_t c2 = 0;
@@ -805,7 +806,7 @@ bool str_test_prefix(const char *s, const char *p)
  * @return String suffix.
  *
  */
-const char *str_suffix(const char *s, size_t prefix_length)
+PROTECTED const char *str_suffix(const char *s, size_t prefix_length)
 {
 	size_t off = 0;
 	size_t i = 0;
@@ -833,7 +834,7 @@ const char *str_suffix(const char *s, size_t prefix_length)
  * @param src   Source string.
  *
  */
-void str_cpy(char *dest, size_t size, const char *src)
+PROTECTED void str_cpy(char *dest, size_t size, const char *src)
 {
 	/* There must be space for a null terminator in the buffer. */
 	assert(size > 0);
@@ -867,7 +868,7 @@ void str_cpy(char *dest, size_t size, const char *src)
  * @param n     Maximum number of bytes to read from @a src.
  *
  */
-void str_ncpy(char *dest, size_t size, const char *src, size_t n)
+PROTECTED void str_ncpy(char *dest, size_t size, const char *src, size_t n)
 {
 	/* There must be space for a null terminator in the buffer. */
 	assert(size > 0);
@@ -895,7 +896,7 @@ void str_ncpy(char *dest, size_t size, const char *src, size_t n)
  * @param count Size of the destination buffer.
  * @param src   Source string.
  */
-void str_append(char *dest, size_t size, const char *src)
+PROTECTED void str_append(char *dest, size_t size, const char *src)
 {
 	size_t dstr_size;
 
@@ -930,7 +931,7 @@ void str_append(char *dest, size_t size, const char *src)
  *			destination buffer, EIO if the text contains
  *			non-ASCII bytes.
  */
-errno_t spascii_to_str(char *dest, size_t size, const uint8_t *src, size_t n)
+PROTECTED errno_t spascii_to_str(char *dest, size_t size, const uint8_t *src, size_t n)
 {
 	size_t sidx;
 	size_t didx;
@@ -979,7 +980,7 @@ errno_t spascii_to_str(char *dest, size_t size, const uint8_t *src, size_t n)
  * @param size	Size of the destination buffer.
  * @param src	Source wide string.
  */
-void wstr_to_str(char *dest, size_t size, const char32_t *src)
+PROTECTED void wstr_to_str(char *dest, size_t size, const char32_t *src)
 {
 	char32_t ch;
 	size_t src_idx;
@@ -1011,7 +1012,7 @@ void wstr_to_str(char *dest, size_t size, const char32_t *src)
  *
  * @return EOK, if success, an error code otherwise.
  */
-errno_t utf16_to_str(char *dest, size_t size, const uint16_t *src)
+PROTECTED errno_t utf16_to_str(char *dest, size_t size, const uint16_t *src)
 {
 	size_t idx = 0, dest_off = 0;
 	char32_t ch;
@@ -1053,7 +1054,7 @@ errno_t utf16_to_str(char *dest, size_t size, const uint16_t *src)
  *
  * @return EOK, if success, an error code otherwise.
  */
-errno_t str_to_utf16(uint16_t *dest, size_t dlen, const char *src)
+PROTECTED errno_t str_to_utf16(uint16_t *dest, size_t dlen, const char *src)
 {
 	errno_t rc = EOK;
 	size_t offset = 0;
@@ -1097,7 +1098,7 @@ errno_t str_to_utf16(uint16_t *dest, size_t dlen, const char *src)
  * @return Number of words used by the UTF-16 string
  *
  */
-size_t utf16_wsize(const uint16_t *ustr)
+PROTECTED size_t utf16_wsize(const uint16_t *ustr)
 {
 	size_t wsize = 0;
 
@@ -1115,7 +1116,7 @@ size_t utf16_wsize(const uint16_t *ustr)
  * @param src	Source wide string.
  * @return	New string.
  */
-char *wstr_to_astr(const char32_t *src)
+PROTECTED char *wstr_to_astr(const char32_t *src)
 {
 	char dbuf[STR_BOUNDS(1)];
 	char *str;
@@ -1165,7 +1166,7 @@ char *wstr_to_astr(const char32_t *src)
  * @param dlen	Length of destination buffer (number of wchars).
  * @param src	Source string.
  */
-void str_to_wstr(char32_t *dest, size_t dlen, const char *src)
+PROTECTED void str_to_wstr(char32_t *dest, size_t dlen, const char *src)
 {
 	size_t offset;
 	size_t di;
@@ -1194,7 +1195,7 @@ void str_to_wstr(char32_t *dest, size_t dlen, const char *src)
  *
  * @param src	Source string.
  */
-char32_t *str_to_awstr(const char *str)
+PROTECTED char32_t *str_to_awstr(const char *str)
 {
 	size_t len = str_length(str);
 
@@ -1213,7 +1214,7 @@ char32_t *str_to_awstr(const char *str)
  *
  * @return Pointer to character in @a str or NULL if not found.
  */
-char *str_chr(const char *str, char32_t ch)
+PROTECTED char *str_chr(const char *str, char32_t ch)
 {
 	char32_t acc;
 	size_t off = 0;
@@ -1235,7 +1236,7 @@ char *str_chr(const char *str, char32_t ch)
  *
  * @return Pointer to character in @a hs or @c NULL if not found.
  */
-char *str_str(const char *hs, const char *n)
+PROTECTED char *str_str(const char *hs, const char *n)
 {
 	size_t off = 0;
 
@@ -1255,7 +1256,7 @@ char *str_str(const char *hs, const char *n)
  * @param str String to remove from.
  * @param ch  Character to remove.
  */
-void str_rtrim(char *str, char32_t ch)
+PROTECTED void str_rtrim(char *str, char32_t ch)
 {
 	size_t off = 0;
 	size_t pos = 0;
@@ -1283,7 +1284,7 @@ void str_rtrim(char *str, char32_t ch)
  * @param str String to remove from.
  * @param ch  Character to remove.
  */
-void str_ltrim(char *str, char32_t ch)
+PROTECTED void str_ltrim(char *str, char32_t ch)
 {
 	char32_t acc;
 	size_t off = 0;
@@ -1311,7 +1312,7 @@ void str_ltrim(char *str, char32_t ch)
  *
  * @return Pointer to character in @a str or NULL if not found.
  */
-char *str_rchr(const char *str, char32_t ch)
+PROTECTED char *str_rchr(const char *str, char32_t ch)
 {
 	char32_t acc;
 	size_t off = 0;
@@ -1341,7 +1342,7 @@ char *str_rchr(const char *str, char32_t ch)
  *         is out of bounds.
  *
  */
-bool wstr_linsert(char32_t *str, char32_t ch, size_t pos, size_t max_pos)
+PROTECTED bool wstr_linsert(char32_t *str, char32_t ch, size_t pos, size_t max_pos)
 {
 	size_t len = wstr_length(str);
 
@@ -1369,7 +1370,7 @@ bool wstr_linsert(char32_t *str, char32_t ch, size_t pos, size_t max_pos)
  *         is out of bounds.
  *
  */
-bool wstr_remove(char32_t *str, size_t pos)
+PROTECTED bool wstr_remove(char32_t *str, size_t pos)
 {
 	size_t len = wstr_length(str);
 
@@ -1399,7 +1400,7 @@ bool wstr_remove(char32_t *str, size_t pos)
  * @return Duplicate string.
  *
  */
-char *str_dup(const char *src)
+PROTECTED char *str_dup(const char *src)
 {
 	size_t size = str_size(src) + 1;
 	char *dest = malloc(size);
@@ -1430,7 +1431,7 @@ char *str_dup(const char *src)
  * @return Duplicate string.
  *
  */
-char *str_ndup(const char *src, size_t n)
+PROTECTED char *str_ndup(const char *src, size_t n)
 {
 	size_t size = str_size(src);
 	if (size > n)
@@ -1456,7 +1457,7 @@ char *str_ndup(const char *src, size_t n)
  *                      delimiter character. NULL if no such prefix
  *                      exists.
  */
-char *str_tok(char *s, const char *delim, char **next)
+PROTECTED char *str_tok(char *s, const char *delim, char **next)
 {
 	char *start, *end;
 
@@ -1491,7 +1492,7 @@ char *str_tok(char *s, const char *delim, char **next)
 	return start;
 }
 
-void order_suffix(const uint64_t val, uint64_t *rv, char *suffix)
+PROTECTED void order_suffix(const uint64_t val, uint64_t *rv, char *suffix)
 {
 	if (val > UINT64_C(10000000000000000000)) {
 		*rv = val / UINT64_C(1000000000000000000);
@@ -1517,7 +1518,7 @@ void order_suffix(const uint64_t val, uint64_t *rv, char *suffix)
 	}
 }
 
-void bin_order_suffix(const uint64_t val, uint64_t *rv, const char **suffix,
+PROTECTED void bin_order_suffix(const uint64_t val, uint64_t *rv, const char **suffix,
     bool fixed)
 {
 	if (val > UINT64_C(1152921504606846976)) {

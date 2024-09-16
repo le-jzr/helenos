@@ -11,6 +11,7 @@
 #include <stddef.h>
 #include <mem.h>
 #include <io/kio.h>
+#include "private/cc.h"
 
 #define PRINTF(...) kio_printf(__VA_ARGS__)
 #define ubsan_panic() abort()
@@ -125,7 +126,15 @@ static void print_loc(const char *func, struct source_location *loc)
 	    f, loc->file_name, loc->line, loc->column);
 }
 
-void __ubsan_handle_type_mismatch(struct type_mismatch_data *data,
+/*
+ * These symbols are set to protected not because of any practical benefit for
+ * normal execution, but because it makes it easier to see the issue in debugger
+ * when they trigger in runtime relocator code. It ensures the task can enter
+ * the function before it page faults, as protected functions usually can be
+ * called before relocations have finished.
+ */
+
+PROTECTED void __ubsan_handle_type_mismatch(struct type_mismatch_data *data,
     unsigned long ptr)
 {
 	print_loc(__func__, &data->loc);
@@ -134,7 +143,7 @@ void __ubsan_handle_type_mismatch(struct type_mismatch_data *data,
 	ubsan_panic();
 }
 
-void __ubsan_handle_type_mismatch_v1(struct type_mismatch_data_v1 *data,
+PROTECTED void __ubsan_handle_type_mismatch_v1(struct type_mismatch_data_v1 *data,
     unsigned long ptr)
 {
 	print_loc(__func__, &data->loc);
@@ -143,7 +152,7 @@ void __ubsan_handle_type_mismatch_v1(struct type_mismatch_data_v1 *data,
 	ubsan_panic();
 }
 
-void __ubsan_handle_add_overflow(struct overflow_data *data,
+PROTECTED void __ubsan_handle_add_overflow(struct overflow_data *data,
     unsigned long lhs,
     unsigned long rhs)
 {
@@ -151,7 +160,7 @@ void __ubsan_handle_add_overflow(struct overflow_data *data,
 	ubsan_panic();
 }
 
-void __ubsan_handle_sub_overflow(struct overflow_data *data,
+PROTECTED void __ubsan_handle_sub_overflow(struct overflow_data *data,
     unsigned long lhs,
     unsigned long rhs)
 {
@@ -159,7 +168,7 @@ void __ubsan_handle_sub_overflow(struct overflow_data *data,
 	ubsan_panic();
 }
 
-void __ubsan_handle_mul_overflow(struct overflow_data *data,
+PROTECTED void __ubsan_handle_mul_overflow(struct overflow_data *data,
     unsigned long lhs,
     unsigned long rhs)
 {
@@ -167,14 +176,14 @@ void __ubsan_handle_mul_overflow(struct overflow_data *data,
 	ubsan_panic();
 }
 
-void __ubsan_handle_negate_overflow(struct overflow_data *data,
+PROTECTED void __ubsan_handle_negate_overflow(struct overflow_data *data,
     unsigned long old_val)
 {
 	print_loc(__func__, &data->loc);
 	ubsan_panic();
 }
 
-void __ubsan_handle_divrem_overflow(struct overflow_data *data,
+PROTECTED void __ubsan_handle_divrem_overflow(struct overflow_data *data,
     unsigned long lhs,
     unsigned long rhs)
 {
@@ -182,7 +191,7 @@ void __ubsan_handle_divrem_overflow(struct overflow_data *data,
 	ubsan_panic();
 }
 
-void __ubsan_handle_shift_out_of_bounds(struct shift_out_of_bounds_data *data,
+PROTECTED void __ubsan_handle_shift_out_of_bounds(struct shift_out_of_bounds_data *data,
     unsigned long lhs,
     unsigned long rhs)
 {
@@ -192,33 +201,33 @@ void __ubsan_handle_shift_out_of_bounds(struct shift_out_of_bounds_data *data,
 	ubsan_panic();
 }
 
-void __ubsan_handle_out_of_bounds(struct out_of_bounds_data *data,
+PROTECTED void __ubsan_handle_out_of_bounds(struct out_of_bounds_data *data,
     unsigned long idx)
 {
 	print_loc(__func__, &data->loc);
 	ubsan_panic();
 }
 
-void __ubsan_handle_unreachable(struct unreachable_data *data)
+PROTECTED void __ubsan_handle_unreachable(struct unreachable_data *data)
 {
 	print_loc(__func__, &data->loc);
 	ubsan_panic();
 }
 
-void __ubsan_handle_missing_return(struct unreachable_data *data)
+PROTECTED void __ubsan_handle_missing_return(struct unreachable_data *data)
 {
 	print_loc(__func__, &data->loc);
 	ubsan_panic();
 }
 
-void __ubsan_handle_vla_bound_not_positive(struct vla_bound_data *data,
+PROTECTED void __ubsan_handle_vla_bound_not_positive(struct vla_bound_data *data,
     unsigned long bound)
 {
 	print_loc(__func__, &data->loc);
 	ubsan_panic();
 }
 
-void __ubsan_handle_load_invalid_value(struct invalid_value_data *data,
+PROTECTED void __ubsan_handle_load_invalid_value(struct invalid_value_data *data,
     unsigned long val)
 {
 	print_loc(__func__, &data->loc);
@@ -226,32 +235,32 @@ void __ubsan_handle_load_invalid_value(struct invalid_value_data *data,
 }
 
 #if __GCC_VERSION < 60000
-void __ubsan_handle_nonnull_arg(struct nonnull_arg_data *data, size_t arg_no)
+PROTECTED void __ubsan_handle_nonnull_arg(struct nonnull_arg_data *data, size_t arg_no)
 {
 	print_loc(__func__, &data->loc);
 	ubsan_panic();
 }
 #else
-void __ubsan_handle_nonnull_arg(struct nonnull_arg_data *data)
+PROTECTED void __ubsan_handle_nonnull_arg(struct nonnull_arg_data *data)
 {
 	print_loc(__func__, &data->loc);
 	ubsan_panic();
 }
 #endif
 
-void __ubsan_handle_nonnull_return(struct nonnull_return_data *data)
+PROTECTED void __ubsan_handle_nonnull_return(struct nonnull_return_data *data)
 {
 	print_loc(__func__, &data->loc);
 	ubsan_panic();
 }
 
-void __ubsan_handle_builtin_unreachable(struct unreachable_data *data)
+PROTECTED void __ubsan_handle_builtin_unreachable(struct unreachable_data *data)
 {
 	print_loc(__func__, &data->loc);
 	ubsan_panic();
 }
 
-void __ubsan_handle_pointer_overflow(struct pointer_overflow_data *data,
+PROTECTED void __ubsan_handle_pointer_overflow(struct pointer_overflow_data *data,
     unsigned long base, unsigned long result)
 {
 	print_loc(__func__, &data->loc);
