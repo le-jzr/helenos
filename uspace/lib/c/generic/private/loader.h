@@ -35,13 +35,25 @@
 #ifndef _LIBC_PRIVATE_LOADER_H_
 #define _LIBC_PRIVATE_LOADER_H_
 
+#include <async.h>
 #include <loader/loader.h>
+#include <abi/elf.h>
 
 /** Abstraction of a loader connection */
 struct loader {
 	/** Session to the loader. */
 	async_sess_t *sess;
 };
+
+typedef struct elf_rtld_info {
+	uintptr_t bias;
+	uintptr_t header;
+	uintptr_t phdr;
+} elf_rtld_info_t;
+
+
+#define RELOCATOR_NAME __libc_relocator_entry
+#define RELOCATOR_NAME_STRING "__libc_relocator_entry"
 
 #endif
 

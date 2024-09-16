@@ -91,6 +91,7 @@ src += files(
 	'generic/dirent.c',
 	'generic/dlfcn.c',
 	'generic/elf/elf.c',
+	'generic/elf/elf2.c',
 	'generic/elf/elf_load.c',
 	'generic/elf/elf_mod.c',
 	'generic/event.c',
