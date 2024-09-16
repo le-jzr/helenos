@@ -36,7 +36,6 @@
 #define _LIBC_RTLD_ELF_DYN_H_
 
 #include <elf/elf.h>
-#include <libarch/rtld/elf_dyn.h>
 
 #endif
 

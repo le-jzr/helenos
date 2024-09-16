@@ -40,6 +40,9 @@
 
 typedef void (*entry_point_t)(void);
 
+struct pcb;
+typedef void (*reloc_entry_point_t)(struct pcb *);
+
 struct pcb_inbox_entry {
 	char *name;
 	int file;
@@ -52,7 +55,7 @@ struct pcb_inbox_entry {
  * arguments, environment variables etc.
  *
  */
-typedef struct {
+typedef struct pcb {
 	/** Program entry point. */
 	entry_point_t entry;
 
@@ -79,6 +82,26 @@ typedef struct {
 
 	/** Thread local storage for the main thread. */
 	tcb_t *tcb;
+
+	/** Entry point of the in-process dynamic relocator. */
+	reloc_entry_point_t reloc_entry;
+
+	void *tls_template;
+	void *initialization_order;
+	void *resolution_order;
+	size_t module_count;
+
+	/**
+	 * The bottom of position-independed modules loaded by the parent task.
+	 * Most data referenced in this structure (and the structure itself) is
+	 * stored between initial_stack_limit and vaddr_limit.
+	 * If it's no longer needed, the whole chunk of memory can be freed/recycled.
+	 */
+	uintptr_t vaddr_limit;
+	/** The upper limit of initial stack. */
+	uintptr_t initial_stack_limit;
+	/** The lowest address of initial stack. */
+	uintptr_t initial_stack_base;
 } pcb_t;
 
 /**

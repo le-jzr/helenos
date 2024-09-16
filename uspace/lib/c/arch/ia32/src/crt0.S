@@ -36,10 +36,10 @@ INTEL_SEP = 11
 .org 0
 
 ## User-space task entry point
-#
-# %edi contains the PCB pointer
-#
 SYMBOL(_start)
+	# %edi := PCB pointer
+	movl -4(%esp), %edi
+
 	mov %ss, %ax
 	mov %ax, %ds
 	mov %ax, %es

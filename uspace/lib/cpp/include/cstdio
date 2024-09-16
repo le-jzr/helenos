@@ -34,9 +34,9 @@
 namespace std
 {
     using ::FILE;
-    using ::stdin;
-    using ::stdout;
-    using ::stderr;
+    using ::stdin__;
+    using ::stdout__;
+    using ::stderr__;
     using ::fpos_t;
     using ::size_t;
 

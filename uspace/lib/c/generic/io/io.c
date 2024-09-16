@@ -125,9 +125,24 @@ static FILE stderr_kio = {
 	.buf_state = _bs_empty
 };
 
-FILE *stdin = NULL;
-FILE *stdout = NULL;
-FILE *stderr = NULL;
+static FILE *stdin_var = NULL;
+static FILE *stdout_var = NULL;
+static FILE *stderr_var = NULL;
+
+FILE **stdin__(void)
+{
+	return &stdin_var;
+}
+
+FILE **stdout__(void)
+{
+	return &stdout_var;
+}
+
+FILE **stderr__(void)
+{
+	return &stderr_var;
+}
 
 static LIST_INITIALIZE(files);
 

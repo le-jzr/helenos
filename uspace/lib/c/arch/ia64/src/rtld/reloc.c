@@ -84,9 +84,9 @@ void rela_table_process(module_t *m, elf_rela_t *rt, size_t rt_size)
 	size_t rt_entries;
 	size_t r_offset;
 	size_t r_addend;
-	elf_xword r_info;
+	uint64_t r_info;
 	unsigned rel_type;
-	elf_word sym_idx;
+	uint32_t sym_idx;
 	uintptr_t sym_addr;
 
 	elf_symbol_t *sym_table;
@@ -114,7 +114,7 @@ void rela_table_process(module_t *m, elf_rela_t *rt, size_t rt_size)
 		r_info = rt[i].r_info;
 		r_addend = rt[i].r_addend;
 
-		sym_idx = ELF64_R_SYM(r_info);
+		sym_idx = ELF_R_SYM(r_info);
 		sym = &sym_table[sym_idx];
 #if 0
 		DPRINTF("r sym: name '%s', value 0x%zx, size 0x%zx, binding 0x%x\n",
@@ -123,7 +123,7 @@ void rela_table_process(module_t *m, elf_rela_t *rt, size_t rt_size)
 		    sym->st_size,
 		    elf_st_bind(sym->st_info));
 #endif
-		rel_type = ELF64_R_TYPE(r_info);
+		rel_type = ELF_R_TYPE(r_info);
 		r_ptr = (uintptr_t *)(r_offset + m->bias);
 
 		if (elf_st_bind(sym->st_info) == STB_LOCAL) {

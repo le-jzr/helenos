@@ -59,9 +59,9 @@ void rel_table_process(module_t *m, elf_rel_t *rt, size_t rt_size)
 
 	size_t rt_entries;
 	size_t r_offset;
-	elf_word r_info;
+	uint32_t r_info;
 	unsigned rel_type;
-	elf_word sym_idx;
+	uint32_t sym_idx;
 	uint32_t sym_addr;
 
 	elf_symbol_t *sym_table;
@@ -88,14 +88,14 @@ void rel_table_process(module_t *m, elf_rel_t *rt, size_t rt_size)
 		r_offset = rt[i].r_offset;
 		r_info = rt[i].r_info;
 
-		sym_idx = ELF32_R_SYM(r_info);
+		sym_idx = ELF_R_SYM(r_info);
 		sym = &sym_table[sym_idx];
 
 #if 0
 		DPRINTF("name '%s', value 0x%x, size 0x%x\n",
 		    str_tab + sym->st_name, sym->st_value, sym->st_size);
 #endif
-		rel_type = ELF32_R_TYPE(r_info);
+		rel_type = ELF_R_TYPE(r_info);
 		r_ptr = (uint32_t *)(r_offset + m->bias);
 
 		if (sym->st_name != 0) {

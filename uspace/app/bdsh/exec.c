@@ -46,7 +46,7 @@
 #include "exec.h"
 #include "errors.h"
 
-errno_t elf_load_file_name2(const char *path, void **out_task);
+errno_t elf_load_file_name2(const char *path, const char *cwd, const char *const args[], void **out_task, int, int, int);
 
 static errno_t find_command(char *, char **);
 static int try_access(const char *);
@@ -134,24 +134,33 @@ unsigned int try_exec(char *cmd, char **argv, iostate_t *io)
 		return 1;
 	}
 
-	files[0] = io->stdin;
-	files[1] = io->stdout;
-	files[2] = io->stderr;
+	files[0] = io->in;
+	files[1] = io->out;
+	files[2] = io->err;
 
 	for (i = 0; i < 3 && files[i] != NULL; i++) {
 		vfs_fhandle(files[i], &file_handles[i]);
 	}
 
+	char *cwd = (char *) malloc(MAX_PATH_LEN + 1);
+	if (!cwd)
+		return 1;
+
+	if (vfs_cwd_get(cwd, MAX_PATH_LEN + 1) != EOK)
+		str_cpy(cwd, MAX_PATH_LEN + 1, "/");
+
 	printf("loading ELF using new loader\n");
 	void *task;
-	rc = elf_load_file_name2(tmp, &task);
+	rc = elf_load_file_name2(tmp, cwd, (const char **) argv, &task, file_handles[0], file_handles[1], file_handles[2]);
 	if (rc != EOK) {
 		cli_error(CL_EEXEC, "%s: Cannot spawn `%s' (%s)", progname, cmd,
 		    str_error(rc));
 		return 1;
 	}
 
+	free(cwd);
 
+	while (true) {}
 
 	rc = task_spawnvf(&tid, &twait, tmp, (const char **) argv,
 	    file_handles[0], file_handles[1], file_handles[2]);

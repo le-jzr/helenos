@@ -38,7 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <libarch/rtld/elf_dyn.h>
+#include <libarch/reloc.h>
 #include <rtld/symbol.h>
 #include <rtld/rtld.h>
 #include <rtld/rtld_debug.h>
@@ -72,9 +72,9 @@ void rela_table_process(module_t *m, elf_rela_t *rt, size_t rt_size)
 	size_t rt_entries;
 	size_t r_offset;
 	size_t r_addend;
-	elf_xword r_info;
+	uint64_t r_info;
 	unsigned rel_type;
-	elf_word sym_idx;
+	uint32_t sym_idx;
 	uintptr_t sym_addr;
 
 	elf_symbol_t *sym_table;
@@ -103,7 +103,7 @@ void rela_table_process(module_t *m, elf_rela_t *rt, size_t rt_size)
 		r_info = rt[i].r_info;
 		r_addend = rt[i].r_addend;
 
-		sym_idx = ELF64_R_SYM(r_info);
+		sym_idx = ELF_R_SYM(r_info);
 		sym = &sym_table[sym_idx];
 
 #if 0
@@ -112,7 +112,7 @@ void rela_table_process(module_t *m, elf_rela_t *rt, size_t rt_size)
 		    sym->st_value,
 		    sym->st_size);
 #endif
-		rel_type = ELF64_R_TYPE(r_info);
+		rel_type = ELF_R_TYPE(r_info);
 		r_ptr = (uintptr_t *)(r_offset + m->bias);
 		r_ptr32 = (uint32_t *)r_ptr;
 

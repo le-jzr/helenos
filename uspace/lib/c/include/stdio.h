@@ -91,9 +91,13 @@ typedef struct {
 	long long pos;
 } fpos_t;
 
-extern FILE *stdin;
-extern FILE *stdout;
-extern FILE *stderr;
+extern FILE **stdin__(void);
+extern FILE **stdout__(void);
+extern FILE **stderr__(void);
+
+#define stdin  (*stdin__())
+#define stdout (*stdout__())
+#define stderr (*stderr__())
 
 /* Character and string input functions */
 extern int fgetc(FILE *);

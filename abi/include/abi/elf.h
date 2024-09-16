@@ -210,6 +210,13 @@ enum {
 	STT_HIPROC  = 15,
 };
 
+enum {
+	STV_DEFAULT   = 0,
+	STV_INTERNAL  = 1,
+	STV_HIDDEN 	  = 2,
+	STV_PROTECTED = 3,
+};
+
 /**
  * Program segment types
  */
@@ -273,8 +280,20 @@ enum elf_dynamic_tag {
 	DT_TEXTREL  = 22,
 	DT_JMPREL   = 23,
 	DT_BIND_NOW = 24,
-	DT_LOPROC   = 0x70000000,
-	DT_HIPROC   = 0x7fffffff,
+	DT_INIT_ARRAY = 25,
+	DT_FINI_ARRAY = 26,
+	DT_INIT_ARRAYSZ = 27,
+	DT_FINI_ARRAYSZ = 28,
+	DT_RUNPATH      = 29,
+	DT_FLAGS        = 30,
+	DT_ENCODING     = 32,
+	DT_PREINIT_ARRAY = 32,
+	DT_PREINIT_ARRAYSZ = 33,
+	DT_LOOS      = 0x6000000D,
+	DT_HIOS      = 0x6ffff000,
+	DT_RELACOUNT = 0x6ffffff9,
+	DT_LOPROC    = 0x70000000,
+	DT_HIPROC    = 0x7fffffff,
 };
 
 /**

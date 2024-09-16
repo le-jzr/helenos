@@ -43,5 +43,8 @@ SYMBOL(entry_point_jmp)
 	mov %rdi, %rdx
 	mov %rsi, %rdi
 
+	# store pcb pointer on stack
+	mov %rsi, -0x8(%rsp)
+
 	# jump to entry point
 	jmp *%rdx

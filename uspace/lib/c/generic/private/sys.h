@@ -37,18 +37,17 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <abi/syscall.h>
+#include <libc.h>
+#include <stdint.h>
 
-#define KOBJ_NULL ((kobj_handle_t) NULL)
+#define KOBJ_NULL NULL
 #define TASK_NULL ((task_handle_t) NULL)
 #define MEM_NULL ((mem_handle_t) NULL)
 
-#define MEM_MAP_FAILED ((uintptr_t) -1)
-
-typedef struct kobj_handle *kobj_handle_t;
+typedef void *kobj_handle_t;
 typedef struct task_handle *task_handle_t;
 typedef struct mem_handle *mem_handle_t;
-
-#define unimplemented() { assert(!"unimplemented"); abort(); }
 
 static inline _Noreturn void panic(const char *str)
 {
@@ -56,58 +55,93 @@ static inline _Noreturn void panic(const char *str)
 	abort();
 }
 
-static inline mem_handle_t sys_mem_create(size_t size, int flags)
+static inline mem_handle_t sys_mem_create(size_t size, size_t align, int flags)
 {
-	unimplemented();
+	return (mem_handle_t) __SYSCALL3(SYS_MEM_CREATE, size, align, flags);
 }
 
 static inline errno_t sys_mem_change_flags(mem_handle_t mem, int flags)
 {
-	unimplemented();
+	return (errno_t) __SYSCALL2(SYS_MEM_CHANGE_FLAGS, (sysarg_t) mem, flags);
 }
 
 static inline task_handle_t sys_task_self(void)
 {
-	unimplemented();
+	return (task_handle_t) __SYSCALL0(SYS_TASK_SELF);
 }
 
 static inline task_handle_t sys_task_create(const char *name)
 {
-	unimplemented();
+	return (task_handle_t) __SYSCALL2(SYS_TASK_CREATE, (sysarg_t) name, strlen(name));
 }
 
-static inline uintptr_t sys_task_mem_map(task_handle_t task, mem_handle_t mem, size_t offset, size_t size, uintptr_t vaddr, int flags)
+static inline errno_t sys_task_mem_map(task_handle_t task, mem_handle_t mem, size_t offset, size_t size, uintptr_t *vaddr, int flags)
 {
-	unimplemented();
+	return (errno_t) __SYSCALL6(SYS_TASK_MEM_MAP, (sysarg_t) task, (sysarg_t) mem, offset, size, (sysarg_t) vaddr, flags);
+}
+
+static inline errno_t sys_task_mem_remap(task_handle_t task, uintptr_t vaddr, size_t size, int flags)
+{
+	return (errno_t) __SYSCALL4(SYS_TASK_MEM_REMAP, (sysarg_t) task, (sysarg_t) vaddr, size, flags);
+}
+
+static inline errno_t sys_task_mem_unmap(task_handle_t task, uintptr_t vaddr, size_t size)
+{
+	return (errno_t) __SYSCALL3(SYS_TASK_MEM_UNMAP, (sysarg_t) task, (sysarg_t) vaddr, size);
+}
+
+static inline errno_t sys_task_connect(task_handle_t task, cap_phone_handle_t *phone)
+{
+	return (errno_t) __SYSCALL2(SYS_TASK_CONNECT, (sysarg_t) task, (sysarg_t) phone);
 }
 
 static inline void *sys_mem_map(mem_handle_t mem, size_t offset, size_t size, void *vaddr, int flags)
 {
-	unimplemented();
+	uintptr_t addr = (uintptr_t) vaddr;
+	errno_t rc = sys_task_mem_map(0, mem, offset, size, &addr, flags);
+	return rc == EOK ? (void *) addr : NULL;
 }
 
 static inline errno_t sys_mem_remap(void *vaddr, size_t size, int flags)
 {
-	unimplemented();
+	return sys_task_mem_remap(0, (uintptr_t) vaddr, size, flags);
 }
 
 static inline void sys_mem_unmap(void *vaddr, size_t size)
 {
-	unimplemented();
+	sys_task_mem_unmap(0, (uintptr_t) vaddr, size);
 }
 
 static inline void sys_kobj_put(void *kobj)
 {
-	unimplemented();
+	errno_t rc = (errno_t) __SYSCALL1(SYS_KOBJ_PUT, (sysarg_t) kobj);
+	assert(rc == EOK);
 }
 
 static inline errno_t sys_task_mem_set(task_handle_t task, uintptr_t dst, int byte, size_t size)
 {
-	unimplemented();
+	return (errno_t) __SYSCALL4(SYS_TASK_MEM_SET, (sysarg_t) task, dst, byte, size);
 }
 
-errno_t elf_load_file2(const char *name, int file, task_handle_t *out_task);
-errno_t elf_load_file_name2(const char *path, task_handle_t *out_task);
+static inline errno_t sys_task_mem_write(task_handle_t task, uintptr_t dst, const void *src, size_t size)
+{
+	return (errno_t) __SYSCALL4(SYS_TASK_MEM_WRITE, (sysarg_t) task, dst, (sysarg_t) src, size);
+}
+
+static inline errno_t sys_task_thread_start(task_handle_t task, const char *name, uintptr_t pc, uintptr_t stack_base, uintptr_t stack_size)
+{
+	return (errno_t) __SYSCALL6(SYS_TASK_THREAD_START, (sysarg_t) task, (sysarg_t) name, strlen(name), pc, stack_base, stack_size);
+}
+
+static inline uintptr_t sys_vaddr_limit(void)
+{
+	// TODO: actually get the correct value from somewhere
+	// Currently, we use the lowest common denominator out of blatant laziness.
+	return ((uintptr_t) INT32_MAX) + 1;
+}
+
+errno_t elf_load_file2(const char *name, const char *cwd, const char *const args[], int file, task_handle_t *out_task, int, int, int);
+errno_t elf_load_file_name2(const char *path, const char *cwd, const char *const args[], task_handle_t *out_task, int, int, int);
 
 #endif
 

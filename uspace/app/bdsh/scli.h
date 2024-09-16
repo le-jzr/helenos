@@ -45,9 +45,9 @@ typedef struct {
 } cliuser_t;
 
 typedef struct {
-	FILE *stdin;
-	FILE *stdout;
-	FILE *stderr;
+	FILE *in;
+	FILE *out;
+	FILE *err;
 } iostate_t;
 
 extern const char *progname;

@@ -979,7 +979,7 @@ static void handle_call(ipc_call_t *call)
  */
 static errno_t async_manager_worker(void)
 {
-	ipc_call_t call;
+	ipc_call_t call = {0};
 	errno_t rc;
 
 	while (true) {

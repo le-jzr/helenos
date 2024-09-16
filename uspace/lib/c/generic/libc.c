@@ -51,6 +51,10 @@
 #include "private/io.h"
 #include "private/fibril.h"
 
+#include <str.h>
+#include <stdatomic.h>
+#include <ipc/loader.h>
+
 #ifdef CONFIG_RTLD
 #include <rtld/rtld.h>
 #endif
@@ -60,16 +64,132 @@ progsymbols_t __progsymbols;
 static bool env_setup;
 static fibril_t main_fibril;
 
+static fibril_event_t loader_done = FIBRIL_EVENT_INIT;
+
+/** Receive a call setting inbox files of the program to execute.
+ *
+ */
+static void ldr_add_inbox(ipc_call_t *req)
+{
+	ipc_call_t call;
+	size_t namesize;
+	if (!async_data_write_receive(&call, &namesize)) {
+		async_answer_0(req, EINVAL);
+		return;
+	}
+
+	char *name = malloc(namesize);
+	errno_t rc = async_data_write_finalize(&call, name, namesize);
+	if (rc != EOK) {
+		async_answer_0(req, EINVAL);
+		return;
+	}
+
+	int file;
+	rc = vfs_receive_handle(true, &file);
+	if (rc != EOK) {
+		async_answer_0(req, EINVAL);
+		return;
+	}
+
+	kio_printf("LOADER_ADD_INBOX('%s')\n", name);
+
+	/*
+	 * We need to set the root early for dynamically linked binaries so
+	 * that the loader can use it too.
+	 */
+	if (str_cmp(name, "root") == 0)
+		vfs_root_set(file);
+
+	int original = inbox_set(name, file);
+	if (original >= 0)
+		vfs_put(original);
+
+	async_answer_0(req, EOK);
+}
+
+static void print_call(ipc_call_t *icall)
+{
+	kio_printf("ipc_call: ");
+	for (int i = 0; i < IPC_CALL_LEN; i++) {
+		kio_printf("0x%"PRIxPTR" ", icall->args[i]);
+	}
+	kio_printf("\ntask_id: %"PRId64"\n", icall->task_id);
+	kio_printf("flags: 0x%x\n", icall->flags);
+	kio_printf("request_label: 0x%"PRIxPTR"\n", icall->request_label);
+	kio_printf("answer_label: 0x%"PRIxPTR"\n", icall->answer_label);
+	kio_printf("cap: %" PRIdPTR"\n", (uintptr_t)icall->cap_handle);
+}
+
+/** Handle loader connection.
+ *
+ * Receive and carry out commands (of which the last one should be
+ * to execute the loaded program).
+ *
+ */
+static void ldr_connection(ipc_call_t *icall, void *arg)
+{
+	static atomic_flag connected = ATOMIC_FLAG_INIT;
+
+	/* Already have a connection? */
+	if (atomic_flag_test_and_set(&connected)) {
+		async_answer_0(icall, ELIMIT);
+		return;
+	}
+
+	kio_printf("first call\n");
+		print_call(icall);
+
+	/* Accept the connection */
+	async_accept_0(icall);
+
+	ipc_call_t call;
+
+	while (true) {
+		async_get_call(&call);
+
+		kio_printf("loop call\n");
+		print_call(&call);
+
+		if (!ipc_get_imethod(&call)) {
+			async_answer_0(&call, EOK);
+			break;
+		}
+
+		switch (ipc_get_imethod(&call)) {
+		case LOADER_ADD_INBOX:
+			ldr_add_inbox(&call);
+			break;
+		default:
+			async_answer_0(&call, EINVAL);
+			break;
+		}
+	}
+
+	fibril_notify(&loader_done);
+}
+
 void __libc_main(void *pcb_ptr)
 {
 	__kio_init();
 
 	assert(!__tcb_is_set());
 
+	kio_printf("pcb_ptr = %p\n", pcb_ptr);
+
 	__pcb = (pcb_t *) pcb_ptr;
+	bool loader2_init = false;
 
 	if (__pcb) {
-		main_fibril.tcb = __pcb->tcb;
+		if (__pcb->tcb) {
+			main_fibril.tcb = __pcb->tcb;
+		} else {
+			// FIXME
+			main_fibril.tcb = tls_make_initial(__progsymbols.elfstart);
+
+			// Loaded using the new loaderless code. We have some more work to do to transfer inbox entries.
+			loader2_init = true;
+		}
 	} else {
 		/*
 		 * Loaded by kernel, not the loader.
@@ -124,11 +244,26 @@ void __libc_main(void *pcb_ptr)
 	} else {
 		argc = __pcb->argc;
 		argv = __pcb->argv;
-		__inbox_init(__pcb->inbox, __pcb->inbox_entries);
+
+		if (__pcb->inbox_entries) {
+			__inbox_init(__pcb->inbox, __pcb->inbox_entries);
+			__stdio_init();
+			vfs_root_set(inbox_get("root"));
+			(void) vfs_cwd_set(__pcb->cwd);
+		}
+	}
+
+	if (loader2_init) {
+		kio_printf("entering loader2 async initialization\n");
+		async_set_fallback_port_handler(ldr_connection, NULL);
+		fibril_wait_for(&loader_done);
+		kio_printf("finished loader2 async initialization\n");
 		__stdio_init();
-		vfs_root_set(inbox_get("root"));
+		kio_printf("finished __stdio_init()\n");
 		(void) vfs_cwd_set(__pcb->cwd);
 	}
+
+	kio_printf("loader done\n");
 
 	/*
 	 * C++ Static constructor calls.

@@ -45,11 +45,11 @@
 #include <rtld/symbol.h>
 
 /*
- * Hash tables are 32-bit (elf_word) even for 64-bit ELF files.
+ * Hash tables are 32-bit (uint32_t) even for 64-bit ELF files.
  */
-static elf_word elf_hash(const unsigned char *name)
+static uint32_t elf_hash(const unsigned char *name)
 {
-	elf_word h = 0, g;
+	uint32_t h = 0, g;
 
 	while (*name) {
 		h = (h << 4) + *name++;
@@ -66,11 +66,11 @@ static elf_symbol_t *def_find_in_module(const char *name, module_t *m)
 {
 	elf_symbol_t *sym_table;
 	elf_symbol_t *s, *sym;
-	elf_word nbucket;
-	/* elf_word nchain; */
-	elf_word i;
+	uint32_t nbucket;
+	/* uint32_t nchain; */
+	uint32_t i;
 	char *s_name;
-	elf_word bucket;
+	uint32_t bucket;
 
 	DPRINTF("def_find_in_module('%s', %s)\n", name, m->dyn.soname);
 

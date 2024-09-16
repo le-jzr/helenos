@@ -27,6 +27,8 @@
  */
 
 #include "../private/libc.h"
+#include "../private/cc.h"
+#include <loader/pcb.h>
 
 /*
  * We shouldn't be accessing these symbols directly from libc,
@@ -47,10 +49,15 @@ extern unsigned char __executable_start[];
 extern unsigned char _end[];
 
 /* __c_start is only called from _start in assembly. */
-void __c_start(void *);
+void __c_start(pcb_t *);
 
-void __c_start(void *pcb)
+INTERNAL void __c_start(pcb_t *pcb)
 {
+	// If this is a dynamically linked binary, we may have to call the relocator routine first.
+	// pcb tells us where it is, since libc symbols aren't accessible yet.
+	if (pcb && pcb->reloc_entry)
+		pcb->reloc_entry(pcb);
+
 	__progsymbols = (progsymbols_t) {
 		.main = main,
 		.elfstart = __executable_start,

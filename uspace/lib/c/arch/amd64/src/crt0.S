@@ -33,10 +33,10 @@
 .org 0
 
 ## User-space task entry point
-#
-# %rdi contains the PCB pointer
-#
 SYMBOL(_start)
+	# %rdi := PCB pointer
+	movq -8(%rsp), %rdi
+
 	#
 	# Create the first stack frame.
 	#

@@ -40,10 +40,12 @@ SYMBOL(entry_point_jmp)
 	movl 0x8(%ebp), %eax
 
 	# %edi := pcb
-	# pcb is passed to the entry point in %edi
 	mov 0xc(%ebp), %edi
 
 	# Save a tiny bit of stack space
 	pop %ebp
+
+	# Store pcb on stack
+	movl %edi, -0x4(%esp)
 
 	jmp *%eax
