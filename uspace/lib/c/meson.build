@@ -76,6 +76,7 @@ src += files(
 
 	'generic/libc.c',
 	'generic/adt/prodcons.c',
+	'generic/adt/ht_stref.c',
 	'generic/as.c',
 	'generic/ddi.c',
 	'generic/perm.c',
