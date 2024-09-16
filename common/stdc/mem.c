@@ -46,7 +46,13 @@
 #undef memmove
 #undef memchr
 
+/**
+ * Functions in this file have PROTECTED visibility to make them
+ * safe to call from the dynamic linker code.
+ */
+
 /** Fill memory block with a constant value. */
+PROTECTED
 DO_NOT_DISCARD
 ATTRIBUTE_OPTIMIZE_NO_TLDP
     void *memset(void *dest, int b, size_t n)
@@ -124,6 +130,7 @@ ATTRIBUTE_OPTIMIZE_NO_TLDP
 }
 
 /** Copy memory block. */
+PROTECTED
 DO_NOT_DISCARD
 ATTRIBUTE_OPTIMIZE_NO_TLDP
     void *memcpy(void *dst, const void *src, size_t n)
@@ -203,9 +210,10 @@ ATTRIBUTE_OPTIMIZE_NO_TLDP
 }
 
 /** Move memory block with possible overlapping. */
+PROTECTED
 DO_NOT_DISCARD
 ATTRIBUTE_OPTIMIZE_NO_TLDP
-void *memmove(void *dst, const void *src, size_t n)
+    void *memmove(void *dst, const void *src, size_t n)
 {
 	const uint8_t *sp;
 	uint8_t *dp;
@@ -250,6 +258,7 @@ void *memmove(void *dst, const void *src, size_t n)
  *	   difference of the first pair of different bytes.
  *
  */
+PROTECTED
 DO_NOT_DISCARD
 ATTRIBUTE_OPTIMIZE_NO_TLDP
     int memcmp(const void *s1, const void *s2, size_t len)
@@ -277,9 +286,10 @@ ATTRIBUTE_OPTIMIZE_NO_TLDP
  * @return Pointer to the first occurrence of @a c in the first @a n
  *         bytes of @a s or @c NULL if not found.
  */
+PROTECTED
 DO_NOT_DISCARD
 ATTRIBUTE_OPTIMIZE_NO_TLDP
-void *memchr(const void *s, int c, size_t n)
+    void *memchr(const void *s, int c, size_t n)
 {
 	uint8_t *u = (uint8_t *) s;
 	unsigned char uc = (unsigned char) c;

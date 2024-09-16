@@ -34,6 +34,19 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include "../private/cc.h"
+
+PROTECTED int __snprintf(char *str, size_t size, const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+
+	int ret = __vsnprintf(str, size, fmt, args);
+
+	va_end(args);
+
+	return ret;
+}
 
 /** Print formatted to the given buffer with limited size.
  *

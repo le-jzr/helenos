@@ -33,53 +33,54 @@
  */
 
 #include <ctype.h>
+#include "cc.h"
 
-int islower(int c)
+PROTECTED int islower(int c)
 {
 	return ((c >= 'a') && (c <= 'z'));
 }
 
-int isupper(int c)
+PROTECTED int isupper(int c)
 {
 	return ((c >= 'A') && (c <= 'Z'));
 }
 
-int isalpha(int c)
+PROTECTED int isalpha(int c)
 {
 	return (islower(c) || isupper(c));
 }
 
-int isdigit(int c)
+PROTECTED int isdigit(int c)
 {
 	return ((c >= '0') && (c <= '9'));
 }
 
-int isalnum(int c)
+PROTECTED int isalnum(int c)
 {
 	return (isalpha(c) || isdigit(c));
 }
 
-int isblank(int c)
+PROTECTED int isblank(int c)
 {
 	return c == ' ' || c == '\t';
 }
 
-int iscntrl(int c)
+PROTECTED int iscntrl(int c)
 {
 	return (c >= 0 && c < 0x20) || c == 0x7E;
 }
 
-int isprint(int c)
+PROTECTED int isprint(int c)
 {
 	return c >= 0 && c < 0x80 && !iscntrl(c);
 }
 
-int isgraph(int c)
+PROTECTED int isgraph(int c)
 {
 	return isprint(c) && c != ' ';
 }
 
-int isspace(int c)
+PROTECTED int isspace(int c)
 {
 	switch (c) {
 	case ' ':
@@ -94,19 +95,19 @@ int isspace(int c)
 	}
 }
 
-int ispunct(int c)
+PROTECTED int ispunct(int c)
 {
 	return !isspace(c) && !isalnum(c) && isprint(c);
 }
 
-int isxdigit(int c)
+PROTECTED int isxdigit(int c)
 {
 	return isdigit(c) ||
 	    (c >= 'a' && c <= 'f') ||
 	    (c >= 'A' && c <= 'F');
 }
 
-int tolower(int c)
+PROTECTED int tolower(int c)
 {
 	if (isupper(c))
 		return (c + ('a' - 'A'));
@@ -114,7 +115,7 @@ int tolower(int c)
 		return c;
 }
 
-int toupper(int c)
+PROTECTED int toupper(int c)
 {
 	if (islower(c))
 		return (c + ('A' - 'a'));

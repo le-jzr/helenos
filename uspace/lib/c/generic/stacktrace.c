@@ -39,6 +39,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <io/kio.h>
+#include "private/cc.h"
 
 #define STACK_FRAMES_MAX 20
 
@@ -54,7 +55,7 @@ static stacktrace_ops_t kio_ops = {
 	.printf = kio_printf,
 };
 
-void stacktrace_print_generic(stacktrace_ops_t *ops, void *arg, uintptr_t fp,
+PROTECTED void stacktrace_print_generic(stacktrace_ops_t *ops, void *arg, uintptr_t fp,
     uintptr_t pc)
 {
 	int cnt = 0;
@@ -77,12 +78,12 @@ void stacktrace_print_generic(stacktrace_ops_t *ops, void *arg, uintptr_t fp,
 	}
 }
 
-void stacktrace_print_fp_pc(uintptr_t fp, uintptr_t pc)
+PROTECTED void stacktrace_print_fp_pc(uintptr_t fp, uintptr_t pc)
 {
 	stacktrace_print_generic(&basic_ops, NULL, fp, pc);
 }
 
-void stacktrace_kio_print(void)
+PROTECTED void stacktrace_kio_print(void)
 {
 	stacktrace_prepare();
 	stacktrace_print_generic(&kio_ops, NULL, stacktrace_fp_get(), stacktrace_pc_get());
@@ -95,7 +96,7 @@ void stacktrace_kio_print(void)
 	kio_printf("-- end of stack trace --\n");
 }
 
-void stacktrace_print(void)
+PROTECTED void stacktrace_print(void)
 {
 	stacktrace_prepare();
 	stacktrace_print_fp_pc(stacktrace_fp_get(), stacktrace_pc_get());

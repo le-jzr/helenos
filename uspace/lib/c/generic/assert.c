@@ -37,10 +37,11 @@
 #include <stacktrace.h>
 #include <stdint.h>
 #include <task.h>
+#include "private/cc.h"
 
 __thread int failed_asserts = 0;
 
-void __helenos_assert_quick_abort(const char *cond, const char *file, unsigned int line)
+PROTECTED void __helenos_assert_quick_abort(const char *cond, const char *file, unsigned int line)
 {
 	/*
 	 * Send the message safely to kio. Nested asserts should not occur.
@@ -54,7 +55,7 @@ void __helenos_assert_quick_abort(const char *cond, const char *file, unsigned i
 	abort();
 }
 
-void __helenos_assert_abort(const char *cond, const char *file, unsigned int line)
+PROTECTED void __helenos_assert_abort(const char *cond, const char *file, unsigned int line)
 {
 	/*
 	 * Send the message safely to kio. Nested asserts should not occur.

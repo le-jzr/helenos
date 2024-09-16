@@ -46,6 +46,7 @@
 #include <libarch/config.h>
 
 #include "../private/futex.h"
+#include "../private/cc.h"
 
 #define KIO_BUFFER_SIZE PAGE_SIZE
 
@@ -55,18 +56,23 @@ static struct {
 	size_t used;
 } kio_buffer;
 
-void __kio_init(void)
+PROTECTED void __kio_init(void)
 {
 	if (futex_initialize(&kio_buffer.futex, 1) != EOK)
 		abort();
 }
 
-void __kio_fini(void)
+PROTECTED void __kio_fini(void)
 {
 	futex_destroy(&kio_buffer.futex);
 }
 
-errno_t kio_write(const void *buf, size_t size, size_t *nwritten)
+PROTECTED void __kio_write(const char *buf, size_t size)
+{
+	__SYSCALL3(SYS_KIO, KIO_WRITE, (sysarg_t) buf, size);
+}
+
+PROTECTED errno_t kio_write(const void *buf, size_t size, size_t *nwritten)
 {
 	/* Using down/up instead of lock/unlock so we can print very early. */
 	futex_down(&kio_buffer.futex);
@@ -80,8 +86,7 @@ errno_t kio_write(const void *buf, size_t size, size_t *nwritten)
 			size_t sz = min(KIO_BUFFER_SIZE - used, (size_t) (endl - s));
 			memcpy(&kio_buffer.data[used], s, sz);
 
-			__SYSCALL3(SYS_KIO, KIO_WRITE,
-			    (sysarg_t) &kio_buffer.data[0], used + sz);
+			__kio_write(kio_buffer.data, used + sz);
 
 			kio_buffer.used = 0;
 			size -= endl + 1 - s;
@@ -101,12 +106,12 @@ errno_t kio_write(const void *buf, size_t size, size_t *nwritten)
 	return EOK;
 }
 
-void kio_update(void)
+PROTECTED void kio_update(void)
 {
 	(void) __SYSCALL3(SYS_KIO, KIO_UPDATE, (uintptr_t) NULL, 0);
 }
 
-void kio_command(const void *buf, size_t size)
+PROTECTED void kio_command(const void *buf, size_t size)
 {
 	(void) __SYSCALL3(SYS_KIO, KIO_COMMAND, (sysarg_t) buf, (sysarg_t) size);
 }
@@ -118,7 +123,7 @@ void kio_command(const void *buf, size_t size)
  * \see For more details about format string see printf_core.
  *
  */
-int kio_printf(const char *fmt, ...)
+PROTECTED int kio_printf(const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
@@ -167,7 +172,7 @@ static int kio_vprintf_wstr_write(const char32_t *str, size_t size, void *data)
  * \see For more details about format string see printf_core.
  *
  */
-int kio_vprintf(const char *fmt, va_list ap)
+PROTECTED int kio_vprintf(const char *fmt, va_list ap)
 {
 	printf_spec_t ps = {
 		kio_vprintf_str_write,
