@@ -39,6 +39,7 @@ arch_src += files(
 	'src/stacktrace_asm.S',
 	'src/rtld/dynamic.c',
 	'src/rtld/reloc.c',
+	'src/rtld/reloc2.c',
 )
 
 arch_start_src = files('src/crt0.S')

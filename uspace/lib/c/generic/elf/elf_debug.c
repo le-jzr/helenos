@@ -155,24 +155,6 @@ INTERNAL errno_t elf_validate_phdr(int i, const elf_segment_header_t *phdr, uint
 		return EINVAL;
 	}
 
-	switch (phdr->p_type) {
-	case PT_LOAD:
-	case PT_NULL:
-	case PT_NOTE:
-	case PT_PHDR:
-	case PT_TLS:
-	case PT_DYNAMIC:
-	case PT_INTERP:
-	case PT_GNU_EH_FRAME:
-	case PT_GNU_STACK:
-	case PT_GNU_RELRO:
-		break;
-	case PT_SHLIB:
-	default:
-		DPRINTF("Unsupported program header p_type = %d\n", phdr->p_type);
-		return EINVAL;
-	}
-
 	uint64_t offset = phdr->p_offset;
 	uint64_t filesz = phdr->p_filesz;
 	uint64_t page_limit = UINTPTR_MAX - PAGE_SIZE + 1;

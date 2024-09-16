@@ -38,7 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <libarch/reloc.h>
+#include <libarch/rtld/elf_dyn.h>
 #include <rtld/symbol.h>
 #include <rtld/rtld.h>
 #include <rtld/rtld_debug.h>

@@ -27,8 +27,8 @@
 #include <abi/elf.h>
 
 #include "../private/loader.h"
+#include "../private/rtld_arch.h"
 #include <loader/pcb.h>
-#include <libarch/reloc.h>
 #include <io/kio.h>
 #include <stdio.h>
 
@@ -42,6 +42,8 @@ static char early_print_buffer[1024];
 		n--;                             \
 	__kio_write(early_print_buffer, n);  \
 })
+
+#define PANIC(...) (DPRINTF(__VA_ARGS__), *(volatile int*)NULL = *(volatile int*)NULL)
 
 #define DEBUG_HASH 1
 
@@ -217,23 +219,21 @@ static inline void write_width(uintptr_t vaddr, int width, uintptr_t value)
 	}
 }
 
-static RelDesc get_reloc_desc(const RelDesc descs[], size_t desc_len, int elf_id, uintptr_t r_info)
+static elf_rel_desc_t get_reloc_desc(uintptr_t r_info)
 {
 	uintptr_t reloc_type = ELF_R_TYPE(r_info);
-	RelDesc desc = (reloc_type < desc_len) ? descs[reloc_type] : (RelDesc) { .width = 0, .type = 0 };
+	elf_rel_desc_t desc = (reloc_type < arch_rel_len) ? arch_rel_list[reloc_type] : (elf_rel_desc_t) { .width = 0, .type = 0 };
 
 	if (desc.type == 0 && desc.width == 0)
-		ERRORF("ELF %d: unknown relocation type %zu\n", elf_id, reloc_type);
+		PANIC("unknown relocation type %zu\n", reloc_type);
 
 	return desc;
 }
 
-static void relocate_one(const RelDesc desc[], int desc_len,
-		const elf_rtld_info_t *elf_list[], int elf_list_len, int elf_id,
-		const struct lildyn lildyn[],
-		uintptr_t vaddr, uintptr_t r_info, uintptr_t addend)
+static void relocate_one(const elf_rtld_info_t *elf_list[], int elf_list_len, int elf_id,
+		const struct lildyn lildyn[], uintptr_t vaddr, uintptr_t r_info, uintptr_t addend)
 {
-	RelDesc d = get_reloc_desc(desc, desc_len, elf_id, r_info);
+	elf_rel_desc_t d = get_reloc_desc(r_info);
 	if (d.type == 0)
 		return;
 
@@ -508,63 +508,57 @@ static struct bigdyn get_bigdyn(const elf_dyn_t *dyn, uintptr_t bias)
 	return bigdyn;
 }
 
-static void process_rel(const RelDesc desc_list[], int desc_len,
+static uintptr_t read_reloc_place(uintptr_t bias, uintptr_t r_info, uintptr_t r_offset)
+{
+	elf_rel_desc_t desc = get_reloc_desc(r_info);
+	return (desc.width == 0) ? 0 : read_width(bias + r_offset, desc.width);
+}
+
+static void process_rel(
 		const elf_rtld_info_t *elf_list[], int elf_list_len,
 		int elf_id, const struct lildyn lildyn[], const elf_rel_t *rel, size_t rel_len)
 {
 	uintptr_t bias = elf_list[elf_id]->bias;
 
 	for (uintptr_t i = 0; i < rel_len; i++) {
-		RelDesc desc = get_reloc_desc(desc_list, desc_len, elf_id, rel[i].r_info);
 		uintptr_t vaddr = bias + rel[i].r_offset;
-		uintptr_t addend = (desc.type == REL_COPY) ? 0 : read_width(vaddr, desc.width);
-		relocate_one(desc_list, desc_len, elf_list, elf_list_len, elf_id, lildyn, vaddr, rel[i].r_info, addend);
+		uintptr_t addend = read_reloc_place(bias, rel[i].r_info, rel[i].r_offset);
+		relocate_one(elf_list, elf_list_len, elf_id, lildyn,
+				vaddr, rel[i].r_info, addend);
 	}
 }
 
-static void process_rela(const RelDesc desc_list[], int desc_len,
+static void process_rela(
 		const elf_rtld_info_t *elf_list[], int elf_list_len,
 		int elf_id, const struct lildyn lildyn[], const elf_rela_t *rela, size_t rela_len)
 {
 	uintptr_t bias = elf_list[elf_id]->bias;
 
 	for (uintptr_t i = 0; i < rela_len; i++) {
-		uintptr_t addend = rela[i].r_addend;
-
-		if (RELA_IMPLICIT_ADDEND) {
-			// ARM is a special snowflake.
-			RelDesc desc = get_reloc_desc(desc_list, desc_len, elf_id, rela[i].r_info);
-			uintptr_t vaddr = bias + rela[i].r_offset;
-			addend += read_width(vaddr, desc.width);
-		}
-
-		relocate_one(desc_list, desc_len, elf_list, elf_list_len, elf_id, lildyn,
-				bias + rela[i].r_offset, rela[i].r_info, addend);
+		relocate_one(elf_list, elf_list_len, elf_id, lildyn,
+				bias + rela[i].r_offset, rela[i].r_info, rela[i].r_addend);
 	}
 }
 
 static void relocate(const elf_rtld_info_t *elf_list[], int elf_list_len,
 		const struct lildyn lildyn[])
 {
-	const RelDesc desc_list[] = RELOC_DEF;
-	int desc_len = sizeof(desc_list) / sizeof(RelDesc);
-
 	for (int elf_id = 0; elf_id < elf_list_len; elf_id++) {
 		uintptr_t bias = elf_list[elf_id]->bias;
 		const elf_dyn_t *dyn = get_dynamic(elf_list[elf_id]);
 		struct bigdyn bigdyn = get_bigdyn(dyn, bias);
 
 		DTRACE("Processing relocations with implicit addend.\n");
-		process_rel(desc_list, desc_len, elf_list, elf_list_len, elf_id, lildyn, bigdyn.rel, bigdyn.rel_len);
+		process_rel(elf_list, elf_list_len, elf_id, lildyn, bigdyn.rel, bigdyn.rel_len);
 
 		DTRACE("Processing relocations with explicit addend.\n");
-		process_rela(desc_list, desc_len, elf_list, elf_list_len, elf_id, lildyn, bigdyn.rela, bigdyn.rela_len);
+		process_rela(elf_list, elf_list_len, elf_id, lildyn, bigdyn.rela, bigdyn.rela_len);
 
 		DTRACE("Processing PLT relocations with implicit addend.\n");
-		process_rel(desc_list, desc_len, elf_list, elf_list_len, elf_id, lildyn, bigdyn.plt_rel, bigdyn.plt_rel_len);
+		process_rel(elf_list, elf_list_len, elf_id, lildyn, bigdyn.plt_rel, bigdyn.plt_rel_len);
 
 		DTRACE("Processing PLT relocations with explicit addend.\n");
-		process_rela(desc_list, desc_len, elf_list, elf_list_len, elf_id, lildyn, bigdyn.plt_rela, bigdyn.plt_rela_len);
+		process_rela(elf_list, elf_list_len, elf_id, lildyn, bigdyn.plt_rela, bigdyn.plt_rela_len);
 	}
 }
 
