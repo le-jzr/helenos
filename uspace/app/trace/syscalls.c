@@ -50,9 +50,11 @@ const sc_desc_t syscall_desc[] = {
 	[SYS_THREAD_UDELAY] = { "thread_udelay", 1, V_ERRNO },
 
 	[SYS_TASK_GET_ID] = { "task_get_id", 1, V_ERRNO },
+	[SYS_TASK_GET_ID_2] = {"task_get_id_2", 2, V_ERRNO },
 	[SYS_TASK_SET_NAME] = { "task_set_name", 2, V_ERRNO },
 	[SYS_TASK_KILL] = { "task_kill", 1, V_ERRNO },
 	[SYS_TASK_EXIT] = { "task_exit", 2, V_ERRNO },
+	[SYS_TASK_WAIT] = { "task_wait", 2, V_ERRNO },
 	[SYS_PROGRAM_SPAWN_LOADER] = { "program_spawn_loader", 2, V_ERRNO },
 
 	[SYS_TASK_CREATE] = { "task_create", 2, V_INTEGER },

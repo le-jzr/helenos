@@ -43,13 +43,14 @@
 #include <stdio.h>
 #include <abi/mm/as.h>
 #include <errno.h>
+#include <abi/proc/task.h>
+#include <string.h>
+#include <task.h>
 
 #define KOBJ_NULL NULL
-#define TASK_NULL ((task_handle_t) NULL)
 #define MEM_NULL ((mem_handle_t) NULL)
 
 typedef void *kobj_handle_t;
-typedef struct task_handle *task_handle_t;
 typedef struct mem_handle *mem_handle_t;
 
 static inline _Noreturn void panic(const char *str)
@@ -134,6 +135,18 @@ static inline errno_t sys_task_mem_write(task_handle_t task, uintptr_t dst, cons
 static inline errno_t sys_task_thread_start(task_handle_t task, const char *name, uintptr_t pc, uintptr_t stack_base, uintptr_t stack_size)
 {
 	return (errno_t) __SYSCALL6(SYS_TASK_THREAD_START, (sysarg_t) task, (sysarg_t) name, strlen(name), pc, stack_base, stack_size);
+}
+
+static inline task_id_t sys_task_get_id_2(task_handle_t task)
+{
+	task_id_t tid = 0;
+	__SYSCALL2(SYS_TASK_GET_ID_2, (sysarg_t) task, (sysarg_t) &tid);
+	return tid;
+}
+
+static inline errno_t sys_task_wait(task_handle_t task, int *status)
+{
+	return (errno_t) __SYSCALL2(SYS_TASK_WAIT, (sysarg_t) task, (sysarg_t) status);
 }
 
 static inline uintptr_t sys_vaddr_limit(void)

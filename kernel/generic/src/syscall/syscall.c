@@ -69,9 +69,11 @@ static syshandler_t syscall_table[] = {
 	[SYS_THREAD_UDELAY] = (syshandler_t) sys_thread_udelay,
 
 	[SYS_TASK_GET_ID] = (syshandler_t) sys_task_get_id,
+	[SYS_TASK_GET_ID_2] = (syshandler_t) sys_task_get_id_2,
 	[SYS_TASK_SET_NAME] = (syshandler_t) sys_task_set_name,
 	[SYS_TASK_KILL] = (syshandler_t) sys_task_kill,
 	[SYS_TASK_EXIT] = (syshandler_t) sys_task_exit,
+	[SYS_TASK_WAIT] = (syshandler_t) sys_task_wait,
 	[SYS_PROGRAM_SPAWN_LOADER] = (syshandler_t) sys_program_spawn_loader,
 
 	[SYS_TASK_CREATE] = (syshandler_t) sys_task_create,

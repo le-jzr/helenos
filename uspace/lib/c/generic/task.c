@@ -50,6 +50,9 @@
 #include <libc.h>
 #include "private/ns.h"
 #include <vfs/vfs.h>
+#include "private/sys.h"
+#include "private/fibril.h"
+#include "private/thread.h"
 
 task_id_t task_get_id(void)
 {
@@ -426,6 +429,49 @@ errno_t task_setup_wait(task_id_t id, task_wait_t *wait)
 void task_cancel_wait(task_wait_t *wait)
 {
 	async_forget(wait->aid);
+}
+
+struct task_wait_data {
+	task_handle_t task;
+	int retval;
+	fibril_event_t event;
+	errno_t rc;
+};
+
+static void task_wait_thread(void *arg)
+{
+	struct task_wait_data *data = arg;
+	data->rc = sys_task_wait(data->task, &data->retval);
+	fibril_notify(&data->event);
+}
+
+void task_put(task_handle_t task)
+{
+	sys_kobj_put(task);
+}
+
+errno_t task_wait_2(task_handle_t task, int *retval)
+{
+	// TODO: implement asynchronous wait properly
+	struct task_wait_data data = {
+			.task = task,
+			.retval = -1,
+			.event = FIBRIL_EVENT_INIT,
+			.rc = EOK,
+	};
+
+	// Wrap sys_task_wait() in a new thread because it is a blocking syscall.
+	thread_id_t tid;
+	errno_t rc = thread_create(task_wait_thread, &data, "task_wait()", &tid);
+	if (rc != EOK)
+		return rc;
+
+	fibril_wait_for(&data.event);
+
+	if (retval)
+		*retval = data.retval;
+
+	return data.rc;
 }
 
 /** Wait for a task to finish.

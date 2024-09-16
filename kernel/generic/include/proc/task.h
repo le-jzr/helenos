@@ -144,6 +144,11 @@ typedef struct task {
 	debug_sections_t *debug_sections;
 
 	int exit_status;
+
+#if 0
+	/** Waitq for task_wait(). */
+	waitq_t join_wq;
+#endif
 } task_t;
 
 /** Synchronize access to @c tasks */
@@ -187,9 +192,12 @@ extern sys_errno_t sys_task_get_id(uspace_ptr_sysarg64_t);
 extern sysarg_t sys_task_get_id(void);
 #endif
 
+extern sys_errno_t sys_task_get_id_2(sysarg_t, uspace_ptr_sysarg64_t);
+
 extern sys_errno_t sys_task_set_name(uspace_ptr_const_char, size_t);
 extern sys_errno_t sys_task_kill(uspace_ptr_task_id_t);
 extern sys_errno_t sys_task_exit(sysarg_t, sysarg_t);
+extern sys_errno_t sys_task_wait(sysarg_t, uspace_ptr_int);
 
 extern sysarg_t sys_task_create(uspace_ptr_const_char, size_t);
 extern sysarg_t sys_task_self(void);

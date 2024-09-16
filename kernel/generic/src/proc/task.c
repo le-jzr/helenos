@@ -269,6 +269,8 @@ task_t *task_create(as_t *as, const char *name)
 		(void) ipc_phone_connect(phone_obj->phone, ipc_box_0);
 	}
 
+	//waitq_initialize(&task->join_wq);
+
 	irq_spinlock_lock(&tasks_lock, true);
 
 	task->taskid = ++task_counter;
@@ -355,6 +357,24 @@ task_t *task_try_ref(task_t *task)
 		return task;
 	else
 		return NULL;
+}
+
+sys_errno_t sys_task_get_id_2(sysarg_t task_handle, uspace_ptr_sysarg64_t uspace_taskid)
+{
+	task_id_t tid;
+
+	if (!task_handle) {
+		tid = TASK->taskid;
+	} else {
+		task_t *task = kobj_table_lookup(&TASK->kobj_table, task_handle, KOBJ_CLASS_TASK);
+		if (!task)
+			return ENOENT;
+
+		tid = task->taskid;
+		task_put(task);
+	}
+
+	return (sys_errno_t) copy_to_uspace(uspace_taskid, &tid, sizeof(tid));
 }
 
 #ifdef __32_BITS__
@@ -586,6 +606,8 @@ static void task_kill_internal(task_t *task, int status)
 	task->exit_status = status;
 
 	irq_spinlock_unlock(&task->lock, true);
+
+	//waitq_close(&task->join_wq);
 }
 
 /** Kill task.
@@ -651,6 +673,27 @@ sys_errno_t sys_task_exit(sysarg_t notify, sysarg_t status)
 {
 	task_kill_self(notify, status);
 	unreachable();
+}
+
+sys_errno_t sys_task_wait(sysarg_t task_handle, uspace_ptr_int uspace_status)
+{
+	// TODO
+	return ENOSYS;
+#if 0
+	task_t *task = kobj_table_lookup(&TASK->kobj_table, task_handle, KOBJ_CLASS_TASK);
+	if (!task)
+		return ENOENT;
+
+	errno_t rc = waitq_sleep(&task->join_wq);
+	int status = task->exit_status;
+	task_put(task);
+
+	if (rc == EOK && uspace_status != 0) {
+		copy_to_uspace(uspace_status, &status, sizeof(status));
+	}
+
+	return rc;
+#endif
 }
 
 static void task_print(task_t *task, bool additional)

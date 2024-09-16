@@ -42,6 +42,9 @@
 #include <async.h>
 #include <types/task.h>
 
+typedef struct task_handle *task_handle_t;
+#define TASK_NULL ((task_handle_t) NULL)
+
 typedef struct {
 	ipc_call_t result;
 	aid_t aid;
@@ -70,8 +73,11 @@ extern errno_t task_spawnl(task_id_t *, task_wait_t *, const char *path, ...)
 extern errno_t task_setup_wait(task_id_t, task_wait_t *);
 extern void task_cancel_wait(task_wait_t *);
 extern errno_t task_wait(task_wait_t *, task_exit_t *, int *);
+extern errno_t task_wait_2(task_handle_t, int *);
 extern errno_t task_wait_task_id(task_id_t, task_exit_t *, int *);
 extern errno_t task_retval(int);
+
+extern void task_put(task_handle_t);
 
 #endif
 
