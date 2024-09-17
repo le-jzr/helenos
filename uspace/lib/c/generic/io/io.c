@@ -125,9 +125,24 @@ static FILE stderr_kio = {
 	.buf_state = _bs_empty
 };
 
-FILE *stdin = NULL;
-FILE *stdout = NULL;
-FILE *stderr = NULL;
+static FILE *_stdin = NULL;
+static FILE *_stdout = NULL;
+static FILE *_stderr = NULL;
+
+FILE *__stdin(void)
+{
+	return _stdin;
+}
+
+FILE *__stdout(void)
+{
+	return _stdout;
+}
+
+FILE *__stderr(void)
+{
+	return _stderr;
+}
 
 static LIST_INITIALIZE(files);
 
@@ -143,9 +158,9 @@ void __stdio_init(void)
 		(void) vfs_clone(infd, -1, false, &stdinfd);
 		assert(stdinfd == 0);
 		vfs_open(stdinfd, MODE_READ);
-		stdin = fdopen(stdinfd, "r");
+		_stdin = fdopen(stdinfd, "r");
 	} else {
-		stdin = &stdin_null;
+		_stdin = &stdin_null;
 		list_append(&stdin->link, &files);
 	}
 
@@ -157,9 +172,9 @@ void __stdio_init(void)
 		while (stdoutfd < 1)
 			(void) vfs_clone(outfd, -1, false, &stdoutfd);
 		vfs_open(stdoutfd, MODE_APPEND);
-		stdout = fdopen(stdoutfd, "a");
+		_stdout = fdopen(stdoutfd, "a");
 	} else {
-		stdout = &stdout_kio;
+		_stdout = &stdout_kio;
 		list_append(&stdout->link, &files);
 	}
 
@@ -171,9 +186,9 @@ void __stdio_init(void)
 		while (stderrfd < 2)
 			(void) vfs_clone(errfd, -1, false, &stderrfd);
 		vfs_open(stderrfd, MODE_APPEND);
-		stderr = fdopen(stderrfd, "a");
+		_stderr = fdopen(stderrfd, "a");
 	} else {
-		stderr = &stderr_kio;
+		_stderr = &stderr_kio;
 		list_append(&stderr->link, &files);
 	}
 }

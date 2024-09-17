@@ -245,9 +245,9 @@ static errno_t process_input_nohup(cliuser_t *usr, list_t *alias_hups, size_t co
 	}
 
 	iostate_t new_iostate = {
-		.stdin = stdin,
-		.stdout = stdout,
-		.stderr = stderr
+		.in = stdin,
+		.out = stdout,
+		.err = stderr,
 	};
 
 	FILE *from = NULL;
@@ -260,7 +260,7 @@ static errno_t process_input_nohup(cliuser_t *usr, list_t *alias_hups, size_t co
 			rc = errno;
 			goto finit_with_files;
 		}
-		new_iostate.stdin = from;
+		new_iostate.in = from;
 	}
 
 	if (redir_to) {
@@ -270,7 +270,7 @@ static errno_t process_input_nohup(cliuser_t *usr, list_t *alias_hups, size_t co
 			rc = errno;
 			goto finit_with_files;
 		}
-		new_iostate.stdout = to;
+		new_iostate.out = to;
 	}
 
 	if (run_command(cmd, usr, &new_iostate) == 0) {

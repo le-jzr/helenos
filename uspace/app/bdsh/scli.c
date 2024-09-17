@@ -107,18 +107,18 @@ iostate_t *get_iostate(void)
 void set_iostate(iostate_t *ios)
 {
 	iostate = ios;
-	stdin = ios->stdin;
-	stdout = ios->stdout;
-	stderr = ios->stderr;
+	stdin = ios->in;
+	stdout = ios->out;
+	stderr = ios->err;
 }
 
 int main(int argc, char *argv[])
 {
 	errno_t ret = 0;
 
-	stdiostate.stdin = stdin;
-	stdiostate.stdout = stdout;
-	stdiostate.stderr = stderr;
+	stdiostate.in = stdin;
+	stdiostate.out = stdout;
+	stdiostate.err = stderr;
 	iostate = &stdiostate;
 
 	odict_initialize(&alias_dict, alias_key, alias_cmp);

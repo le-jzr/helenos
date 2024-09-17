@@ -56,33 +56,6 @@ static void usage(void)
 	printf(" --wait        Wait for the terminal to be ready\n");
 }
 
-static void reopen(FILE **stream, int fd, const char *path, int mode,
-    const char *fmode)
-{
-	if (fclose(*stream))
-		return;
-
-	*stream = NULL;
-
-	int oldfd;
-	errno_t rc = vfs_lookup_open(path, WALK_REGULAR, mode, &oldfd);
-	if (rc != EOK)
-		return;
-
-	if (oldfd != fd) {
-		int newfd;
-		if (vfs_clone(oldfd, fd, false, &newfd) != EOK)
-			return;
-
-		assert(newfd == fd);
-
-		if (vfs_put(oldfd))
-			return;
-	}
-
-	*stream = fdopen(fd, fmode);
-}
-
 int main(int argc, char *argv[])
 {
 	argv++;
@@ -143,24 +116,21 @@ int main(int argc, char *argv[])
 	char term_node[LOC_NAME_MAXLEN];
 	snprintf(term_node, LOC_NAME_MAXLEN, "%s/%s", locfs, term);
 
-	reopen(&stdin, 0, term_node, MODE_READ, "r");
-	reopen(&stdout, 1, term_node, MODE_WRITE, "w");
-	reopen(&stderr, 2, term_node, MODE_WRITE, "w");
-
-	if (stdin == NULL)
+	if (freopen(term_node, "r", stdin) == NULL)
 		return 4;
 
-	if (stdout == NULL)
+	if (freopen(term_node, "a", stdout) == NULL)
 		return 5;
 
-	if (stderr == NULL)
+	if (freopen(term_node, "a", stderr) == NULL)
 		return 6;
 
 	/*
-	 * FIXME: fdopen() should actually detect that we are opening a console
+	 * FIXME: freopen() should actually detect that we are opening a console
 	 * and it should set line-buffering mode automatically.
 	 */
 	setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
+	setvbuf(stderr, NULL, _IOLBF, BUFSIZ);
 
 	version_print(term);
 	if (print_msg)

@@ -132,9 +132,9 @@ unsigned int try_exec(char *cmd, char **argv, iostate_t *io)
 		return 1;
 	}
 
-	files[0] = io->stdin;
-	files[1] = io->stdout;
-	files[2] = io->stderr;
+	files[0] = io->in;
+	files[1] = io->out;
+	files[2] = io->err;
 
 	for (i = 0; i < 3 && files[i] != NULL; i++) {
 		vfs_fhandle(files[i], &file_handles[i]);
