@@ -66,9 +66,6 @@ typedef struct {
 	 */
 	void *base;
 
-	/** ELF interpreter name or NULL if statically-linked */
-	const char *interp;
-
 	/** Pointer to the dynamic section */
 	void *dynamic;
 

@@ -56,6 +56,13 @@
  */
 #define ROUND_UP(n, b)		(((n) / (b) + ((n) % (b) != 0)) * (b))
 
+/** Check alignment.
+ *
+ * @param s Address or size to be checked for alignment.
+ * @param a Size of alignment, must be a power of 2.
+ */
+#define IS_ALIGNED(s, a)	(ALIGN_DOWN((s), (a)) == (s))
+
 #endif
 
 /** @}

@@ -51,6 +51,8 @@
 #include <rtld/rtld_arch.h>
 #include <rtld/module.h>
 
+#include "../elf/elf2.h"
+
 #include "../private/libc.h"
 
 /** Create module for static executable.
@@ -172,23 +174,12 @@ module_t *module_find(rtld_t *rtld, const char *name)
 	return NULL; /* Not found */
 }
 
-#define NAME_BUF_SIZE 64
-
-/** Load a module.
- *
- * Currently this trivially tries to load '/<name>'.
- */
-module_t *module_load(rtld_t *rtld, const char *name, mlflags_t flags)
+static module_t *_module_make(rtld_t *rtld, elf_head_t *elf, mlflags_t flags)
 {
-	elf_finfo_t info;
-	char name_buf[NAME_BUF_SIZE];
-	module_t *m;
-	errno_t rc;
-
-	m = calloc(1, sizeof(module_t));
+	module_t *m = calloc(1, sizeof(module_t));
 	if (m == NULL) {
 		DPRINTF("malloc failed\n");
-		goto error;
+		return NULL;
 	}
 
 	m->rtld = rtld;
@@ -197,51 +188,101 @@ module_t *module_load(rtld_t *rtld, const char *name, mlflags_t flags)
 	if ((flags & mlf_local) != 0)
 		m->local = true;
 
-	if (str_size(name) > NAME_BUF_SIZE - 2) {
-		DPRINTF("soname too long. increase NAME_BUF_SIZE\n");
-		goto error;
-	}
-
-	/* Prepend soname with '/lib/' */
-	str_cpy(name_buf, NAME_BUF_SIZE, "/lib/");
-	str_cpy(name_buf + 5, NAME_BUF_SIZE - 5, name);
-
-	DPRINTF("filename:'%s'\n", name_buf);
-
-	rc = elf_load_file_name(name_buf, &info);
-	if (rc != EOK) {
-		DPRINTF("Failed to load '%s'\n", name_buf);
-		goto error;
-	}
-
-	m->bias = elf_get_bias(info.base);
-
-	DPRINTF("loaded '%s' at 0x%zx\n", name_buf, m->bias);
-
-	if (info.dynamic == NULL) {
-		DPRINTF("Error: '%s' is not a dynamically-linked object.\n",
-		    name_buf);
-		goto error;
-	}
+	m->bias = elf->bias;
 
 	/* Pending relocation. */
 	m->relocated = false;
 
 	DPRINTF("parse dynamic section\n");
 	/* Parse ELF .dynamic section. Store info to m->dyn. */
-	dynamic_parse(info.dynamic, m->bias, &m->dyn);
-
-	/* Insert into the list of loaded modules */
-	list_append(&m->modules_link, &rtld->modules);
+	dynamic_parse(elf->dyn, elf->bias, &m->dyn);
 
 	/* Copy TLS info */
-	m->tdata = info.tls.tdata;
-	m->tdata_size = info.tls.tdata_size;
-	m->tbss_size = info.tls.tbss_size;
-	m->tls_align = info.tls.tls_align;
+	for (size_t i = 0; i < elf->phdr_len; i++) {
+		elf_segment_header_t phdr = elf->phdr[i];
+		if (phdr.p_type == PT_TLS) {
+			m->tdata = (void *) (phdr.p_vaddr + elf->bias);
+			m->tdata_size = phdr.p_filesz;
+			m->tbss_size = phdr.p_memsz - phdr.p_filesz;
+			m->tls_align = phdr.p_align;
+			break;
+		}
+	}
 
 	DPRINTF("tdata at %p size %zu, tbss size %zu\n",
 	    m->tdata, m->tdata_size, m->tbss_size);
+
+	return m;
+}
+
+/** Load a module.
+ *
+ * Currently this trivially tries to load '/<name>'.
+ */
+module_t *module_load(rtld_t *rtld, const char *name, mlflags_t flags)
+{
+	module_t *m = module_find(rtld, name);
+	if (m)
+		return m;
+
+	elf_head_t **init_order;
+	elf_head_t **res_order;
+	size_t nmodules;
+
+	/* Read module information */
+	errno_t rc = elf_read_modules(name, -1, &init_order, &res_order, &nmodules);
+	if (rc != EOK) {
+		DPRINTF("Reading modules failed.\n");
+		return rc;
+	}
+
+	/* Process modules in resolution order. */
+	for (size_t i = 0; i < nmodules; i++) {
+		elf_head_t *elf = res_order[i];
+		m = module_find(rtld, elf->name);
+		if (m != NULL) {
+			/* Mark this object as already loaded */
+			elf->name = NULL;
+			continue;
+		}
+
+		if (elf->dyn_len == 0) {
+			DPRINTF("Error: '%s' is not a dynamically-linked object.\n",
+			    elf->name);
+			goto error;
+		}
+
+		rc = elf_load_modules(&elf, 1);
+		if (rc != EOK) {
+			DPRINTF("Loading module failed.\n");
+			goto error;
+		}
+
+		module_t *m = _module_make(rtld, elf, flags);
+		if (!m) {
+			DPRINTF("Creating module failed.\n");
+			goto error;
+		}
+
+		DPRINTF("loaded '%s' at 0x%zx\n", elf->name, m->bias);
+
+		/* Insert into the list of loaded modules */
+		list_append(&m->modules_link, &rtld->modules);
+	}
+
+	/* Initialize modules in initialization order. */
+	for (size_t i = 0; i < nmodules; i++) {
+		elf_head_t *elf = init_order[i];
+
+		/* Marked as already loaded in previous loop. */
+		if (elf->name == NULL)
+			continue;
+
+
+	}
+
+	// FIXME: deallocation
+
 
 	return m;
 

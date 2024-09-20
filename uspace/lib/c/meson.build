@@ -76,6 +76,7 @@ src += files(
 
 	'generic/libc.c',
 	'generic/adt/prodcons.c',
+	'generic/adt/ht_stref.c',
 	'generic/as.c',
 	'generic/ddi.c',
 	'generic/perm.c',
@@ -90,8 +91,10 @@ src += files(
 	'generic/dirent.c',
 	'generic/dlfcn.c',
 	'generic/elf/elf.c',
+	'generic/elf/elf_debug.c',
 	'generic/elf/elf_load.c',
 	'generic/elf/elf_mod.c',
+	'generic/elf/elf_read.c',
 	'generic/event.c',
 	'generic/errno.c',
 	'generic/inttypes.c',

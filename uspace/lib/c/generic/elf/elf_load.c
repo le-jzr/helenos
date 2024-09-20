@@ -41,12 +41,53 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vfs/vfs.h>
+#include <macros.h>
+
+#include "elf2.h"
 
 #ifdef CONFIG_RTLD
 #include <rtld/rtld.h>
 #endif
 
 #define DPRINTF(...)
+
+static void *_exec_base(const elf_head_t *elf)
+{
+	uintptr_t head = UINTPTR_MAX;
+
+	for (size_t i = 0; i < elf->phdr_len; i++) {
+		if (elf->phdr[i].p_type == PT_LOAD)
+			head = min(head, elf->phdr[i].p_vaddr);
+	}
+
+	return (void *)(head + elf->bias);
+}
+
+static void *_exec_dynamic(const elf_head_t *elf)
+{
+	for (size_t i = 0; i < elf->phdr_len; i++) {
+		if (elf->phdr[i].p_type == PT_DYNAMIC)
+			return (void *) (elf->phdr[i].p_vaddr + elf->bias);
+	}
+
+	return NULL;
+}
+
+static void _exec_tls(const elf_head_t *elf, elf_tls_info_t *tls)
+{
+	*tls = (elf_tls_info_t) { };
+
+	for (size_t i = 0; i < elf->phdr_len; i++) {
+		elf_segment_header_t phdr = elf->phdr[i];
+		if (phdr.p_type == PT_TLS) {
+			tls->tdata = (void *) (phdr.p_vaddr + elf->bias);
+			tls->tdata_size = phdr.p_filesz;
+			tls->tbss_size = phdr.p_memsz - phdr.p_filesz;
+			tls->tls_align = phdr.p_align;
+			return;
+		}
+	}
+}
 
 /** Load ELF program.
  *
@@ -56,18 +97,29 @@
  */
 errno_t elf_load(int file, elf_info_t *info)
 {
-#ifdef CONFIG_RTLD
-	rtld_t *env;
-#endif
-	errno_t rc;
+	elf_head_t **init_order;
+	elf_head_t **res_order;
+	size_t nmodules;
 
-	rc = elf_load_file(file, &info->finfo);
+	/* Read module information */
+	errno_t rc = elf_read_modules(NULL, file, &init_order, &res_order, &nmodules);
 	if (rc != EOK) {
-		DPRINTF("Failed to load executable '%s'.\n", file_name);
+		DPRINTF("Reading modules failed.\n");
 		return rc;
 	}
 
-	if (info->finfo.dynamic == NULL) {
+	rc = elf_load_modules(res_order, nmodules);
+	if (rc != EOK) {
+		DPRINTF("Loading modules failed.\n");
+		return rc;
+	}
+
+	info->finfo.base = _exec_base(res_order[0]);
+	info->finfo.dynamic = _exec_dynamic(res_order[0]);
+	info->finfo.entry = (void *) (res_order[0]->header.e_entry + res_order[0]->bias);
+	_exec_tls(res_order[0], &info->finfo.tls);
+
+	if (res_order[0]->dyn_len == 0) {
 		/* Statically linked program */
 		DPRINTF("Binary is statically linked.\n");
 		info->env = NULL;
@@ -78,12 +130,10 @@ errno_t elf_load(int file, elf_info_t *info)
 #ifdef CONFIG_RTLD
 	DPRINTF("- prog dynamic: %p\n", info->finfo.dynamic);
 
-	rc = rtld_prog_process(&info->finfo, &env);
-	info->env = env;
+	return rtld_prog_process(&info->finfo, &info->env);
 #else
-	rc = ENOTSUP;
+	return ENOTSUP;
 #endif
-	return rc;
 }
 
 /** Set ELF-related PCB entries.
