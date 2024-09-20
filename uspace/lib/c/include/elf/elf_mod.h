@@ -42,11 +42,6 @@
 #include <stdint.h>
 #include <loader/pcb.h>
 
-typedef enum {
-	/** Leave all segments in RW access mode. */
-	ELDF_RW = 1
-} eld_flags_t;
-
 /** TLS info for a module */
 typedef struct {
 	/** tdata section image */
@@ -91,15 +86,12 @@ typedef struct {
 	/** Difference between run-time addresses and link-time addresses */
 	uintptr_t bias;
 
-	/** Flags passed to the ELF loader. */
-	eld_flags_t flags;
-
 	/** Store extracted info here */
 	elf_finfo_t *info;
 } elf_ld_t;
 
-extern errno_t elf_load_file(int, eld_flags_t, elf_finfo_t *);
-extern errno_t elf_load_file_name(const char *, eld_flags_t, elf_finfo_t *);
+extern errno_t elf_load_file(int, elf_finfo_t *);
+extern errno_t elf_load_file_name(const char *, elf_finfo_t *);
 
 #endif
 

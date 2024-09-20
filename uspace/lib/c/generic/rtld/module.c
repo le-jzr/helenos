@@ -50,7 +50,6 @@
 #include <rtld/dynamic.h>
 #include <rtld/rtld_arch.h>
 #include <rtld/module.h>
-#include <libarch/rtld/module.h>
 
 #include "../private/libc.h"
 
@@ -209,7 +208,7 @@ module_t *module_load(rtld_t *rtld, const char *name, mlflags_t flags)
 
 	DPRINTF("filename:'%s'\n", name_buf);
 
-	rc = elf_load_file_name(name_buf, RTLD_MODULE_LDF, &info);
+	rc = elf_load_file_name(name_buf, &info);
 	if (rc != EOK) {
 		DPRINTF("Failed to load '%s'\n", name_buf);
 		goto error;

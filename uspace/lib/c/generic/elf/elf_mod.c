@@ -82,7 +82,7 @@ static errno_t load_segment(elf_ld_t *elf, elf_segment_header_t *entry);
  * @return EOK on success or an error code.
  *
  */
-errno_t elf_load_file(int file, eld_flags_t flags, elf_finfo_t *info)
+errno_t elf_load_file(int file, elf_finfo_t *info)
 {
 	elf_ld_t elf;
 
@@ -97,7 +97,6 @@ errno_t elf_load_file(int file, eld_flags_t flags, elf_finfo_t *info)
 
 	elf.fd = ofile;
 	elf.info = info;
-	elf.flags = flags;
 
 	rc = elf_load_module(&elf);
 
@@ -105,12 +104,12 @@ errno_t elf_load_file(int file, eld_flags_t flags, elf_finfo_t *info)
 	return rc;
 }
 
-errno_t elf_load_file_name(const char *path, eld_flags_t flags, elf_finfo_t *info)
+errno_t elf_load_file_name(const char *path, elf_finfo_t *info)
 {
 	int file;
 	errno_t rc = vfs_lookup(path, 0, &file);
 	if (rc == EOK) {
-		rc = elf_load_file(file, flags, info);
+		rc = elf_load_file(file, info);
 		vfs_put(file);
 		return rc;
 	} else {
@@ -457,13 +456,6 @@ errno_t load_segment(elf_ld_t *elf, elf_segment_header_t *entry)
 		DPRINTF("read error\n");
 		return EIO;
 	}
-
-	/*
-	 * The caller wants to modify the segments first. He will then
-	 * need to set the right access mode and ensure SMC coherence.
-	 */
-	if ((elf->flags & ELDF_RW) != 0)
-		return EOK;
 
 	DPRINTF("as_area_change_flags(%p, %x)\n",
 	    (uint8_t *) base + bias, flags);

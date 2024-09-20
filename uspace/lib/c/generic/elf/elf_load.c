@@ -61,7 +61,7 @@ errno_t elf_load(int file, elf_info_t *info)
 #endif
 	errno_t rc;
 
-	rc = elf_load_file(file, 0, &info->finfo);
+	rc = elf_load_file(file, &info->finfo);
 	if (rc != EOK) {
 		DPRINTF("Failed to load executable '%s'.\n", file_name);
 		return rc;
