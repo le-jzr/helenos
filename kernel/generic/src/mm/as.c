@@ -735,6 +735,29 @@ _NO_TRACE static void sh_info_remove_reference(share_info_t *sh_info)
 	}
 }
 
+static uintptr_t as_area_map(as_t *as, unsigned flags,
+	uintptr_t base_low, uintptr_t base_high, size_t size,
+	mem_backend_t *backend, mem_backend_data_t *backend_data)
+{
+	base_low = ALIGN_UP(base_low, PAGE_SIZE);
+	base_high = ALIGN_DOWN(base_high, PAGE_SIZE);
+	size = ALIGN_UP(size, PAGE_SIZE);
+
+	if (size == 0)
+		return 0;
+
+	/* Writeable executable areas are not supported. */
+	if ((flags & AS_AREA_EXEC) && (flags & AS_AREA_WRITE))
+		return 0;
+
+	mutex_lock(&as->lock);
+
+
+	// TODO
+
+	return 0;
+}
+
 /** Create address space area of common attributes.
  *
  * The created address space area is added to the target address space.
@@ -1084,6 +1107,18 @@ errno_t as_area_resize(as_t *as, uintptr_t address, size_t size, unsigned int fl
 	mutex_unlock(&as->lock);
 
 	return 0;
+}
+
+errno_t as_area_unmap(as_t *as, uintptr_t bottom, size_t size)
+{
+	uintptr_t top;
+	if (bottom > SIZE_MAX - size)
+		top = ALIGN_DOWN(SIZE_MAX, PAGE_SIZE);
+	else
+		top = ALIGN_DOWN(bottom + size, PAGE_SIZE);
+
+	bottom = ALIGN_UP(bottom, PAGE_SIZE);
+
 }
 
 /** Destroy address space area.
@@ -2101,6 +2136,26 @@ bool used_space_insert(used_space_t *used_space, uintptr_t page, size_t count)
 /*
  * Address space related syscalls.
  */
+
+sysarg_t sys_as_area_map(uintptr_t base_low, uintptr_t base_high, size_t size,
+	unsigned flags, uspace_ptr_as_area_pager_info_t pager_info)
+{
+	mem_backend_t *backend;
+	mem_backend_data_t backend_data;
+
+	if (!pager_info)
+		backend = &anon_backend;
+	else {
+		backend = &user_backend;
+		if (copy_from_uspace(&backend_data.pager_info, pager_info,
+			sizeof(as_area_pager_info_t)) != EOK) {
+			return (sysarg_t) AS_MAP_FAILED;
+		}
+	}
+
+	return as_area_map(AS, flags, base_low, base_high, size, backend,
+		&backend_data);
+}
 
 sysarg_t sys_as_area_create(uintptr_t base, size_t size, unsigned int flags,
     uintptr_t bound, uspace_ptr_as_area_pager_info_t pager_info)
