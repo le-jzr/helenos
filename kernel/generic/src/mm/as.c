@@ -329,6 +329,11 @@ as_area_t *as_area_next(as_area_t *cur)
 	return odict_get_instance(odlink, as_area_t, las_areas);
 }
 
+_NO_TRACE static bool as_area_is_guarded(as_area_t *area)
+{
+	return (area->flags & AS_AREA_GUARD) != 0;
+}
+
 /** Determine if area with specified parameters would conflict with
  * a specific existing address space area.
  *
@@ -353,7 +358,7 @@ _NO_TRACE static bool area_is_conflicting(uintptr_t addr,
 	 * PAGE_SIZE to the size of both areas. That guarantees
 	 * they will be spaced at least one page apart.
 	 */
-	if (guarded || (area->flags & AS_AREA_GUARD) != 0) {
+	if (guarded || as_area_is_guarded(area)) {
 		/* Add guard page size unless area is at the end of VA domain */
 		if (!overflows(addr, P2SZ(count)))
 			gsize += PAGE_SIZE;
@@ -459,84 +464,93 @@ _NO_TRACE static bool check_area_conflicts(as_t *as, uintptr_t addr,
 	return true;
 }
 
-/** Return pointer to unmapped address space area
+/** Return address of unmapped address space area.
  *
  * The address space must be already locked when calling
  * this function.
  *
- * @param as      Address space.
- * @param bound   Lowest address bound.
- * @param size    Requested size of the allocation.
- * @param guarded True if the allocation must be protected by guard pages.
- *
+ * @param as         Address space.
+ * @param base_low   Lowest allowed base address.
+ * @param base_high  Highest allowed base address.
+ * @param size       Requested size of the allocation.
+ * @param guarded    True if the allocation must be protected by guard pages.
+ * @param[out] next  Pointer to the area that follows the empty space.
+ *                   Area is locked on exit, unless the argument is NULL.
  * @return Address of the beginning of unmapped address space area.
  * @return -1 if no suitable address space area was found.
- *
  */
-_NO_TRACE static uintptr_t as_get_unmapped_area(as_t *as, uintptr_t bound,
-    size_t size, bool guarded)
+_NO_TRACE static uintptr_t as_get_unmapped_area(as_t *as, uintptr_t base_low,
+    uintptr_t base_high, size_t size, bool guarded, as_area_t **next)
 {
 	assert(mutex_locked(&as->lock));
 
 	if (size == 0)
 		return (uintptr_t) -1;
 
-	/*
-	 * Make sure we allocate from page-aligned
-	 * address. Check for possible overflow in
-	 * each step.
-	 */
+	/* Align size */
+	size = ALIGN_UP(size, PAGE_SIZE);
 
-	size_t pages = SIZE2FRAMES(size);
+	/* Avoid mapping anything to NULL page. */
+	base_low = max(base_low, PAGE_SIZE);
+	/* Ensure we're within user address space. */
+	base_low = max(base_low, USER_ADDRESS_SPACE_START);
+	base_high = min(base_high, USER_ADDRESS_SPACE_END - size + 1);
 
-	/*
-	 * Find the lowest unmapped address aligned on the size
-	 * boundary, not smaller than bound and of the required size.
-	 */
+	/* Align base range. */
+	base_low = ALIGN_UP(base_low, PAGE_SIZE);
+	base_high = ALIGN_DOWN(base_high, PAGE_SIZE);
 
-	/* First check the bound address itself */
-	uintptr_t addr = ALIGN_UP(bound, PAGE_SIZE);
-	if (addr >= bound) {
-		if (guarded) {
-			/*
-			 * Leave an unmapped page between the lower
-			 * bound and the area's start address.
-			 */
-			addr += P2SZ(1);
-		}
+	/* Check we can still honor the request in principle. */
+	if (base_low > base_high)
+		return (uintptr_t) -1;
 
-		if (check_area_conflicts(as, addr, pages, guarded, NULL))
-			return addr;
-	}
+	/* If base_low is within an existing area, move it to its end */
+	odlink_t *odlink = odict_find_leq(&as->as_areas, &base_low, NULL);
+	if (odlink) {
+		as_area_t *area = odict_get_instance(odlink, as_area_t, las_areas);
 
-	/* Eventually check the addresses behind each area */
-	as_area_t *area = as_area_first(as);
-	while (area != NULL) {
 		mutex_lock(&area->lock);
-
-		addr = area->base + P2SZ(area->pages);
-
-		if (guarded || area->flags & AS_AREA_GUARD) {
-			/*
-			 * We must leave an unmapped page
-			 * between the two areas.
-			 */
-			addr += P2SZ(1);
-		}
-
-		bool avail =
-		    ((addr >= bound) && (addr >= area->base) &&
-		    (check_area_conflicts(as, addr, pages, guarded, area)));
-
+		bool g = guarded || as_area_is_guarded(area);
+		assert(area->base <= base_low);
+		base_low = max(base_low, area->base + P2SZ(area->pages + g));
 		mutex_unlock(&area->lock);
 
-		if (avail)
-			return addr;
-
-		area = as_area_next(area);
+		odlink = odict_next(odlink, &as->as_areas);
+	} else {
+		odlink = odict_first(&as->as_areas);
 	}
 
-	/* No suitable address space area found */
+	/* Check areas until we run out of either areas or address range. */
+	while (odlink && base_low <= base_high) {
+		as_area_t *area = odict_get_instance(odlink, as_area_t, las_areas);
+
+		mutex_lock(&area->lock);
+		bool g = guarded || as_area_is_guarded(area);
+		if (area->base > base_low + size + P2SZ(g)) {
+			/* Found our area. */
+			if (next)
+				*next = area;
+			else
+				mutex_unlock(&area->lock);
+			return base_low;
+		}
+
+		/* We can't fit before this area, move base_low above it. */
+		base_low = area->base + P2SZ(area->pages + g);
+		mutex_unlock(&area->lock);
+
+		odlink = odict_next(odlink, &as->as_areas);
+	}
+
+	if (base_low <= base_high) {
+		assert(odlink == NULL);
+		/* Reached the space beyond last area. */
+		if (next)
+			*next = NULL;
+		return base_low;
+	}
+
+	/* No suitable area found. */
 	return (uintptr_t) -1;
 }
 
@@ -761,19 +775,12 @@ as_area_t *as_area_create(as_t *as, unsigned int flags, size_t size,
 	mutex_lock(&as->lock);
 
 	if (*base == (uintptr_t) AS_AREA_ANY) {
-		*base = as_get_unmapped_area(as, bound, size, guarded);
-		if (*base == (uintptr_t) -1) {
-			mutex_unlock(&as->lock);
-			return NULL;
-		}
+		*base = as_get_unmapped_area(as, bound, UINTPTR_MAX, size, guarded, NULL);
+	} else {
+		*base = as_get_unmapped_area(as, *base, *base, size, guarded, NULL);
 	}
 
-	if (overflows_into_positive(*base, size)) {
-		mutex_unlock(&as->lock);
-		return NULL;
-	}
-
-	if (!check_area_conflicts(as, *base, pages, guarded, NULL)) {
+	if (*base == (uintptr_t) -1) {
 		mutex_unlock(&as->lock);
 		return NULL;
 	}
