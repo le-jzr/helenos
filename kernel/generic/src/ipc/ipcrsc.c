@@ -50,7 +50,11 @@ static void phone_destroy(void *arg)
 	phone_t *phone = (phone_t *) arg;
 	if (phone->hangup_call)
 		kobj_put(&phone->hangup_call->kobj);
+<<<<<<< Updated upstream
 	slab_free(&phone_cache, phone);
+=======
+	slab_free(phone_cache, phone);
+>>>>>>> Stashed changes
 }
 
 const kobj_class_t kobj_class_phone = {

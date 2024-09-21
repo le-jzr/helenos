@@ -238,9 +238,15 @@ static bool _clear_func(ht_link_t *link, void *arg)
 	kobj_table_t *table = arg;
 	kobj_table_entry_t *entry = get_table_entry(link);
 
+<<<<<<< Updated upstream
 	hash_table_remove_item(&table->refs, link);
 	kobj_put(entry->kobj);
 	slab_free(&kobj_table_entry_cache, entry);
+=======
+	hash_table_remove_item(table->refs, link);
+	kobj_put(entry->kobj);
+	slab_free(kobj_table_entry_cache, entry);
+>>>>>>> Stashed changes
 	return true;
 }
 

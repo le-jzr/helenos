@@ -40,12 +40,18 @@
 #include <cap/cap.h>
 #include <kobj.h>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 #include <mm/slab.h>
 #include <synch/mutex.h>
 #include <synch/spinlock.h>
 #include <synch/waitq.h>
 #include <typedefs.h>
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
 struct answerbox;
@@ -165,10 +171,15 @@ typedef struct call {
 extern answerbox_t *ipc_box_0;
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 extern kobject_ops_t call_kobject_ops;
 extern const kobj_class_t kobj_class_phone;
 
 =======
+>>>>>>> Stashed changes
+=======
+extern void ipc_init(void);
+
 >>>>>>> Stashed changes
 extern call_t *ipc_call_alloc(void);
 

@@ -85,6 +85,24 @@ const kobj_class_t kobj_class_call = {
 	.destroy = call_destroy
 };
 
+<<<<<<< Updated upstream
+=======
+static void call_destroy(void *arg)
+{
+	call_t *call = (call_t *) arg;
+
+	if (call->buffer)
+		free(call->buffer);
+	if (call->caller_phone)
+		kobject_put(call->caller_phone->kobject);
+	slab_free(call_cache, call);
+}
+
+static kobj_class_t kobj_class_call = {
+	.destroy = call_destroy
+};
+
+>>>>>>> Stashed changes
 /** Initialize a call structure.
  *
  * @param call Call structure to be initialized.
@@ -112,7 +130,11 @@ static void _ipc_call_init(call_t *call)
  */
 call_t *ipc_call_alloc(void)
 {
+<<<<<<< Updated upstream
 	call_t *call = slab_alloc(&call_cache, FRAME_ATOMIC);
+=======
+	call_t *call = slab_alloc(call_cache, FRAME_ATOMIC);
+>>>>>>> Stashed changes
 	if (!call)
 		return NULL;
 

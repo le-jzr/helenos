@@ -52,8 +52,11 @@ typedef enum {
 
 typedef enum {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 	KOBJECT_TYPE_CALL,
 =======
+=======
+>>>>>>> Stashed changes
 	KOBJECT_TYPE_PHONE,
 >>>>>>> Stashed changes
 	KOBJECT_TYPE_MAX

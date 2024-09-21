@@ -100,8 +100,11 @@ static SLAB_CACHE(kobject_cache, kobject_t, 1, NULL, NULL, 0);
 
 kobject_ops_t *kobject_ops[KOBJECT_TYPE_MAX] = {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 	[KOBJECT_TYPE_CALL] = &call_kobject_ops,
 =======
+=======
+>>>>>>> Stashed changes
 	[KOBJECT_TYPE_PHONE] = &phone_kobject_ops,
 >>>>>>> Stashed changes
 };

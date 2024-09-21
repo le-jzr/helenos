@@ -292,9 +292,12 @@ ipc_req_internal(cap_phone_handle_t handle, ipc_data_t *data, sysarg_t priv)
 #endif
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 		kobject_add_ref(call->kobject);
 		rc = ipc_call_sync(phone, call);
 =======
+=======
+>>>>>>> Stashed changes
 		kobj_ref(&call->kobj);
 		rc = ipc_call_sync(kobj->phone, call);
 >>>>>>> Stashed changes
@@ -334,9 +337,12 @@ ipc_req_internal(cap_phone_handle_t handle, ipc_data_t *data, sysarg_t priv)
 
 	memcpy(data->args, call->data.args, sizeof(data->args));
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 	kobject_put(call->kobject);
 	kobj_put(&phone->kobj);
 =======
+=======
+>>>>>>> Stashed changes
 	kobj_put(&call->kobj);
 	kobject_put(kobj);
 >>>>>>> Stashed changes
