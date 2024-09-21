@@ -111,7 +111,7 @@ static kobj_class_t kobj_class_proxy_inner = {
 /** Create a proxy object. The wrapped reference is consumed. */
 kobj_proxy_t *kobj_proxy_create(kobj_t *wrapped)
 {
-	kobj_proxy_t *proxy = slab_alloc(&kobj_proxy_cache, 0);
+	kobj_proxy_t *proxy = slab_alloc(&kobj_proxy_cache, FRAME_ATOMIC);
 	if (!proxy)
 		return NULL;
 
@@ -269,7 +269,7 @@ void *kobj_table_shallow_lookup(kobj_table_t *table, kobj_handle_t handle)
 
 kobj_handle_t kobj_table_insert(kobj_table_t *table, void *kobj)
 {
-	kobj_table_entry_t *entry = slab_alloc(&kobj_table_entry_cache, 0);
+	kobj_table_entry_t *entry = slab_alloc(&kobj_table_entry_cache, FRAME_ATOMIC);
 	if (!entry) {
 		return 0;
 	}

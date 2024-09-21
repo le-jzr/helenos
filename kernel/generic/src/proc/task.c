@@ -186,8 +186,8 @@ size_t tsk_destructor(void *obj)
 {
 	task_t *task = (task_t *) obj;
 
-	caps_task_free(task);
 	kobj_table_destroy(&task->kobj_table);
+	caps_task_free(task);
 	return 0;
 }
 
