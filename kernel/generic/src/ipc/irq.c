@@ -380,23 +380,6 @@ errno_t ipc_irq_subscribe(answerbox_t *box, inr_t inr, sysarg_t imethod,
 	return rc;
 }
 
-/** Unsubscribe task from IRQ notification.
- *
- * @param box     Answerbox associated with the notification.
- * @param handle  IRQ capability handle.
- *
- * @return EOK on success or an error code.
- *
- */
-errno_t ipc_irq_unsubscribe(answerbox_t *box, cap_irq_handle_t handle)
-{
-	// TODO: This syscall is wholly unnecessary, there only needs to be one
-	//       syscall to destroy any handle.
-	//       Typechecking the destroyed reference is not kernel's obligation.
-	kobj_put(kobj_table_remove(&TASK->kobj_table, cap_handle_raw(handle)));
-	return EOK;
-}
-
 /** Add a call to the proper answerbox queue.
  *
  * Assume irq->lock is locked and interrupts disabled.
