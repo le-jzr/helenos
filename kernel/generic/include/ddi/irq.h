@@ -90,6 +90,9 @@ typedef struct {
  * instantions.
  */
 typedef struct irq {
+	/** Kobj data, keep first. */
+	kobj_t kobj;
+
 	/** Hash table link. */
 	ht_link_t link;
 

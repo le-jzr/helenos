@@ -64,7 +64,6 @@
 #include <syscall/copy.h>
 #include <console/console.h>
 #include <macros.h>
-#include <cap/cap.h>
 #include <stdlib.h>
 
 static void ranges_unmap(irq_pio_range_t *ranges, size_t rangecount)
@@ -305,7 +304,7 @@ static void irq_destroy(void *arg)
 	slab_free(&irq_cache, irq);
 }
 
-kobject_ops_t irq_kobject_ops = {
+static kobj_class_t kobj_class_irq = {
 	.destroy = irq_destroy
 };
 
@@ -338,31 +337,13 @@ errno_t ipc_irq_subscribe(answerbox_t *box, inr_t inr, sysarg_t imethod,
 	/*
 	 * Allocate and populate the IRQ kernel object.
 	 */
-	cap_handle_t handle;
-	errno_t rc = cap_alloc(TASK, &handle);
-	if (rc != EOK)
-		return rc;
 
-	rc = copy_to_uspace(uspace_handle, &handle, sizeof(cap_handle_t));
-	if (rc != EOK) {
-		cap_free(TASK, handle);
-		return rc;
-	}
-
-	irq_t *irq = slab_alloc(&irq_cache, FRAME_ATOMIC);
-	if (!irq) {
-		cap_free(TASK, handle);
+	irq_t *irq = (irq_t *) slab_alloc(&irq_cache, FRAME_ATOMIC);
+	if (!irq)
 		return ENOMEM;
-	}
-
-	kobject_t *kobject = kobject_alloc(FRAME_ATOMIC);
-	if (!kobject) {
-		cap_free(TASK, handle);
-		slab_free(&irq_cache, irq);
-		return ENOMEM;
-	}
 
 	irq_initialize(irq);
+	kobj_initialize(&irq->kobj, &kobj_class_irq);
 	irq->inr = inr;
 	irq->claim = ipc_irq_top_half_claim;
 	irq->handler = ipc_irq_top_half_handler;
@@ -384,10 +365,19 @@ errno_t ipc_irq_subscribe(answerbox_t *box, inr_t inr, sysarg_t imethod,
 	irq_spinlock_unlock(&irq->lock, false);
 	irq_spinlock_unlock(&irq_uspace_hash_table_lock, true);
 
-	kobject_initialize(kobject, KOBJECT_TYPE_IRQ, irq);
-	cap_publish(TASK, handle, kobject);
+	/* Get userspace handle for the object. */
 
-	return EOK;
+	kobj_handle_t handle = kobj_table_insert(&TASK->kobj_table, &irq->kobj);
+	if (!handle) {
+		kobj_put(&irq->kobj);
+		return (sys_errno_t) ENOMEM;
+	}
+
+	errno_t rc = copy_to_uspace(uspace_handle, &handle, sizeof(handle));
+	if (rc != EOK)
+		kobj_put(kobj_table_remove(&TASK->kobj_table, handle));
+
+	return rc;
 }
 
 /** Unsubscribe task from IRQ notification.
@@ -400,17 +390,10 @@ errno_t ipc_irq_subscribe(answerbox_t *box, inr_t inr, sysarg_t imethod,
  */
 errno_t ipc_irq_unsubscribe(answerbox_t *box, cap_irq_handle_t handle)
 {
-	kobject_t *kobj = cap_unpublish(TASK, handle, KOBJECT_TYPE_IRQ);
-	if (!kobj)
-		return ENOENT;
-
-	assert(kobj->irq->notif_cfg.answerbox == box);
-
-	irq_hash_out(kobj->irq);
-
-	kobject_put(kobj);
-	cap_free(TASK, handle);
-
+	// TODO: This syscall is wholly unnecessary, there only needs to be one
+	//       syscall to destroy any handle.
+	//       Typechecking the destroyed reference is not kernel's obligation.
+	kobj_put(kobj_table_remove(&TASK->kobj_table, cap_handle_raw(handle)));
 	return EOK;
 }
 

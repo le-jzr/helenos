@@ -52,7 +52,6 @@ typedef enum {
 
 typedef enum {
 	KOBJECT_TYPE_CALL,
-	KOBJECT_TYPE_IRQ,
 	KOBJECT_TYPE_PHONE,
 	KOBJECT_TYPE_MAX
 } kobject_type_t;

@@ -807,12 +807,6 @@ static void ipc_wait_for_all_answered_calls(void)
 	}
 }
 
-static bool irq_cap_cleanup_cb(cap_t *cap, void *arg)
-{
-	ipc_irq_unsubscribe(&TASK->answerbox, cap->handle);
-	return true;
-}
-
 static bool call_cap_cleanup_cb(cap_t *cap, void *arg)
 {
 	/*
@@ -850,10 +844,6 @@ void ipc_cleanup(void)
 
 	/* Unsubscribe from any event notifications */
 	event_cleanup_answerbox(&TASK->answerbox);
-
-	/* Disconnect all connected IRQs */
-	caps_apply_to_kobject_type(TASK, KOBJECT_TYPE_IRQ, irq_cap_cleanup_cb,
-	    NULL);
 
 	/* Disconnect all phones connected to our regular answerbox */
 	ipc_answerbox_slam_phones(&TASK->answerbox, false);
