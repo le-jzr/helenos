@@ -97,6 +97,7 @@ kernel_c_args = arch_kernel_c_args + kernel_defs + [
 	'-ffreestanding',
 	'-fdebug-prefix-map=../../kernel/=',
 	'-fdebug-prefix-map=../../../kernel/=',
+	'-fmax-errors=5',
 
 	cc.get_supported_arguments([
 		# TODO: remove this flag

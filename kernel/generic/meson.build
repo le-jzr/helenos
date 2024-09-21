@@ -49,6 +49,7 @@ generic_src += files(
 	'common/str.c',
 	'common/str_error.c',
 	'common/strtol.c',
+	'common/stdio/fread.c',
 
 	'src/cap/cap.c',
 	'src/console/chardev.c',
