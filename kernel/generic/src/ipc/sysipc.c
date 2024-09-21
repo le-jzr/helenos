@@ -272,8 +272,8 @@ static int process_request(answerbox_t *box, call_t *call)
 errno_t
 ipc_req_internal(cap_phone_handle_t handle, ipc_data_t *data, sysarg_t priv)
 {
-	kobject_t *kobj = kobject_get(TASK, handle, KOBJECT_TYPE_PHONE);
-	if (!kobj->phone)
+	phone_t *phone = kobj_table_lookup(&TASK->kobj_table, cap_handle_raw(handle), &kobj_class_phone);
+	if (!phone)
 		return ENOENT;
 
 	call_t *call = ipc_call_alloc();
@@ -285,14 +285,14 @@ ipc_req_internal(cap_phone_handle_t handle, ipc_data_t *data, sysarg_t priv)
 	call->priv = priv;
 	memcpy(call->data.args, data->args, sizeof(data->args));
 
-	errno_t rc = request_preprocess(call, kobj->phone);
+	errno_t rc = request_preprocess(call, phone);
 	if (!rc) {
 #ifdef CONFIG_UDEBUG
 		udebug_stoppable_begin();
 #endif
 
 		kobject_add_ref(call->kobject);
-		rc = ipc_call_sync(kobj->phone, call);
+		rc = ipc_call_sync(phone, call);
 		spinlock_lock(&call->forget_lock);
 		bool forgotten = call->forget;
 		spinlock_unlock(&call->forget_lock);
@@ -319,7 +319,7 @@ ipc_req_internal(cap_phone_handle_t handle, ipc_data_t *data, sysarg_t priv)
 				 */
 				assert(rc == EINTR);
 			}
-			kobject_put(kobj);
+			kobj_put(&phone->kobj);
 			return rc;
 		}
 
@@ -329,7 +329,7 @@ ipc_req_internal(cap_phone_handle_t handle, ipc_data_t *data, sysarg_t priv)
 
 	memcpy(data->args, call->data.args, sizeof(data->args));
 	kobject_put(call->kobject);
-	kobject_put(kobj);
+	kobj_put(&phone->kobj);
 
 	return EOK;
 }

@@ -53,7 +53,7 @@ static void phone_destroy(void *arg)
 	slab_free(&phone_cache, phone);
 }
 
-kobject_ops_t phone_kobject_ops = {
+const kobj_class_t kobj_class_phone = {
 	.destroy = phone_destroy
 };
 

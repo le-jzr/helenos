@@ -52,15 +52,11 @@ typedef enum {
 
 typedef enum {
 	KOBJECT_TYPE_CALL,
-	KOBJECT_TYPE_PHONE,
 	KOBJECT_TYPE_MAX
 } kobject_type_t;
 
 struct task;
-
 struct call;
-struct irq;
-struct phone;
 
 typedef struct kobject_ops {
 	void (*destroy)(void *);
@@ -86,8 +82,6 @@ typedef struct kobject {
 	union {
 		void *raw;
 		struct call *call;
-		struct irq *irq;
-		struct phone *phone;
 	};
 } kobject_t;
 

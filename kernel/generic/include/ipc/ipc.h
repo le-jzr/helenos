@@ -43,6 +43,7 @@
 #include <typedefs.h>
 #include <mm/slab.h>
 #include <cap/cap.h>
+#include <kobj.h>
 
 struct answerbox;
 struct task;
@@ -158,6 +159,7 @@ typedef struct call {
 extern answerbox_t *ipc_box_0;
 
 extern kobject_ops_t call_kobject_ops;
+extern const kobj_class_t kobj_class_phone;
 
 extern call_t *ipc_call_alloc(void);
 
