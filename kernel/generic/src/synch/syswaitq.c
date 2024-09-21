@@ -56,7 +56,7 @@ static void syswaitq_destroy(void *arg)
 	slab_free(&syswaitq_cache, wq);
 }
 
-kobj_class_t syswaitq_class = {
+static kobj_class_t syswaitq_class = {
 	.destroy = syswaitq_destroy,
 };
 
