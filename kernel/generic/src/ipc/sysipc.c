@@ -904,12 +904,11 @@ sys_errno_t sys_ipc_irq_subscribe(inr_t inr, sysarg_t imethod,
  */
 sys_errno_t sys_ipc_irq_unsubscribe(cap_irq_handle_t handle)
 {
-	if (!(perm_get(TASK) & PERM_IRQ_REG))
-		return EPERM;
-
-	ipc_irq_unsubscribe(&TASK->answerbox, handle);
-
-	return 0;
+	// TODO: This syscall is wholly unnecessary, there only needs to be one
+	//       syscall to destroy any handle.
+	//       Typechecking the destroyed reference is not kernel's obligation.
+	kobj_put(kobj_table_remove(&TASK->kobj_table, cap_handle_raw(handle)));
+	return EOK;
 }
 
 /** Syscall connect to a task by ID
