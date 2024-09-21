@@ -49,7 +49,7 @@ static void phone_destroy(void *arg)
 {
 	phone_t *phone = (phone_t *) arg;
 	if (phone->hangup_call)
-		kobject_put(phone->hangup_call->kobject);
+		kobj_put(&phone->hangup_call->kobj);
 	slab_free(&phone_cache, phone);
 }
 

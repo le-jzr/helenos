@@ -438,6 +438,7 @@ void thread_exit(void)
 			 * We are safe to perform cleanup.
 			 *
 			 */
+			kobj_table_clear(&TASK->kobj_table);
 			ipc_cleanup();
 			LOG("Cleanup of task %" PRIu64 " completed.", TASK->taskid);
 		}

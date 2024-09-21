@@ -56,7 +56,7 @@ static void syswaitq_destroy(void *arg)
 	slab_free(&syswaitq_cache, wq);
 }
 
-static kobj_class_t syswaitq_class = {
+static const kobj_class_t syswaitq_class = {
 	.destroy = syswaitq_destroy,
 };
 
@@ -84,7 +84,7 @@ sys_errno_t sys_waitq_create(uspace_ptr_cap_waitq_handle_t whandle)
 
 	errno_t rc = copy_to_uspace(whandle, &handle, sizeof(handle));
 	if (rc != EOK)
-		kobj_put(kobj_table_remove(&TASK->kobj_table, handle));
+		kobj_put(kobj_table_remove(&TASK->kobj_table, handle, &syswaitq_class));
 
 	return (sys_errno_t) rc;
 }
@@ -100,7 +100,7 @@ sys_errno_t sys_waitq_destroy(cap_waitq_handle_t whandle)
 	// TODO: This syscall is wholly unnecessary, there only needs to be one
 	//       syscall to destroy any handle.
 	//       Typechecking the destroyed reference is not kernel's obligation.
-	kobj_put(kobj_table_remove(&TASK->kobj_table, cap_handle_raw(whandle)));
+	kobj_put(kobj_table_remove(&TASK->kobj_table, cap_handle_raw(whandle), &syswaitq_class));
 	return EOK;
 }
 

@@ -35,19 +35,24 @@
 #ifndef KERN_IPC_H_
 #define KERN_IPC_H_
 
-#include <synch/spinlock.h>
-#include <synch/mutex.h>
-#include <synch/waitq.h>
 #include <abi/ipc/ipc.h>
 #include <abi/proc/task.h>
-#include <typedefs.h>
-#include <mm/slab.h>
 #include <cap/cap.h>
 #include <kobj.h>
+<<<<<<< Updated upstream
+=======
+#include <mm/slab.h>
+#include <synch/mutex.h>
+#include <synch/spinlock.h>
+#include <synch/waitq.h>
+#include <typedefs.h>
+>>>>>>> Stashed changes
 
 struct answerbox;
 struct task;
 struct call;
+
+extern const kobj_class_t kobj_class_call;
 
 typedef enum {
 	/** Phone is free and can be allocated */
@@ -96,7 +101,8 @@ typedef struct answerbox {
 } answerbox_t;
 
 typedef struct call {
-	kobject_t *kobject;
+	/** Kobj data. Must be first. */
+	kobj_t kobj;
 
 	/**
 	 * Task link.
@@ -158,9 +164,12 @@ typedef struct call {
 
 extern answerbox_t *ipc_box_0;
 
+<<<<<<< Updated upstream
 extern kobject_ops_t call_kobject_ops;
 extern const kobj_class_t kobj_class_phone;
 
+=======
+>>>>>>> Stashed changes
 extern call_t *ipc_call_alloc(void);
 
 extern errno_t ipc_call_sync(phone_t *, call_t *);

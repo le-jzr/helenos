@@ -228,8 +228,33 @@ errno_t kobj_table_initialize(kobj_table_t *table)
 
 void kobj_table_destroy(kobj_table_t *table)
 {
+	assert(hash_table_empty(&table->refs));
 	ra_arena_destroy(table->handles);
 	hash_table_destroy(&table->refs);
+}
+
+static bool _clear_func(ht_link_t *link, void *arg)
+{
+	kobj_table_t *table = arg;
+	kobj_table_entry_t *entry = get_table_entry(link);
+
+	hash_table_remove_item(&table->refs, link);
+	kobj_put(entry->kobj);
+	slab_free(&kobj_table_entry_cache, entry);
+	return true;
+}
+
+void kobj_table_clear(kobj_table_t *table)
+{
+	mutex_lock(&table->lock);
+	hash_table_apply(&table->refs, _clear_func, table);
+
+	assert(hash_table_empty(&table->refs));
+
+	ra_arena_destroy(table->handles);
+	table->handles = ra_arena_create();
+
+	mutex_unlock(&table->lock);
 }
 
 void *kobj_table_lookup(kobj_table_t *table, kobj_handle_t handle, const kobj_class_t *type)
@@ -297,25 +322,29 @@ kobj_handle_t kobj_table_insert(kobj_table_t *table, void *kobj)
 	return handle;
 }
 
-kobj_t *kobj_table_remove(kobj_table_t *table, kobj_handle_t handle)
+void *kobj_table_remove(kobj_table_t *table, kobj_handle_t handle, const kobj_class_t *type)
 {
 	if (!handle)
 		return NULL;
 
 	mutex_lock(&table->lock);
-	ht_link_t *link = hash_table_find(&table->refs, &handle);
-	if (link) {
-		hash_table_remove_item(&table->refs, link);
-	}
-	mutex_unlock(&table->lock);
 
+	ht_link_t *link = hash_table_find(&table->refs, &handle);
 	if (!link) {
+		mutex_unlock(&table->lock);
 		return NULL;
 	}
 
 	kobj_table_entry_t *entry = get_table_entry(link);
-
 	assert(entry->handle == handle);
+
+	if (type && entry->kobj->type != type) {
+		mutex_unlock(&table->lock);
+		return NULL;
+	}
+
+	hash_table_remove_item(&table->refs, link);
+	mutex_unlock(&table->lock);
 
 	kobj_t *kobj = entry->kobj;
 
@@ -327,7 +356,7 @@ kobj_t *kobj_table_remove(kobj_table_t *table, kobj_handle_t handle)
 
 sys_errno_t sys_kobj_put(sysarg_t handle)
 {
-	kobj_t *kobj = kobj_table_remove(&TASK->kobj_table, handle);
+	kobj_t *kobj = kobj_table_remove(&TASK->kobj_table, handle, NULL);
 	if (!kobj)
 		return ENOENT;
 

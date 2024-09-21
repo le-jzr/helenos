@@ -51,7 +51,11 @@ typedef enum {
 } cap_state_t;
 
 typedef enum {
+<<<<<<< Updated upstream
 	KOBJECT_TYPE_CALL,
+=======
+	KOBJECT_TYPE_PHONE,
+>>>>>>> Stashed changes
 	KOBJECT_TYPE_MAX
 } kobject_type_t;
 

@@ -99,7 +99,11 @@ static SLAB_CACHE(cap_cache, cap_t, 1, NULL, NULL, 0);
 static SLAB_CACHE(kobject_cache, kobject_t, 1, NULL, NULL, 0);
 
 kobject_ops_t *kobject_ops[KOBJECT_TYPE_MAX] = {
+<<<<<<< Updated upstream
 	[KOBJECT_TYPE_CALL] = &call_kobject_ops,
+=======
+	[KOBJECT_TYPE_PHONE] = &phone_kobject_ops,
+>>>>>>> Stashed changes
 };
 
 static size_t caps_hash(const ht_link_t *item)

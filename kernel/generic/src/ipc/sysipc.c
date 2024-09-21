@@ -291,12 +291,17 @@ ipc_req_internal(cap_phone_handle_t handle, ipc_data_t *data, sysarg_t priv)
 		udebug_stoppable_begin();
 #endif
 
+<<<<<<< Updated upstream
 		kobject_add_ref(call->kobject);
 		rc = ipc_call_sync(phone, call);
+=======
+		kobj_ref(&call->kobj);
+		rc = ipc_call_sync(kobj->phone, call);
+>>>>>>> Stashed changes
 		spinlock_lock(&call->forget_lock);
 		bool forgotten = call->forget;
 		spinlock_unlock(&call->forget_lock);
-		kobject_put(call->kobject);
+		kobj_put(&call->kobj);
 
 #ifdef CONFIG_UDEBUG
 		udebug_stoppable_end();
@@ -311,7 +316,7 @@ ipc_req_internal(cap_phone_handle_t handle, ipc_data_t *data, sysarg_t priv)
 				 * its owners and are responsible for its
 				 * deallocation.
 				 */
-				kobject_put(call->kobject);
+				kobj_put(&call->kobj);
 			} else {
 				/*
 				 * The call was forgotten and it changed hands.
@@ -328,8 +333,13 @@ ipc_req_internal(cap_phone_handle_t handle, ipc_data_t *data, sysarg_t priv)
 		ipc_set_retval(&call->data, rc);
 
 	memcpy(data->args, call->data.args, sizeof(data->args));
+<<<<<<< Updated upstream
 	kobject_put(call->kobject);
 	kobj_put(&phone->kobj);
+=======
+	kobj_put(&call->kobj);
+	kobject_put(kobj);
+>>>>>>> Stashed changes
 
 	return EOK;
 }
@@ -436,7 +446,7 @@ sys_errno_t sys_ipc_call_async_slow(cap_phone_handle_t handle, uspace_ptr_ipc_da
 	errno_t rc = copy_from_uspace(&call->data.args, data + offsetof(ipc_data_t, args),
 	    sizeof(call->data.args));
 	if (rc != EOK) {
-		kobject_put(call->kobject);
+		kobj_put(&call->kobj);
 		kobject_put(kobj);
 		return (sys_errno_t) rc;
 	}
@@ -481,11 +491,9 @@ static sys_errno_t sys_ipc_forward_common(cap_call_handle_t chandle,
     cap_phone_handle_t phandle, sysarg_t imethod, sysarg_t arg1, sysarg_t arg2,
     sysarg_t arg3, sysarg_t arg4, sysarg_t arg5, unsigned int mode, bool slow)
 {
-	kobject_t *ckobj = cap_unpublish(TASK, chandle, KOBJECT_TYPE_CALL);
-	if (!ckobj)
+	call_t *call = kobj_table_remove(&TASK->kobj_table, cap_handle_raw(chandle), &kobj_class_call);
+	if (!call)
 		return ENOENT;
-
-	call_t *call = ckobj->call;
 
 	ipc_data_t old;
 	bool need_old = answer_need_old(call);
@@ -553,8 +561,7 @@ static sys_errno_t sys_ipc_forward_common(cap_call_handle_t chandle,
 		goto error;
 	}
 
-	cap_free(TASK, chandle);
-	kobject_put(ckobj);
+	kobj_put(&call->kobj);
 	kobject_put(pkobj);
 	return EOK;
 
@@ -566,8 +573,7 @@ error:
 	else
 		ipc_answer(&TASK->answerbox, call);
 
-	cap_free(TASK, chandle);
-	kobject_put(ckobj);
+	kobj_put(&call->kobj);
 
 	if (pkobj)
 		kobject_put(pkobj);
@@ -651,11 +657,10 @@ sys_errno_t sys_ipc_forward_slow(cap_call_handle_t chandle,
 sys_errno_t sys_ipc_answer_fast(cap_call_handle_t chandle, sysarg_t retval,
     sysarg_t arg1, sysarg_t arg2, sysarg_t arg3, sysarg_t arg4)
 {
-	kobject_t *kobj = cap_unpublish(TASK, chandle, KOBJECT_TYPE_CALL);
-	if (!kobj)
+	call_t *call = kobj_table_remove(&TASK->kobj_table, cap_handle_raw(chandle), &kobj_class_call);
+	if (!call)
 		return ENOENT;
 
-	call_t *call = kobj->call;
 	assert(!(call->flags & IPC_CALL_ANSWERED));
 
 	ipc_data_t saved_data;
@@ -682,8 +687,7 @@ sys_errno_t sys_ipc_answer_fast(cap_call_handle_t chandle, sysarg_t retval,
 
 	ipc_answer(&TASK->answerbox, call);
 
-	kobject_put(kobj);
-	cap_free(TASK, chandle);
+	kobj_put(&call->kobj);
 
 	return rc;
 }
@@ -698,11 +702,10 @@ sys_errno_t sys_ipc_answer_fast(cap_call_handle_t chandle, sysarg_t retval,
  */
 sys_errno_t sys_ipc_answer_slow(cap_call_handle_t chandle, uspace_ptr_ipc_data_t data)
 {
-	kobject_t *kobj = cap_unpublish(TASK, chandle, KOBJECT_TYPE_CALL);
-	if (!kobj)
+	call_t *call = kobj_table_lookup(&TASK->kobj_table, cap_handle_raw(chandle), &kobj_class_call);
+	if (!call)
 		return ENOENT;
 
-	call_t *call = kobj->call;
 	assert(!(call->flags & IPC_CALL_ANSWERED));
 
 	ipc_data_t saved_data;
@@ -716,20 +719,15 @@ sys_errno_t sys_ipc_answer_slow(cap_call_handle_t chandle, uspace_ptr_ipc_data_t
 
 	errno_t rc = copy_from_uspace(&call->data.args, data + offsetof(ipc_data_t, args),
 	    sizeof(call->data.args));
-	if (rc != EOK) {
-		/*
-		 * Republish the capability so that the call does not get lost.
-		 */
-		cap_publish(TASK, chandle, kobj);
+	if (rc != EOK)
 		return rc;
-	}
 
 	rc = answer_preprocess(call, saved ? &saved_data : NULL);
 
 	ipc_answer(&TASK->answerbox, call);
 
-	kobject_put(kobj);
-	cap_free(TASK, chandle);
+	kobj_put(&call->kobj);
+	kobj_put(kobj_table_remove(&TASK->kobj_table, cap_handle_raw(chandle), &kobj_class_call));
 
 	return rc;
 }
@@ -793,7 +791,7 @@ restart:
 		call->data.cap_handle = CAP_NIL;
 
 		STRUCT_TO_USPACE(calldata, &call->data);
-		kobject_put(call->kobject);
+		kobj_put(&call->kobj);
 
 		return EOK;
 	}
@@ -802,14 +800,14 @@ restart:
 		process_answer(call);
 
 		if (call->flags & IPC_CALL_DISCARD_ANSWER) {
-			kobject_put(call->kobject);
+			kobj_put(&call->kobj);
 			goto restart;
 		}
 
 		call->data.cap_handle = CAP_NIL;
 
 		STRUCT_TO_USPACE(calldata, &call->data);
-		kobject_put(call->kobject);
+		kobj_put(&call->kobj);
 
 		return EOK;
 	}
@@ -817,13 +815,11 @@ restart:
 	if (process_request(&TASK->answerbox, call))
 		goto restart;
 
-	cap_handle_t handle = CAP_NIL;
-	rc = cap_alloc(TASK, &handle);
-	if (rc != EOK) {
+	kobj_handle_t handle = kobj_table_insert(&TASK->kobj_table, kobj_ref(&call->kobj));
+	if (!handle)
 		goto error;
-	}
 
-	call->data.cap_handle = handle;
+	call->data.cap_handle = (cap_call_handle_t) handle;
 
 	/*
 	 * Copy the whole call->data to include the request label.
@@ -832,13 +828,12 @@ restart:
 	if (rc != EOK)
 		goto error;
 
-	kobject_add_ref(call->kobject);
-	cap_publish(TASK, handle, call->kobject);
+	kobj_put(&call->kobj);
 	return EOK;
 
 error:
-	if (cap_handle_valid(handle))
-		cap_free(TASK, handle);
+	if (handle)
+		(void) kobj_table_remove(&TASK->kobj_table, handle, NULL);
 
 	/*
 	 * The callee will not receive this call and no one else has a chance to
@@ -904,7 +899,7 @@ sys_errno_t sys_ipc_irq_unsubscribe(cap_irq_handle_t handle)
 	// TODO: This syscall is wholly unnecessary, there only needs to be one
 	//       syscall to destroy any handle.
 	//       Typechecking the destroyed reference is not kernel's obligation.
-	kobj_put(kobj_table_remove(&TASK->kobj_table, cap_handle_raw(handle)));
+	kobj_put(kobj_table_remove(&TASK->kobj_table, cap_handle_raw(handle), NULL));
 	return EOK;
 }
 

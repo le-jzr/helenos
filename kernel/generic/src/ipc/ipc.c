@@ -70,22 +70,6 @@ answerbox_t *ipc_box_0 = NULL;
 static SLAB_CACHE(call_cache, call_t, 1, NULL, NULL, 0);
 static SLAB_CACHE(answerbox_cache, answerbox_t, 1, NULL, NULL, 0);
 
-/** Initialize a call structure.
- *
- * @param call Call structure to be initialized.
- *
- */
-static void _ipc_call_init(call_t *call)
-{
-	memsetb(call, sizeof(*call), 0);
-	spinlock_initialize(&call->forget_lock, "forget_lock");
-	call->active = false;
-	call->forget = false;
-	call->sender = NULL;
-	call->callerbox = NULL;
-	call->buffer = NULL;
-}
-
 static void call_destroy(void *arg)
 {
 	call_t *call = (call_t *) arg;
@@ -97,9 +81,26 @@ static void call_destroy(void *arg)
 	slab_free(&call_cache, call);
 }
 
-kobject_ops_t call_kobject_ops = {
+const kobj_class_t kobj_class_call = {
 	.destroy = call_destroy
 };
+
+/** Initialize a call structure.
+ *
+ * @param call Call structure to be initialized.
+ *
+ */
+static void _ipc_call_init(call_t *call)
+{
+	memsetb(call, sizeof(*call), 0);
+	kobj_initialize(&call->kobj, &kobj_class_call);
+	spinlock_initialize(&call->forget_lock, "forget_lock");
+	call->active = false;
+	call->forget = false;
+	call->sender = NULL;
+	call->callerbox = NULL;
+	call->buffer = NULL;
+}
 
 /** Allocate and initialize a call structure.
  *
@@ -111,22 +112,11 @@ kobject_ops_t call_kobject_ops = {
  */
 call_t *ipc_call_alloc(void)
 {
-	// TODO: Allocate call and kobject in single allocation
-
 	call_t *call = slab_alloc(&call_cache, FRAME_ATOMIC);
 	if (!call)
 		return NULL;
 
-	kobject_t *kobj = kobject_alloc(0);
-	if (!kobj) {
-		slab_free(&call_cache, call);
-		return NULL;
-	}
-
 	_ipc_call_init(call);
-	kobject_initialize(kobj, KOBJECT_TYPE_CALL, call);
-	call->kobject = kobj;
-
 	return call;
 }
 
@@ -240,7 +230,7 @@ void _ipc_answer_free_call(call_t *call, bool selflocked)
 	if (call->forget) {
 		/* This is a forgotten call and call->sender is not valid. */
 		spinlock_unlock(&call->forget_lock);
-		kobject_put(call->kobject);
+		kobj_put(&call->kobj);
 		return;
 	} else {
 		/*
@@ -675,7 +665,7 @@ static void ipc_forget_call(call_t *call)
 	 * with it; to avoid working with a destroyed call_t structure, we
 	 * must hold a reference to it.
 	 */
-	kobject_add_ref(call->kobject);
+	kobj_ref(&call->kobj);
 
 	spinlock_unlock(&call->forget_lock);
 	spinlock_unlock(&TASK->active_calls_lock);
@@ -686,7 +676,7 @@ static void ipc_forget_call(call_t *call)
 
 	SYSIPC_OP(request_forget, call);
 
-	kobject_put(call->kobject);
+	kobj_put(&call->kobj);
 }
 
 static void ipc_forget_all_active_calls(void)
@@ -745,7 +735,7 @@ static void ipc_wait_for_all_answered_calls(void)
 
 		SYSIPC_OP(answer_process, call);
 
-		kobject_put(call->kobject);
+		kobj_put(&call->kobj);
 
 		/*
 		 * Now there may be some new phones and new hangup calls to
@@ -755,19 +745,6 @@ static void ipc_wait_for_all_answered_calls(void)
 		    phone_cap_cleanup_cb, NULL);
 		ipc_forget_all_active_calls();
 	}
-}
-
-static bool call_cap_cleanup_cb(cap_t *cap, void *arg)
-{
-	/*
-	 * Here we just free the capability and release the kobject.
-	 * The kernel answers the remaining calls elsewhere in ipc_cleanup().
-	 */
-	kobject_t *kobj = cap_unpublish(cap->task, cap->handle,
-	    KOBJECT_TYPE_CALL);
-	kobject_put(kobj);
-	cap_free(cap->task, cap->handle);
-	return true;
 }
 
 /** Clean up all IPC communication of the current task.
@@ -802,10 +779,6 @@ void ipc_cleanup(void)
 	/* Clean up kbox thread and communications */
 	ipc_kbox_cleanup();
 #endif
-
-	/* Destroy all call capabilities */
-	caps_apply_to_kobject_type(TASK, KOBJECT_TYPE_CALL, call_cap_cleanup_cb,
-	    NULL);
 
 	/* Answer all messages in 'calls' and 'dispatched_calls' queues */
 	ipc_cleanup_call_list(&TASK->answerbox, &TASK->answerbox.calls);

@@ -304,7 +304,7 @@ static void irq_destroy(void *arg)
 	slab_free(&irq_cache, irq);
 }
 
-static kobj_class_t kobj_class_irq = {
+static const kobj_class_t kobj_class_irq = {
 	.destroy = irq_destroy
 };
 
@@ -375,7 +375,7 @@ errno_t ipc_irq_subscribe(answerbox_t *box, inr_t inr, sysarg_t imethod,
 
 	errno_t rc = copy_to_uspace(uspace_handle, &handle, sizeof(handle));
 	if (rc != EOK)
-		kobj_put(kobj_table_remove(&TASK->kobj_table, handle));
+		kobj_put(kobj_table_remove(&TASK->kobj_table, handle, &kobj_class_irq));
 
 	return rc;
 }
