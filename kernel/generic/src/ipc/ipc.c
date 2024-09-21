@@ -93,7 +93,7 @@ static void call_destroy(void *arg)
 	if (call->buffer)
 		free(call->buffer);
 	if (call->caller_phone)
-		kobject_put(call->caller_phone->kobject);
+		ipc_phone_put(call->caller_phone);
 	slab_free(&call_cache, call);
 }
 
@@ -148,57 +148,6 @@ void ipc_answerbox_init(answerbox_t *box, task_t *task)
 	list_initialize(&box->irq_notifs);
 	atomic_store(&box->active_calls, 0);
 	box->task = task;
-}
-
-/** Connect a phone to an answerbox.
- *
- * This function must be passed a reference to phone->kobject.
- *
- * @param phone  Initialized phone structure.
- * @param box    Initialized answerbox structure.
- * @return       True if the phone was connected, false otherwise.
- */
-bool ipc_phone_connect(phone_t *phone, answerbox_t *box)
-{
-	bool connected;
-
-	mutex_lock(&phone->lock);
-	irq_spinlock_lock(&box->lock, true);
-
-	connected = box->active && (phone->state == IPC_PHONE_CONNECTING);
-	if (connected) {
-		phone->state = IPC_PHONE_CONNECTED;
-		phone->callee = box;
-		/* Pass phone->kobject reference to box->connected_phones */
-		list_append(&phone->link, &box->connected_phones);
-	}
-
-	irq_spinlock_unlock(&box->lock, true);
-	mutex_unlock(&phone->lock);
-
-	if (!connected) {
-		/* We still have phone->kobject's reference; drop it */
-		kobject_put(phone->kobject);
-	}
-
-	return connected;
-}
-
-/** Initialize a phone structure.
- *
- * @param phone Phone structure to be initialized.
- * @param caller Owning task.
- *
- */
-void ipc_phone_init(phone_t *phone, task_t *caller)
-{
-	mutex_initialize(&phone->lock, MUTEX_PASSIVE);
-	phone->caller = caller;
-	phone->callee = NULL;
-	phone->state = IPC_PHONE_FREE;
-	atomic_store(&phone->active_calls, 0);
-	phone->label = 0;
-	phone->kobject = NULL;
 }
 
 /** Helper function to facilitate synchronous calls.
@@ -277,7 +226,7 @@ errno_t ipc_call_sync(phone_t *phone, call_t *request)
 /** Answer a message which was not dispatched and is not listed in any queue.
  *
  * @param call       Call structure to be answered.
- * @param selflocked If true, then TASK->answebox is locked.
+ * @param selflocked If true, then TASK->answerbox is locked.
  *
  */
 void _ipc_answer_free_call(call_t *call, bool selflocked)
@@ -348,18 +297,19 @@ static void _ipc_call_actions_internal(phone_t *phone, call_t *call,
 {
 	task_t *caller = phone->caller;
 
-	call->caller_phone = phone;
-	kobject_add_ref(phone->kobject);
+	call->caller_phone = ipc_phone_ref(phone);
 
 	if (preforget) {
 		call->forget = true;
 	} else {
-		atomic_inc(&phone->active_calls);
+		ipc_phone_add_call(phone);
+		ipc_phone_ref(phone);
+
 		if (call->callerbox)
 			atomic_inc(&call->callerbox->active_calls);
 		else
 			atomic_inc(&caller->answerbox.active_calls);
-		kobject_add_ref(phone->kobject);
+
 		call->sender = caller;
 		call->active = true;
 		spinlock_lock(&caller->active_calls_lock);
@@ -694,14 +644,14 @@ restart_phones:
 
 			task_release(phone->caller);
 
-			kobject_put(phone->kobject);
+			ipc_phone_put(phone);
 
 			/* Must start again */
 			goto restart_phones;
 		}
 
 		mutex_unlock(&phone->lock);
-		kobject_put(phone->kobject);
+		ipc_phone_put(phone);
 	}
 
 	irq_spinlock_unlock(&box->lock, true);
@@ -730,9 +680,9 @@ static void ipc_forget_call(call_t *call)
 	spinlock_unlock(&call->forget_lock);
 	spinlock_unlock(&TASK->active_calls_lock);
 
-	atomic_dec(&call->caller_phone->active_calls);
 	atomic_dec(&TASK->answerbox.active_calls);
-	kobject_put(call->caller_phone->kobject);
+	ipc_phone_remove_call(call->caller_phone);
+	ipc_phone_put(call->caller_phone);
 
 	SYSIPC_OP(request_forget, call);
 
@@ -901,36 +851,7 @@ static void ipc_print_call_list(list_t *list)
 
 static bool print_task_phone_cb(cap_t *cap, void *arg)
 {
-	phone_t *phone = cap->kobject->phone;
-
-	mutex_lock(&phone->lock);
-	if (phone->state != IPC_PHONE_FREE) {
-		printf("%-11d %7" PRIun " ", (int) cap_handle_raw(cap->handle),
-		    atomic_load(&phone->active_calls));
-
-		switch (phone->state) {
-		case IPC_PHONE_CONNECTING:
-			printf("connecting");
-			break;
-		case IPC_PHONE_CONNECTED:
-			printf("connected to %" PRIu64 " (%s)",
-			    phone->callee->task->taskid,
-			    phone->callee->task->name);
-			break;
-		case IPC_PHONE_SLAMMED:
-			printf("slammed by %p", phone->callee);
-			break;
-		case IPC_PHONE_HUNGUP:
-			printf("hung up to %p", phone->callee);
-			break;
-		default:
-			break;
-		}
-
-		printf("\n");
-	}
-	mutex_unlock(&phone->lock);
-
+	ipc_phone_print_state(cap->kobject->phone, cap_handle_raw(cap->handle));
 	return true;
 }
 

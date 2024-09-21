@@ -66,6 +66,7 @@ generic_src += files(
 	'src/ipc/ipc.c',
 	'src/ipc/ipcrsc.c',
 	'src/ipc/irq.c',
+	'src/ipc/phone.c',
 	'src/ipc/ops/conctmeto.c',
 	'src/ipc/ops/concttome.c',
 	'src/ipc/ops/dataread.c',

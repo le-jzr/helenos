@@ -87,7 +87,7 @@ static errno_t answer_preprocess(call_t *answer, ipc_data_t *olddata)
 	kobject_add_ref(pobj);
 
 	/* Set the recipient-assigned label */
-	pobj->phone->label = ipc_get_arg5(&answer->data);
+	ipc_phone_set_label(pobj->phone, ipc_get_arg5(&answer->data));
 
 	/* Restore phone handle in answer's ARG5 */
 	ipc_set_arg5(&answer->data, ipc_get_arg5(olddata));

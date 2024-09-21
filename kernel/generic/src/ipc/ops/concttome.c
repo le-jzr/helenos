@@ -48,7 +48,7 @@ static int request_process(call_t *call, answerbox_t *box)
 		/*
 		 * Set the sender-assigned label to the new phone.
 		 */
-		pobj->phone->label = ipc_get_arg5(&call->data);
+		ipc_phone_set_label(pobj->phone, ipc_get_arg5(&call->data));
 	}
 	call->priv = (sysarg_t) pobj;
 	ipc_set_arg5(&call->data, cap_handle_raw(phandle));

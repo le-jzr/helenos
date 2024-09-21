@@ -62,19 +62,7 @@ typedef enum {
 } ipc_phone_state_t;
 
 /** Structure identifying phone (in TASK structure) */
-typedef struct phone {
-	mutex_t lock;
-	link_t link;
-	struct task *caller;
-	struct answerbox *callee;
-	/* A call prepared for hangup ahead of time, so that it cannot fail. */
-	struct call *hangup_call;
-	ipc_phone_state_t state;
-	atomic_size_t active_calls;
-	/** User-defined label */
-	sysarg_t label;
-	kobject_t *kobject;
-} phone_t;
+typedef struct phone phone_t;
 
 typedef struct answerbox {
 	IRQ_SPINLOCK_DECLARE(lock);
@@ -192,6 +180,14 @@ extern void ipc_answerbox_slam_phones(answerbox_t *, bool);
 extern void ipc_cleanup_call_list(answerbox_t *, list_t *);
 
 extern void ipc_print_task(task_id_t);
+
+void ipc_phone_put(phone_t *phone);
+void ipc_phone_set_label(phone_t *phone, sysarg_t label);
+void ipc_phone_print_state(phone_t *phone, int handle);
+
+void ipc_phone_add_call(phone_t *phone);
+void ipc_phone_remove_call(phone_t *phone);
+bool ipc_phone_within_call_limit(phone_t *phone);
 
 #endif
 
