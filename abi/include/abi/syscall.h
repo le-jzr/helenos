@@ -44,6 +44,8 @@
 typedef enum {
 	SYS_KIO = 0,
 
+	SYS_KOBJ_PUT,
+
 	SYS_THREAD_CREATE,
 	SYS_THREAD_EXIT,
 	SYS_THREAD_GET_ID,
