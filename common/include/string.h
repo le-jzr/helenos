@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 Jiri Svoboda
+ * Copyright (c) 2024 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,19 +27,18 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup libc
- * @{
- */
-/** @file
- */
+#ifndef COMMON_INCLUDE_STRING_H_
+#define COMMON_INCLUDE_STRING_H_
 
-#ifndef _LIBC_STRING_H_
-#define _LIBC_STRING_H_
+// TODO: generic
+extern void *strchr(const void *s, int c);
+extern void *memchr(const void *s, int c, size_t n);
+extern void *memrchr(const void *s, int c, size_t n);
 
-#if defined(_HELENOS_SOURCE) && !defined(_REALLY_WANT_STRING_H) && \
-    !defined(_LIBC_SOURCE)
-#error Please use str.h and mem.h instead
-#endif
+extern void *memcpy(void *restrict s1, const void *restrict s2, size_t n);
+extern size_t strlen(const char *s);
+
+// TODO: generic
 
 #include <_bits/decls.h>
 #include <_bits/size_t.h>
@@ -74,7 +74,4 @@ extern char *strndup(const char *, size_t);
 
 __C_DECLS_END;
 
-#endif
-
-/** @}
- */
+#endif /* COMMON_INCLUDE_STRING_H_ */

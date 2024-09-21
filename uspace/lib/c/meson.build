@@ -72,6 +72,7 @@ src += files(
 	'common/stdc/bsearch.c',
 	'common/stdc/qsort.c',
 	'common/stdc/calloc.c',
+	'common/stdc/uchar.c',
 	'common/gsort.c',
 	'common/str.c',
 	'common/str_error.c',
@@ -202,6 +203,7 @@ test_src = files(
 	'test/str.c',
 	'test/string.c',
 	'test/strtol.c',
+	'test/uchar.c',
 	'test/uuid.c',
 )
 
