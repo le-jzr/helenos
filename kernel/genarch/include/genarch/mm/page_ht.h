@@ -59,7 +59,6 @@
 extern const as_operations_t as_ht_operations;
 extern const page_mapping_operations_t ht_mapping_operations;
 
-extern slab_cache_t *pte_cache;
 extern hash_table_t page_ht;
 extern const hash_table_ops_t ht_ops;
 

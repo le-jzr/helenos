@@ -214,9 +214,7 @@ void main_bsp_separated_stack(void)
 	ARCH_OP(pre_mm_init);
 	km_identity_init();
 	frame_init();
-	slab_cache_init();
 	malloc_init();
-	ra_init();
 	sysinfo_init();
 	as_init();
 	page_init();
@@ -244,10 +242,8 @@ void main_bsp_separated_stack(void)
 	clock_counter_init();
 	timeout_init();
 	scheduler_init();
-	caps_init();
 	task_init();
 	thread_init();
-	sys_waitq_init();
 
 	sysinfo_set_item_data("boot_args", NULL, bargs, str_size(bargs) + 1);
 
@@ -259,7 +255,6 @@ void main_bsp_separated_stack(void)
 	} else
 		printf("No init binaries found.\n");
 
-	ipc_init();
 	event_init();
 	kio_init();
 	log_init();

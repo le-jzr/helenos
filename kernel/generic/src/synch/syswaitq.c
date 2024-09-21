@@ -45,12 +45,12 @@
 
 #include <stdint.h>
 
-static slab_cache_t *waitq_cache;
+static SLAB_CACHE(waitq_cache, waitq_t, 1, NULL, NULL, 0);
 
 static void waitq_destroy(void *arg)
 {
 	waitq_t *wq = (waitq_t *) arg;
-	slab_free(waitq_cache, wq);
+	slab_free(&waitq_cache, wq);
 }
 
 kobject_ops_t waitq_kobject_ops = {
@@ -64,13 +64,6 @@ static bool waitq_cap_cleanup_cb(cap_t *cap, void *arg)
 	kobject_put(kobj);
 	cap_free(cap->task, cap->handle);
 	return true;
-}
-
-/** Initialize the user waitq subsystem */
-void sys_waitq_init(void)
-{
-	waitq_cache = slab_cache_create("waitq_t", sizeof(waitq_t), 0, NULL,
-	    NULL, 0);
 }
 
 /** Clean-up all waitq capabilities held by the exiting task */
@@ -89,14 +82,14 @@ void sys_waitq_task_cleanup(void)
  */
 sys_errno_t sys_waitq_create(uspace_ptr_cap_waitq_handle_t whandle)
 {
-	waitq_t *wq = slab_alloc(waitq_cache, FRAME_ATOMIC);
+	waitq_t *wq = slab_alloc(&waitq_cache, FRAME_ATOMIC);
 	if (!wq)
 		return (sys_errno_t) ENOMEM;
 	waitq_initialize(wq);
 
 	kobject_t *kobj = kobject_alloc(0);
 	if (!kobj) {
-		slab_free(waitq_cache, wq);
+		slab_free(&waitq_cache, wq);
 		return (sys_errno_t) ENOMEM;
 	}
 	kobject_initialize(kobj, KOBJECT_TYPE_WAITQ, wq);
@@ -104,7 +97,7 @@ sys_errno_t sys_waitq_create(uspace_ptr_cap_waitq_handle_t whandle)
 	cap_handle_t handle;
 	errno_t rc = cap_alloc(TASK, &handle);
 	if (rc != EOK) {
-		slab_free(waitq_cache, wq);
+		slab_free(&waitq_cache, wq);
 		kobject_free(kobj);
 		return (sys_errno_t) rc;
 	}
@@ -113,7 +106,7 @@ sys_errno_t sys_waitq_create(uspace_ptr_cap_waitq_handle_t whandle)
 	if (rc != EOK) {
 		cap_free(TASK, handle);
 		kobject_free(kobj);
-		slab_free(waitq_cache, wq);
+		slab_free(&waitq_cache, wq);
 		return (sys_errno_t) rc;
 	}
 

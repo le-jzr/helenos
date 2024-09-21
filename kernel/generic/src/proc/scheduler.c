@@ -65,7 +65,7 @@
 #include <log.h>
 #include <stacktrace.h>
 
-atomic_size_t nrdy;  /**< Number of ready threads in the system. */
+atomic_size_t nrdy = ATOMIC_VAR_INIT(0);  /**< Number of ready threads in the system. */
 
 #ifdef CONFIG_FPU_LAZY
 void scheduler_fpu_lazy_request(void)

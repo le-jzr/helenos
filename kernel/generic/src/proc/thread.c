@@ -102,8 +102,6 @@ odict_t threads;
 IRQ_SPINLOCK_STATIC_INITIALIZE(tidlock);
 static thread_id_t last_tid = 0;
 
-static slab_cache_t *thread_cache;
-
 static void *threads_getkey(odlink_t *);
 static int threads_cmp(void *, void *);
 
@@ -172,6 +170,8 @@ static size_t thr_destructor(void *obj)
 	return STACK_FRAMES;  /* number of frames freed */
 }
 
+static SLAB_CACHE(thread_cache, thread_t, 1, thr_constructor, thr_destructor, 0);
+
 /** Initialize threads
  *
  * Initialize kernel threads support.
@@ -180,10 +180,6 @@ static size_t thr_destructor(void *obj)
 void thread_init(void)
 {
 	THREAD = NULL;
-
-	atomic_store(&nrdy, 0);
-	thread_cache = slab_cache_create("thread_t", sizeof(thread_t), _Alignof(thread_t),
-	    thr_constructor, thr_destructor, 0);
 
 	odict_initialize(&threads, threads_getkey, threads_cmp);
 }
@@ -229,14 +225,14 @@ void thread_start(thread_t *thread)
 thread_t *thread_create(void (*func)(void *), void *arg, task_t *task,
     thread_flags_t flags, const char *name)
 {
-	thread_t *thread = (thread_t *) slab_alloc(thread_cache, FRAME_ATOMIC);
+	thread_t *thread = (thread_t *) slab_alloc(&thread_cache, FRAME_ATOMIC);
 	if (!thread)
 		return NULL;
 
 	refcount_init(&thread->refcount);
 
 	if (thread_create_arch(thread, flags) != EOK) {
-		slab_free(thread_cache, thread);
+		slab_free(&thread_cache, thread);
 		return NULL;
 	}
 
@@ -365,7 +361,7 @@ static void thread_destroy(void *obj)
 	task_release(thread->task);
 	thread->task = NULL;
 
-	slab_free(thread_cache, thread);
+	slab_free(&thread_cache, thread);
 }
 
 void thread_put(thread_t *thread)

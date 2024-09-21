@@ -56,7 +56,7 @@
 #include <synch/spinlock.h>
 #include <stdlib.h>
 
-static slab_cache_t *ra_segment_cache;
+static SLAB_CACHE(ra_segment_cache, ra_segment_t, 1, NULL, NULL, SLAB_CACHE_MAGDEFERRED);
 
 /** Return the hash of the key stored in the item */
 static size_t used_hash(const ht_link_t *item)
@@ -100,7 +100,7 @@ static ra_segment_t *ra_segment_create(uintptr_t base)
 {
 	ra_segment_t *seg;
 
-	seg = slab_alloc(ra_segment_cache, FRAME_ATOMIC);
+	seg = slab_alloc(&ra_segment_cache, FRAME_ATOMIC);
 	if (!seg)
 		return NULL;
 
@@ -115,7 +115,7 @@ static ra_segment_t *ra_segment_create(uintptr_t base)
 
 static void ra_segment_destroy(ra_segment_t *seg)
 {
-	slab_free(ra_segment_cache, seg);
+	slab_free(&ra_segment_cache, seg);
 }
 
 static ra_span_t *ra_span_create(uintptr_t base, size_t size)
@@ -447,12 +447,6 @@ void ra_free(ra_arena_t *arena, uintptr_t base, size_t size)
 
 	panic("Freeing to wrong arena (base=%" PRIxPTR ", size=%zd).",
 	    base, size);
-}
-
-void ra_init(void)
-{
-	ra_segment_cache = slab_cache_create("ra_segment_t",
-	    sizeof(ra_segment_t), 0, NULL, NULL, SLAB_CACHE_MAGDEFERRED);
 }
 
 /** @}

@@ -43,12 +43,14 @@
 #include <mm/slab.h>
 #include <stdlib.h>
 
+static SLAB_CACHE(phone_cache, phone_t, 1, NULL, NULL, 0);
+
 static void phone_destroy(void *arg)
 {
 	phone_t *phone = (phone_t *) arg;
 	if (phone->hangup_call)
 		kobject_put(phone->hangup_call->kobject);
-	slab_free(phone_cache, phone);
+	slab_free(&phone_cache, phone);
 }
 
 kobject_ops_t phone_kobject_ops = {
@@ -70,7 +72,7 @@ errno_t phone_alloc(task_t *task, bool publish, cap_phone_handle_t *phandle,
 	cap_handle_t handle;
 	errno_t rc = cap_alloc(task, &handle);
 	if (rc == EOK) {
-		phone_t *phone = slab_alloc(phone_cache, FRAME_ATOMIC);
+		phone_t *phone = slab_alloc(&phone_cache, FRAME_ATOMIC);
 		if (!phone) {
 			cap_free(TASK, handle);
 			return ENOMEM;
@@ -78,13 +80,13 @@ errno_t phone_alloc(task_t *task, bool publish, cap_phone_handle_t *phandle,
 		kobject_t *kobj = kobject_alloc(FRAME_ATOMIC);
 		if (!kobj) {
 			cap_free(TASK, handle);
-			slab_free(phone_cache, phone);
+			slab_free(&phone_cache, phone);
 			return ENOMEM;
 		}
 		call_t *hcall = ipc_call_alloc();
 		if (!hcall) {
 			cap_free(TASK, handle);
-			slab_free(phone_cache, phone);
+			slab_free(&phone_cache, phone);
 			free(kobj);
 			return ENOMEM;
 		}

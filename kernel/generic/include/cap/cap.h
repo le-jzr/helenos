@@ -125,7 +125,6 @@ typedef struct cap_info {
 	ra_arena_t *handles;
 } cap_info_t;
 
-extern void caps_init(void);
 extern errno_t caps_task_alloc(struct task *);
 extern void caps_task_free(struct task *);
 extern void caps_task_init(struct task *);

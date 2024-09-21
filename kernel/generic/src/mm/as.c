@@ -87,14 +87,17 @@
  */
 const as_operations_t *as_operations = NULL;
 
+_NO_TRACE static errno_t as_constructor(void *obj, unsigned int flags);
+_NO_TRACE static size_t as_destructor(void *obj);
+
 /** Cache for as_t objects */
-static slab_cache_t *as_cache;
+static SLAB_CACHE(as_cache, as_t, 1, as_constructor, as_destructor, SLAB_CACHE_MAGDEFERRED);
 
 /** Cache for as_page_mapping_t objects */
-static slab_cache_t *as_page_mapping_cache;
+static SLAB_CACHE(as_page_mapping_cache, as_page_mapping_t, 1, NULL, NULL, SLAB_CACHE_MAGDEFERRED);
 
 /** Cache for used_space_ival_t objects */
-static slab_cache_t *used_space_ival_cache;
+static SLAB_CACHE(used_space_ival_cache, used_space_ival_t, 1, NULL, NULL, SLAB_CACHE_MAGDEFERRED);
 
 /** ASID subsystem lock.
  *
@@ -146,15 +149,6 @@ void as_init(void)
 {
 	as_arch_init();
 
-	as_cache = slab_cache_create("as_t", sizeof(as_t), 0,
-	    as_constructor, as_destructor, SLAB_CACHE_MAGDEFERRED);
-
-	as_page_mapping_cache = slab_cache_create("as_page_mapping_t",
-	    sizeof(as_page_mapping_t), 0, NULL, NULL, SLAB_CACHE_MAGDEFERRED);
-
-	used_space_ival_cache = slab_cache_create("used_space_ival_t",
-	    sizeof(used_space_ival_t), 0, NULL, NULL, SLAB_CACHE_MAGDEFERRED);
-
 	AS_KERNEL = as_create(FLAG_AS_KERNEL);
 	if (!AS_KERNEL)
 		panic("Cannot create kernel address space.");
@@ -168,7 +162,7 @@ void as_init(void)
  */
 as_t *as_create(unsigned int flags)
 {
-	as_t *as = (as_t *) slab_alloc(as_cache, FRAME_ATOMIC);
+	as_t *as = (as_t *) slab_alloc(&as_cache, FRAME_ATOMIC);
 	if (!as)
 		return NULL;
 
@@ -269,7 +263,7 @@ retry:
 	page_table_destroy(NULL);
 #endif
 
-	slab_free(as_cache, as);
+	slab_free(&as_cache, as);
 }
 
 /** Hold a reference to an address space.
@@ -667,7 +661,7 @@ _NO_TRACE void as_pagemap_insert(as_pagemap_t *pagemap, uintptr_t vaddr,
 {
 	as_page_mapping_t *mapping;
 
-	mapping = slab_alloc(as_page_mapping_cache, 0);
+	mapping = slab_alloc(&as_page_mapping_cache, 0);
 	mapping->pagemap = pagemap;
 	odlink_initialize(&mapping->lpagemap);
 	mapping->vaddr = vaddr;
@@ -682,7 +676,7 @@ _NO_TRACE void as_pagemap_insert(as_pagemap_t *pagemap, uintptr_t vaddr,
 _NO_TRACE void as_pagemap_remove(as_page_mapping_t *mapping)
 {
 	odict_remove(&mapping->lpagemap);
-	slab_free(as_page_mapping_cache, mapping);
+	slab_free(&as_page_mapping_cache, mapping);
 }
 
 /** Remove reference to address space area share info.
@@ -2001,7 +1995,7 @@ static void used_space_remove_ival(used_space_ival_t *ival)
 {
 	ival->used_space->pages -= ival->count;
 	odict_remove(&ival->lused_space);
-	slab_free(used_space_ival_cache, ival);
+	slab_free(&used_space_ival_cache, ival);
 }
 
 /** Shorten used space interval.
@@ -2077,7 +2071,7 @@ bool used_space_insert(used_space_t *used_space, uintptr_t page, size_t count)
 		b->count += count;
 	} else {
 		/* Create new interval */
-		ival = slab_alloc(used_space_ival_cache, 0);
+		ival = slab_alloc(&used_space_ival_cache, 0);
 		ival->used_space = used_space;
 		odlink_initialize(&ival->lused_space);
 		ival->page = page;

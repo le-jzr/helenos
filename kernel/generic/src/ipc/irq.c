@@ -302,7 +302,7 @@ static void irq_destroy(void *arg)
 
 	/* Free up the IRQ code and associated structures. */
 	code_free(irq->notif_cfg.code);
-	slab_free(irq_cache, irq);
+	slab_free(&irq_cache, irq);
 }
 
 kobject_ops_t irq_kobject_ops = {
@@ -349,7 +349,7 @@ errno_t ipc_irq_subscribe(answerbox_t *box, inr_t inr, sysarg_t imethod,
 		return rc;
 	}
 
-	irq_t *irq = (irq_t *) slab_alloc(irq_cache, FRAME_ATOMIC);
+	irq_t *irq = slab_alloc(&irq_cache, FRAME_ATOMIC);
 	if (!irq) {
 		cap_free(TASK, handle);
 		return ENOMEM;
@@ -358,7 +358,7 @@ errno_t ipc_irq_subscribe(answerbox_t *box, inr_t inr, sysarg_t imethod,
 	kobject_t *kobject = kobject_alloc(FRAME_ATOMIC);
 	if (!kobject) {
 		cap_free(TASK, handle);
-		slab_free(irq_cache, irq);
+		slab_free(&irq_cache, irq);
 		return ENOMEM;
 	}
 

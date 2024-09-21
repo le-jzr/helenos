@@ -121,34 +121,20 @@ IRQ_SPINLOCK_STATIC_INITIALIZE(slab_cache_lock);
 static LIST_INITIALIZE(slab_cache_list);
 
 /** Magazine cache */
-static slab_cache_t mag_cache;
+static SLAB_CACHE(mag_cache, slab_magazine_t, 1, NULL, NULL, SLAB_CACHE_NOMAGAZINE | SLAB_CACHE_SLINSIDE);
 
 /** Cache for cache descriptors */
-static slab_cache_t slab_cache_cache;
-
-/** Cache for per-CPU magazines of caches */
-static slab_cache_t slab_mag_cache;
+static SLAB_CACHE(slab_cache_cache, slab_cache_t, 1, NULL, NULL, SLAB_CACHE_NOMAGAZINE | SLAB_CACHE_SLINSIDE);
 
 /** Cache for external slab descriptors
- * This time we want per-cpu cache, so do not make it static
  * - using slab for internal slab structures will not deadlock,
  *   as all slab structures are 'small' - control structures of
  *   their caches do not require further allocation
  */
-static slab_cache_t *slab_extern_cache;
+static SLAB_CACHE(slab_extern_cache, slab_t, 1, NULL, NULL, SLAB_CACHE_SLINSIDE | SLAB_CACHE_MAGDEFERRED);
 
-/** Slab descriptor */
-typedef struct {
-	slab_cache_t *cache;  /**< Pointer to parent cache. */
-	link_t link;          /**< List of full/partial slabs. */
-	void *start;          /**< Start address of first available item. */
-	size_t available;     /**< Count of available items in this slab. */
-	size_t nextavail;     /**< The index of next available item. */
-} slab_t;
-
-#ifdef CONFIG_DEBUG
-static unsigned int _slab_initialized = 0;
-#endif
+/** Cache for per-CPU magazines of caches (initialized in slab_enable_cpucache). */
+static slab_cache_t slab_mag_cache;
 
 /*
  * Slab allocation functions
@@ -173,7 +159,7 @@ _NO_TRACE static slab_t *slab_space_alloc(slab_cache_t *cache,
 	size_t fsize;
 
 	if (!(cache->flags & SLAB_CACHE_SLINSIDE)) {
-		slab = slab_alloc(slab_extern_cache, flags);
+		slab = slab_alloc(&slab_extern_cache, flags);
 		if (!slab) {
 			frame_free(KA2PA(data), cache->frames);
 			return NULL;
@@ -209,7 +195,7 @@ _NO_TRACE static size_t slab_space_free(slab_cache_t *cache, slab_t *slab)
 {
 	frame_free(KA2PA(slab->start), slab->cache->frames);
 	if (!(cache->flags & SLAB_CACHE_SLINSIDE))
-		slab_free(slab_extern_cache, slab);
+		slab_free(&slab_extern_cache, slab);
 
 	atomic_dec(&cache->allocated_slabs);
 
@@ -423,6 +409,27 @@ _NO_TRACE static slab_magazine_t *get_full_current_mag(slab_cache_t *cache)
 	return newmag;
 }
 
+/** Initialize mag_cache structure in slab cache
+ *
+ */
+_NO_TRACE static bool make_magcache(slab_cache_t *cache)
+{
+	assert(slab_mag_cache.size > 0);
+
+	cache->mag_cache = slab_alloc(&slab_mag_cache, FRAME_ATOMIC);
+	if (!cache->mag_cache)
+		return false;
+
+	size_t i;
+	for (i = 0; i < config.cpu_count; i++) {
+		memsetb(&cache->mag_cache[i], sizeof(cache->mag_cache[i]), 0);
+		irq_spinlock_initialize(&cache->mag_cache[i].lock,
+		    "slab.cache.mag_cache[].lock");
+	}
+
+	return true;
+}
+
 /** Try to find object in CPU-cache magazines
  *
  * @return Pointer to object or NULL if not available
@@ -431,6 +438,9 @@ _NO_TRACE static slab_magazine_t *get_full_current_mag(slab_cache_t *cache)
 _NO_TRACE static void *magazine_obj_get(slab_cache_t *cache)
 {
 	if (!CPU)
+		return NULL;
+
+	if (!cache->mag_cache && !make_magcache(cache))
 		return NULL;
 
 	irq_spinlock_lock(&cache->mag_cache[CPU->id].lock, true);
@@ -513,6 +523,9 @@ _NO_TRACE static int magazine_obj_put(slab_cache_t *cache, void *obj)
 	if (!CPU)
 		return -1;
 
+	if (!cache->mag_cache && !make_magcache(cache))
+		return -1;
+
 	irq_spinlock_lock(&cache->mag_cache[CPU->id].lock, true);
 
 	slab_magazine_t *mag = make_empty_current_mag(cache);
@@ -539,11 +552,7 @@ _NO_TRACE static int magazine_obj_put(slab_cache_t *cache, void *obj)
  */
 _NO_TRACE static size_t comp_objects(slab_cache_t *cache)
 {
-	if (cache->flags & SLAB_CACHE_SLINSIDE)
-		return (FRAMES2SIZE(cache->frames) - sizeof(slab_t)) /
-		    cache->size;
-	else
-		return FRAMES2SIZE(cache->frames) / cache->size;
+	return COMP_OBJECTS(cache->flags, FRAMES2SIZE(cache->frames), cache->size);
 }
 
 /** Return wasted space in slab
@@ -551,34 +560,7 @@ _NO_TRACE static size_t comp_objects(slab_cache_t *cache)
  */
 _NO_TRACE static size_t badness(slab_cache_t *cache)
 {
-	size_t objects = comp_objects(cache);
-	size_t ssize = FRAMES2SIZE(cache->frames);
-
-	if (cache->flags & SLAB_CACHE_SLINSIDE)
-		ssize -= sizeof(slab_t);
-
-	return ssize - objects * cache->size;
-}
-
-/** Initialize mag_cache structure in slab cache
- *
- */
-_NO_TRACE static bool make_magcache(slab_cache_t *cache)
-{
-	assert(_slab_initialized >= 2);
-
-	cache->mag_cache = slab_alloc(&slab_mag_cache, FRAME_ATOMIC);
-	if (!cache->mag_cache)
-		return false;
-
-	size_t i;
-	for (i = 0; i < config.cpu_count; i++) {
-		memsetb(&cache->mag_cache[i], sizeof(cache->mag_cache[i]), 0);
-		irq_spinlock_initialize(&cache->mag_cache[i].lock,
-		    "slab.cache.mag_cache[].lock");
-	}
-
-	return true;
+	return BADNESS(FRAMES2SIZE(cache->frames), cache->size, cache->flags);
 }
 
 /** Initialize allocated memory as a slab cache
@@ -610,9 +592,6 @@ _NO_TRACE static void _slab_cache_create(slab_cache_t *cache, const char *name,
 	irq_spinlock_initialize(&cache->slablock, "slab.cache.slablock");
 	irq_spinlock_initialize(&cache->maglock, "slab.cache.maglock");
 
-	if (!(cache->flags & SLAB_CACHE_NOMAGAZINE))
-		(void) make_magcache(cache);
-
 	/* Compute slab sizes, object counts in slabs etc. */
 	if (cache->size < SLAB_INSIDE_SIZE)
 		cache->flags |= SLAB_CACHE_SLINSIDE;
@@ -620,7 +599,7 @@ _NO_TRACE static void _slab_cache_create(slab_cache_t *cache, const char *name,
 	/* Minimum slab frames */
 	cache->frames = SIZE2FRAMES(cache->size);
 
-	while (badness(cache) > SLAB_MAX_BADNESS(cache))
+	while (badness(cache) > SLAB_MAX_BADNESS(cache->frames))
 		cache->frames <<= 1;
 
 	cache->objects = comp_objects(cache);
@@ -628,11 +607,6 @@ _NO_TRACE static void _slab_cache_create(slab_cache_t *cache, const char *name,
 	/* If info fits in, put it inside */
 	if (badness(cache) > sizeof(slab_t))
 		cache->flags |= SLAB_CACHE_SLINSIDE;
-
-	/* Add cache to cache list */
-	irq_spinlock_lock(&slab_cache_lock, true);
-	list_append(&cache->link, &slab_cache_list);
-	irq_spinlock_unlock(&slab_cache_lock, true);
 }
 
 /** Create slab cache
@@ -661,7 +635,7 @@ slab_cache_t *slab_cache_create(const char *name, size_t size, size_t align,
  */
 _NO_TRACE static size_t _slab_reclaim(slab_cache_t *cache, unsigned int flags)
 {
-	if (cache->flags & SLAB_CACHE_NOMAGAZINE)
+	if (!cache->mag_cache)
 		return 0; /* Nothing to do */
 
 	/*
@@ -749,9 +723,8 @@ void slab_cache_destroy(slab_cache_t *cache)
 	    (!list_empty(&cache->partial_slabs)))
 		panic("Destroying cache that is not empty.");
 
-	if (!(cache->flags & SLAB_CACHE_NOMAGAZINE) && cache->mag_cache) {
+	if (cache->mag_cache)
 		slab_free(&slab_mag_cache, cache->mag_cache);
-	}
 
 	slab_free(&slab_cache_cache, cache);
 }
@@ -765,6 +738,13 @@ void *slab_alloc(slab_cache_t *cache, unsigned int flags)
 	ipl_t ipl = interrupts_disable();
 
 	void *result = NULL;
+
+	/* Add cache to cache list, if not already present. */
+	if (!link_in_use(&cache->link)) {
+		irq_spinlock_lock(&slab_cache_lock, true);
+		list_append(&cache->link, &slab_cache_list);
+		irq_spinlock_unlock(&slab_cache_lock, true);
+	}
 
 	if (!(cache->flags & SLAB_CACHE_NOMAGAZINE))
 		result = magazine_obj_get(cache);
@@ -870,28 +850,6 @@ void slab_print_list(void)
 	}
 }
 
-void slab_cache_init(void)
-{
-	/* Initialize magazine cache */
-	_slab_cache_create(&mag_cache, "slab_magazine_t",
-	    sizeof(slab_magazine_t) + SLAB_MAG_SIZE * sizeof(void *),
-	    sizeof(uintptr_t), NULL, NULL, SLAB_CACHE_NOMAGAZINE |
-	    SLAB_CACHE_SLINSIDE);
-
-	/* Initialize slab_cache cache */
-	_slab_cache_create(&slab_cache_cache, "slab_cache_cache",
-	    sizeof(slab_cache_cache), sizeof(uintptr_t), NULL, NULL,
-	    SLAB_CACHE_NOMAGAZINE | SLAB_CACHE_SLINSIDE);
-
-	/* Initialize external slab cache */
-	slab_extern_cache = slab_cache_create("slab_t", sizeof(slab_t), 0,
-	    NULL, NULL, SLAB_CACHE_SLINSIDE | SLAB_CACHE_MAGDEFERRED);
-
-#ifdef CONFIG_DEBUG
-	_slab_initialized = 1;
-#endif
-}
-
 /** Enable cpu_cache
  *
  * Kernel calls this function, when it knows the real number of
@@ -901,15 +859,14 @@ void slab_cache_init(void)
  */
 void slab_enable_cpucache(void)
 {
-#ifdef CONFIG_DEBUG
-	_slab_initialized = 2;
-#endif
-
 	_slab_cache_create(&slab_mag_cache, "slab_mag_cache",
 	    sizeof(slab_mag_cache_t) * config.cpu_count, sizeof(uintptr_t),
 	    NULL, NULL, SLAB_CACHE_NOMAGAZINE | SLAB_CACHE_SLINSIDE);
 
 	irq_spinlock_lock(&slab_cache_lock, false);
+
+	/* Add mag cache to list of caches to avoid deadlock. */
+	list_append(&slab_mag_cache.link, &slab_cache_list);
 
 	list_foreach(slab_cache_list, link, slab_cache_t, slab) {
 		if ((slab->flags & SLAB_CACHE_MAGDEFERRED) !=

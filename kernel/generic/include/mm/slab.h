@@ -47,8 +47,8 @@
 #define SLAB_INSIDE_SIZE  (PAGE_SIZE >> 3)
 
 /** Maximum wasted space we allow for cache */
-#define SLAB_MAX_BADNESS(cache) \
-	(FRAMES2SIZE((cache)->frames) >> 2)
+#define SLAB_MAX_BADNESS(frames) \
+	(FRAMES2SIZE(frames) >> 2)
 
 /* slab_reclaim constants */
 
@@ -68,7 +68,7 @@ typedef struct {
 	link_t link;
 	size_t busy;  /**< Count of full slots in magazine */
 	size_t size;  /**< Number of slots in magazine */
-	void *objs[];  /**< Slots in magazine */
+	void *objs[SLAB_MAG_SIZE];  /**< Slots in magazine */
 } slab_magazine_t;
 
 typedef struct {
@@ -116,6 +116,51 @@ typedef struct {
 	slab_mag_cache_t *mag_cache;
 } slab_cache_t;
 
+/** Slab descriptor */
+typedef struct {
+	slab_cache_t *cache;  /**< Pointer to parent cache. */
+	link_t link;          /**< List of full/partial slabs. */
+	void *start;          /**< Start address of first available item. */
+	size_t available;     /**< Count of available items in this slab. */
+	size_t nextavail;     /**< The index of next available item. */
+} slab_t;
+
+#define COMP_OBJECTS(flags, framesize, size) \
+	(((flags) & SLAB_CACHE_SLINSIDE) ? ((framesize - sizeof(slab_t)) / size) : (framesize / size))
+
+#define BADNESS(framesize, size, flags) \
+	((((flags) & SLAB_CACHE_SLINSIDE) ? ((framesize) - sizeof(slab_t)) : (framesize)) % (size))
+
+#define IMPLICIT_SLINSIDE(_frames, _size) \
+	(_size < SLAB_INSIDE_SIZE || BADNESS(FRAMES2SIZE(_frames), (_size), 0) > sizeof(slab_t))
+
+#define _SLAB_CACHE(_name, _type, _size, _frames, _constructor, _destructor, _flags) \
+	slab_cache_t _name = { \
+		.name = #_name "(" #_type ")", \
+		.size = (_size), \
+		.frames = (_frames), \
+		.constructor = (_constructor), \
+		.destructor = (_destructor), \
+		.flags = (_flags), \
+		.full_slabs = LIST_INITIALIZER(_name.full_slabs), \
+		.partial_slabs = LIST_INITIALIZER(_name.partial_slabs), \
+		.magazines = LIST_INITIALIZER(_name.magazines), \
+		.slablock = IRQ_SPINLOCK_INITIALIZER(#_name ".slablock"), \
+		.maglock = IRQ_SPINLOCK_INITIALIZER(#_name ".maglock"), \
+		.objects = COMP_OBJECTS(_flags, FRAMES2SIZE(_frames), _size), \
+		/* Initialized on first alloc. */ \
+		.link = { }, \
+		.mag_cache = NULL, \
+	}
+
+#define SLAB_CACHE(_name, _type, _frames, _constructor, _destructor, _flags) \
+	_SLAB_CACHE(_name, _type, sizeof(_type), _frames, \
+		_constructor, _destructor, \
+		_flags | (IMPLICIT_SLINSIDE(_frames, sizeof(_type)) ? SLAB_CACHE_SLINSIDE : 0)); \
+	_Static_assert(FRAMES2SIZE(_frames) > sizeof(_type), "_frames = " #_frames " is not large enough for type " #_type); \
+	_Static_assert(BADNESS(FRAMES2SIZE(_frames), sizeof(_type), (_flags)) <= SLAB_MAX_BADNESS(_frames), "high badness, increase _frames"); \
+	_Static_assert(__builtin_popcount(_frames) == 1, "_frames is not a power of 2");
+
 extern slab_cache_t *slab_cache_create(const char *, size_t, size_t,
     errno_t (*)(void *, unsigned int), size_t (*)(void *), unsigned int);
 extern void slab_cache_destroy(slab_cache_t *);
@@ -126,7 +171,6 @@ extern void slab_free(slab_cache_t *, void *);
 extern size_t slab_reclaim(unsigned int);
 
 /* slab subsytem initialization */
-extern void slab_cache_init(void);
 extern void slab_enable_cpucache(void);
 
 /* kconsole debug */

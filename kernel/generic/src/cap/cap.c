@@ -95,8 +95,8 @@
 #define CAPS_SIZE	(INT_MAX - (int) CAPS_START)
 #define CAPS_LAST	(CAPS_SIZE - 1)
 
-static slab_cache_t *cap_cache;
-static slab_cache_t *kobject_cache;
+static SLAB_CACHE(cap_cache, cap_t, 1, NULL, NULL, 0);
+static SLAB_CACHE(kobject_cache, kobject_t, 1, NULL, NULL, 0);
 
 kobject_ops_t *kobject_ops[KOBJECT_TYPE_MAX] = {
 	[KOBJECT_TYPE_CALL] = &call_kobject_ops,
@@ -129,14 +129,6 @@ static const hash_table_ops_t caps_ops = {
 	.key_hash = caps_key_hash,
 	.key_equal = caps_key_equal
 };
-
-void caps_init(void)
-{
-	cap_cache = slab_cache_create("cap_t", sizeof(cap_t), 0, NULL,
-	    NULL, 0);
-	kobject_cache = slab_cache_create("kobject_t", sizeof(kobject_t), 0,
-	    NULL, NULL, 0);
-}
 
 /** Allocate the capability info structure
  *
@@ -265,14 +257,14 @@ static cap_t *cap_get(task_t *task, cap_handle_t handle, cap_state_t state)
 errno_t cap_alloc(task_t *task, cap_handle_t *handle)
 {
 	mutex_lock(&task->cap_info->lock);
-	cap_t *cap = slab_alloc(cap_cache, FRAME_ATOMIC);
+	cap_t *cap = slab_alloc(&cap_cache, FRAME_ATOMIC);
 	if (!cap) {
 		mutex_unlock(&task->cap_info->lock);
 		return ENOMEM;
 	}
 	uintptr_t hbase;
 	if (!ra_alloc(task->cap_info->handles, 1, 1, &hbase)) {
-		slab_free(cap_cache, cap);
+		slab_free(&cap_cache, cap);
 		mutex_unlock(&task->cap_info->lock);
 		return ENOMEM;
 	}
@@ -403,18 +395,18 @@ void cap_free(task_t *task, cap_handle_t handle)
 
 	hash_table_remove_item(&task->cap_info->caps, &cap->caps_link);
 	ra_free(task->cap_info->handles, cap_handle_raw(handle), 1);
-	slab_free(cap_cache, cap);
+	slab_free(&cap_cache, cap);
 	mutex_unlock(&task->cap_info->lock);
 }
 
 kobject_t *kobject_alloc(unsigned int flags)
 {
-	return slab_alloc(kobject_cache, flags);
+	return slab_alloc(&kobject_cache, flags);
 }
 
 void kobject_free(kobject_t *kobj)
 {
-	slab_free(kobject_cache, kobj);
+	slab_free(&kobject_cache, kobj);
 }
 
 /** Initialize kernel object

@@ -52,9 +52,6 @@ bool fb_exported = false;
 /** Global sysinfo tree root item */
 static sysinfo_item_t *global_root = NULL;
 
-/** Sysinfo SLAB cache */
-static slab_cache_t *sysinfo_item_cache;
-
 /** Sysinfo lock */
 static mutex_t sysinfo_lock;
 
@@ -91,6 +88,10 @@ _NO_TRACE static size_t sysinfo_item_destructor(void *obj)
 	return 0;
 }
 
+/** Sysinfo SLAB cache */
+static SLAB_CACHE(sysinfo_item_cache, sysinfo_item_t, 1,
+    sysinfo_item_constructor, sysinfo_item_destructor, SLAB_CACHE_MAGDEFERRED);
+
 /** Initialize sysinfo subsystem
  *
  * Create SLAB cache for sysinfo items.
@@ -98,10 +99,6 @@ _NO_TRACE static size_t sysinfo_item_destructor(void *obj)
  */
 void sysinfo_init(void)
 {
-	sysinfo_item_cache = slab_cache_create("sysinfo_item_t",
-	    sizeof(sysinfo_item_t), 0, sysinfo_item_constructor,
-	    sysinfo_item_destructor, SLAB_CACHE_MAGDEFERRED);
-
 	mutex_initialize(&sysinfo_lock, MUTEX_ACTIVE);
 }
 
@@ -204,14 +201,14 @@ _NO_TRACE static sysinfo_item_t *sysinfo_create_path(const char *name,
 			i++;
 
 		*psubtree =
-		    (sysinfo_item_t *) slab_alloc(sysinfo_item_cache, FRAME_ATOMIC);
+		    (sysinfo_item_t *) slab_alloc(&sysinfo_item_cache, FRAME_ATOMIC);
 		if (!*psubtree)
 			return NULL;
 
 		/* Fill in item name up to the delimiter */
 		(*psubtree)->name = str_ndup(name, i);
 		if (!(*psubtree)->name) {
-			slab_free(sysinfo_item_cache, *psubtree);
+			slab_free(&sysinfo_item_cache, *psubtree);
 			return NULL;
 		}
 
@@ -222,7 +219,7 @@ _NO_TRACE static sysinfo_item_t *sysinfo_create_path(const char *name,
 			    &((*psubtree)->subtree.table));
 			if (!item) {
 				free((*psubtree)->name);
-				slab_free(sysinfo_item_cache, *psubtree);
+				slab_free(&sysinfo_item_cache, *psubtree);
 			}
 			return item;
 		}
@@ -280,7 +277,7 @@ _NO_TRACE static sysinfo_item_t *sysinfo_create_path(const char *name,
 				i++;
 
 			sysinfo_item_t *item =
-			    (sysinfo_item_t *) slab_alloc(sysinfo_item_cache, FRAME_ATOMIC);
+			    (sysinfo_item_t *) slab_alloc(&sysinfo_item_cache, FRAME_ATOMIC);
 			if (!item)
 				return NULL;
 
@@ -289,7 +286,7 @@ _NO_TRACE static sysinfo_item_t *sysinfo_create_path(const char *name,
 			/* Fill in item name up to the delimiter */
 			item->name = str_ndup(name, i);
 			if (!item->name) {
-				slab_free(sysinfo_item_cache, item);
+				slab_free(&sysinfo_item_cache, item);
 				return NULL;
 			}
 
@@ -300,7 +297,7 @@ _NO_TRACE static sysinfo_item_t *sysinfo_create_path(const char *name,
 				    name + i + 1, &(item->subtree.table));
 				if (!sub) {
 					free(item->name);
-					slab_free(sysinfo_item_cache, item);
+					slab_free(&sysinfo_item_cache, item);
 					return NULL;
 				}
 				return sub;

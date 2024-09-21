@@ -63,7 +63,7 @@ static bool ht_mapping_find(as_t *, uintptr_t, bool, pte_t *);
 static void ht_mapping_update(as_t *, uintptr_t, bool, pte_t *);
 static void ht_mapping_make_global(uintptr_t, size_t);
 
-slab_cache_t *pte_cache = NULL;
+static SLAB_CACHE(pte_cache, pte_t, 1, NULL, NULL, SLAB_CACHE_MAGDEFERRED);
 
 /**
  * This lock protects the page hash table. It must be acquired
@@ -136,7 +136,7 @@ void ht_remove_callback(ht_link_t *item)
 	assert(item);
 
 	pte_t *pte = hash_table_get_inst(item, pte_t, link);
-	slab_free(pte_cache, pte);
+	slab_free(&pte_cache, pte);
 }
 
 /** Map page to frame using page hash table.
@@ -163,7 +163,7 @@ void ht_mapping_insert(as_t *as, uintptr_t page, uintptr_t frame,
 	irq_spinlock_lock(&page_ht_lock, true);
 
 	if (!hash_table_find(&page_ht, key)) {
-		pte_t *pte = slab_alloc(pte_cache, FRAME_LOWMEM | FRAME_ATOMIC);
+		pte_t *pte = slab_alloc(&pte_cache, FRAME_LOWMEM | FRAME_ATOMIC);
 		assert(pte != NULL);
 
 		pte->g = (flags & PAGE_GLOBAL) != 0;

@@ -67,10 +67,8 @@ static void ipc_forget_call(call_t *);
 /** Answerbox that new tasks are automatically connected to */
 answerbox_t *ipc_box_0 = NULL;
 
-static slab_cache_t *call_cache;
-static slab_cache_t *answerbox_cache;
-
-slab_cache_t *phone_cache = NULL;
+static SLAB_CACHE(call_cache, call_t, 1, NULL, NULL, 0);
+static SLAB_CACHE(answerbox_cache, answerbox_t, 1, NULL, NULL, 0);
 
 /** Initialize a call structure.
  *
@@ -96,7 +94,7 @@ static void call_destroy(void *arg)
 		free(call->buffer);
 	if (call->caller_phone)
 		kobject_put(call->caller_phone->kobject);
-	slab_free(call_cache, call);
+	slab_free(&call_cache, call);
 }
 
 kobject_ops_t call_kobject_ops = {
@@ -115,13 +113,13 @@ call_t *ipc_call_alloc(void)
 {
 	// TODO: Allocate call and kobject in single allocation
 
-	call_t *call = slab_alloc(call_cache, FRAME_ATOMIC);
+	call_t *call = slab_alloc(&call_cache, FRAME_ATOMIC);
 	if (!call)
 		return NULL;
 
 	kobject_t *kobj = kobject_alloc(0);
 	if (!kobj) {
-		slab_free(call_cache, call);
+		slab_free(&call_cache, call);
 		return NULL;
 	}
 
@@ -213,7 +211,7 @@ void ipc_phone_init(phone_t *phone, task_t *caller)
  */
 errno_t ipc_call_sync(phone_t *phone, call_t *request)
 {
-	answerbox_t *mybox = slab_alloc(answerbox_cache, FRAME_ATOMIC);
+	answerbox_t *mybox = slab_alloc(&answerbox_cache, FRAME_ATOMIC);
 	if (!mybox)
 		return ENOMEM;
 
@@ -224,7 +222,7 @@ errno_t ipc_call_sync(phone_t *phone, call_t *request)
 
 	errno_t rc = ipc_call(phone, request);
 	if (rc != EOK) {
-		slab_free(answerbox_cache, mybox);
+		slab_free(&answerbox_cache, mybox);
 		return rc;
 	}
 
@@ -272,7 +270,7 @@ errno_t ipc_call_sync(phone_t *phone, call_t *request)
 	}
 	assert(!answer || request == answer);
 
-	slab_free(answerbox_cache, mybox);
+	slab_free(&answerbox_cache, mybox);
 	return rc;
 }
 
@@ -878,19 +876,6 @@ void ipc_cleanup(void)
 	ipc_wait_for_all_answered_calls();
 
 	assert(atomic_load(&TASK->answerbox.active_calls) == 0);
-}
-
-/** Initilize IPC subsystem
- *
- */
-void ipc_init(void)
-{
-	call_cache = slab_cache_create("call_t", sizeof(call_t), 0, NULL,
-	    NULL, 0);
-	phone_cache = slab_cache_create("phone_t", sizeof(phone_t), 0, NULL,
-	    NULL, 0);
-	answerbox_cache = slab_cache_create("answerbox_t", sizeof(answerbox_t),
-	    0, NULL, NULL, 0);
 }
 
 static void ipc_print_call_list(list_t *list)

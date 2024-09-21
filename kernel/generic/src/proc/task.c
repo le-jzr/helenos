@@ -79,8 +79,6 @@ odict_t tasks;
 
 static task_id_t task_counter = 0;
 
-static slab_cache_t *task_cache;
-
 /* Forward declarations. */
 static void task_kill_internal(task_t *);
 static errno_t tsk_constructor(void *, unsigned int);
@@ -89,6 +87,8 @@ static size_t tsk_destructor(void *);
 static void *tasks_getkey(odlink_t *);
 static int tasks_cmp(void *, void *);
 
+static SLAB_CACHE(task_cache, task_t, 1, tsk_constructor, tsk_destructor, 0);
+
 /** Initialize kernel tasks support.
  *
  */
@@ -96,8 +96,6 @@ void task_init(void)
 {
 	TASK = NULL;
 	odict_initialize(&tasks, tasks_getkey, tasks_cmp);
-	task_cache = slab_cache_create("task_t", sizeof(task_t), 0,
-	    tsk_constructor, tsk_destructor, 0);
 }
 
 /** Kill all tasks except the current task.
@@ -196,7 +194,7 @@ size_t tsk_destructor(void *obj)
  */
 task_t *task_create(as_t *as, const char *name)
 {
-	task_t *task = (task_t *) slab_alloc(task_cache, FRAME_ATOMIC);
+	task_t *task = (task_t *) slab_alloc(&task_cache, FRAME_ATOMIC);
 	if (!task)
 		return NULL;
 
@@ -243,7 +241,7 @@ task_t *task_create(as_t *as, const char *name)
 		if (rc != EOK) {
 			task->as = NULL;
 			task_destroy_arch(task);
-			slab_free(task_cache, task);
+			slab_free(&task_cache, task);
 			return NULL;
 		}
 
@@ -287,7 +285,7 @@ static void task_destroy(task_t *task)
 	 */
 	as_release(task->as);
 
-	slab_free(task_cache, task);
+	slab_free(&task_cache, task);
 }
 
 /** Hold a reference to a task.
