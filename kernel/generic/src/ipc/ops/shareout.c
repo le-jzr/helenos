@@ -59,14 +59,22 @@ static errno_t answer_preprocess(call_t *answer, ipc_data_t *olddata)
 	if (!ipc_get_retval(&answer->data)) {
 		/* Accepted, handle as_area receipt */
 
-		irq_spinlock_lock(&answer->sender->lock, true);
-		as_t *as = answer->sender->as;
-		irq_spinlock_unlock(&answer->sender->lock, true);
+		task_t *sender = ipc_call_get_sender(answer);
+		if (!sender)
+			return EPARTY;
+
+		irq_spinlock_lock(&sender->lock, true);
+		as_t *as = sender->as;
+		as_hold(as);
+		irq_spinlock_unlock(&sender->lock, true);
+		task_release(sender);
 
 		uintptr_t dst_base = (uintptr_t) -1;
 		rc = as_area_share(as, ipc_get_arg1(olddata),
 		    ipc_get_arg2(olddata), AS, ipc_get_arg3(olddata),
 		    &dst_base, ipc_get_arg1(&answer->data));
+
+		as_release(as);
 
 		if (rc == EOK) {
 			rc = copy_to_uspace(ipc_get_arg2(&answer->data),

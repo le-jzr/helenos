@@ -87,8 +87,7 @@ static errno_t answer_preprocess(call_t *answer, ipc_data_t *olddata)
 		 */
 		kobject_add_ref(pobj);
 
-		if (ipc_phone_connect(pobj->phone,
-		    &answer->sender->answerbox)) {
+		if (ipc_phone_connect_to_call_sender(pobj->phone, answer)) {
 			/* Pass the reference to the capability */
 			cap_publish(TASK, phandle, pobj);
 		} else {

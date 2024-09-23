@@ -86,6 +86,57 @@ static void _ipc_call_init(call_t *call)
 	call->buffer = NULL;
 }
 
+__attribute__((used))
+static void _ipc_call_forget_sender(call_t *call)
+{
+	spinlock_lock(&call->forget_lock);
+	call->forget = true;
+	call->sender = NULL;
+	spinlock_unlock(&call->forget_lock);
+}
+
+__attribute__((used))
+static bool ipc_call_is_forgotten(call_t *call)
+{
+	spinlock_lock(&call->forget_lock);
+	bool forgot = (call->sender == NULL);
+	spinlock_unlock(&call->forget_lock);
+	return forgot;
+}
+
+__attribute__((used))
+static void ipc_call_set_sender(call_t *call, task_t *sender)
+{
+	task_hold(sender);
+	spinlock_lock(&call->forget_lock);
+	assert(call->sender == NULL);
+	call->sender = sender;
+	spinlock_unlock(&call->forget_lock);
+}
+
+task_t *ipc_call_get_sender(call_t *call)
+{
+	task_t *task = NULL;
+
+	spinlock_lock(&call->forget_lock);
+	task = call->sender;
+	if (task)
+		task_hold(task);
+	spinlock_unlock(&call->forget_lock);
+	return task;
+}
+
+bool ipc_phone_connect_to_call_sender(phone_t *phone, call_t *call)
+{
+	task_t *task = ipc_call_get_sender(call);
+	if (!task)
+		return false;
+
+	bool success = ipc_phone_connect(phone, &task->answerbox);
+	task_release(task);
+	return success;
+}
+
 static void call_destroy(void *arg)
 {
 	call_t *call = (call_t *) arg;
@@ -287,28 +338,25 @@ void _ipc_answer_free_call(call_t *call, bool selflocked)
 	TASK->ipc_info.answer_sent++;
 	irq_spinlock_unlock(&TASK->lock, true);
 
-	spinlock_lock(&call->forget_lock);
-	if (call->forget) {
-		/* This is a forgotten call and call->sender is not valid. */
-		spinlock_unlock(&call->forget_lock);
+	task_t *sender = ipc_call_get_sender(call);
+	if (!sender) {
 		kobject_put(call->kobject);
 		return;
-	} else {
-		/*
-		 * If the call is still active, i.e. it was answered
-		 * in a non-standard way, remove the call from the
-		 * sender's active call list.
-		 */
-		if (call->active) {
-			spinlock_lock(&call->sender->active_calls_lock);
-			list_remove(&call->ta_link);
-			spinlock_unlock(&call->sender->active_calls_lock);
-		}
 	}
-	spinlock_unlock(&call->forget_lock);
+
+	/*
+	 * If the call is still active, i.e. it was answered
+	 * in a non-standard way, remove the call from the
+	 * sender's active call list.
+	 */
+	if (call->active) {
+		spinlock_lock(&sender->active_calls_lock);
+		list_remove(&call->ta_link);
+		spinlock_unlock(&sender->active_calls_lock);
+	}
 
 	answerbox_t *callerbox = call->callerbox ? call->callerbox :
-	    &call->sender->answerbox;
+	    &sender->answerbox;
 	bool do_lock = ((!selflocked) || (callerbox != &TASK->answerbox));
 
 	call->flags |= IPC_CALL_ANSWERED;
@@ -324,6 +372,7 @@ void _ipc_answer_free_call(call_t *call, bool selflocked)
 		irq_spinlock_unlock(&callerbox->lock, true);
 
 	waitq_wake_one(&callerbox->wq);
+	task_release(sender);
 }
 
 /** Answer a message which is in a callee queue.

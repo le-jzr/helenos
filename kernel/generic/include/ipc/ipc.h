@@ -193,6 +193,9 @@ extern void ipc_cleanup_call_list(answerbox_t *, list_t *);
 
 extern void ipc_print_task(task_id_t);
 
+extern bool ipc_phone_connect_to_call_sender(phone_t *phone, call_t *call);
+extern struct task *ipc_call_get_sender(call_t *call);
+
 #endif
 
 /** @}
