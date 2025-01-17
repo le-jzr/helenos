@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Jakub Jermar
+ * Copyright (c) 2024 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,48 +26,34 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup abi_generic
+/** @addtogroup libc
  * @{
  */
-/** @file
- */
 
-#ifndef _ABI_CAP_H_
-#define _ABI_CAP_H_
+#ifndef _LIBC_KOBJ_H_
+#define _LIBC_KOBJ_H_
 
-#include <stdbool.h>
-#include <stdint.h>
+#include <abi/syscall.h>
+#include <libc.h>
 
-typedef void *cap_handle_t;
+typedef struct kobject_mem *mem_t;
 
-typedef struct {
-} *cap_call_handle_t;
-
-typedef struct {
-} *cap_phone_handle_t;
-
-typedef struct {
-} *cap_irq_handle_t;
-
-typedef struct {
-} *cap_waitq_handle_t;
-
-typedef struct {
-} *cap_mem_handle_t;
-
-static cap_handle_t const CAP_NIL = 0;
-
-static inline bool cap_handle_valid(cap_handle_t handle)
+static inline void sys_kobject_put(void *arg)
 {
-	return handle != CAP_NIL;
+	__SYSCALL1(SYS_KOBJECT_PUT, (sysarg_t) arg);
 }
 
-static inline intptr_t cap_handle_raw(cap_handle_t handle)
+static inline mem_t sys_mem_create(size_t size, void *template)
 {
-	return (intptr_t) handle;
+	return (mem_t) __SYSCALL2(SYS_MEM_CREATE, size, (sysarg_t) template);
 }
 
-#endif
+static inline errno_t sys_mem_map(mem_t mem, void *vaddr, uintptr_t offset, size_t size)
+{
+	return (errno_t) __SYSCALL4(SYS_MEM_MAP, (sysarg_t) mem, (sysarg_t) vaddr, offset, size);
+}
+
+#endif /* _LIBC_KOBJ_H_ */
 
 /** @}
  */

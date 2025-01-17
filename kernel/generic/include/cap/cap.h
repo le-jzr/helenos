@@ -56,7 +56,10 @@ typedef enum {
 	KOBJECT_TYPE_IRQ,
 	KOBJECT_TYPE_PHONE,
 	KOBJECT_TYPE_WAITQ,
-	KOBJECT_TYPE_MAX
+	KOBJECT_TYPE_MEM,
+	KOBJECT_TYPE_IPCB_BUFFER,
+	KOBJECT_TYPE_IPCB_ENDPOINT,
+	KOBJECT_TYPE_MAX,
 } kobject_type_t;
 
 struct kobject;
@@ -65,7 +68,7 @@ typedef struct kobject_ops {
 	void (*destroy)(struct kobject *);
 } kobject_ops_t;
 
-extern kobject_ops_t *kobject_ops[];
+extern const kobject_ops_t *kobject_ops[];
 
 #define KOBJECT_OP(k)	kobject_ops[(k)->type]
 

@@ -76,20 +76,22 @@
  */
 
 #include <cap/cap.h>
-#include <abi/cap.h>
-#include <proc/task.h>
-#include <synch/mutex.h>
-#include <abi/errno.h>
-#include <mm/slab.h>
-#include <adt/list.h>
-#include <synch/syswaitq.h>
-#include <ipc/ipcrsc.h>
-#include <ipc/ipc.h>
-#include <ipc/irq.h>
 
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+#include <abi/cap.h>
+#include <abi/errno.h>
+#include <adt/list.h>
+#include <ipc/ipc.h>
+#include <ipc/ipcrsc.h>
+#include <ipc/irq.h>
+#include <mm/mem.h>
+#include <mm/slab.h>
+#include <proc/task.h>
+#include <synch/mutex.h>
+#include <synch/syswaitq.h>
 
 #define CAPS_START	((intptr_t) CAP_NIL + 1)
 #define CAPS_LAST	((intptr_t) INT_MAX - 1)
@@ -97,11 +99,14 @@
 
 static slab_cache_t *cap_cache;
 
-kobject_ops_t *kobject_ops[KOBJECT_TYPE_MAX] = {
+const kobject_ops_t *kobject_ops[KOBJECT_TYPE_MAX] = {
 	[KOBJECT_TYPE_CALL] = &call_kobject_ops,
 	[KOBJECT_TYPE_IRQ] = &irq_kobject_ops,
 	[KOBJECT_TYPE_PHONE] = &phone_kobject_ops,
-	[KOBJECT_TYPE_WAITQ] = &waitq_kobject_ops
+	[KOBJECT_TYPE_WAITQ] = &waitq_kobject_ops,
+	[KOBJECT_TYPE_MEM] = &mem_kobject_ops,
+	[KOBJECT_TYPE_IPCB_BUFFER] = &ipcb_buffer_kobject_ops,
+	[KOBJECT_TYPE_IPCB_ENDPOINT] = &ipcb_endpoint_kobject_ops,
 };
 
 static size_t caps_hash(const ht_link_t *item)

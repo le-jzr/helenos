@@ -36,6 +36,7 @@
 #define _ABI_AS_H_
 
 #include <abi/cap.h>
+#include <stddef.h>
 
 /** Address space area flags. */
 enum {
@@ -45,6 +46,7 @@ enum {
 	AS_AREA_CACHEABLE    = 0x08,
 	AS_AREA_GUARD        = 0x10,
 	AS_AREA_LATE_RESERVE = 0x20,
+	AS_AREA_COW          = 0x40,
 };
 
 static void *const AS_AREA_ANY = (void *) -1;
