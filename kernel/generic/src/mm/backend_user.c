@@ -58,7 +58,7 @@ static bool user_is_resizable(as_area_t *);
 static bool user_is_shareable(as_area_t *);
 
 static int user_page_fault(as_area_t *, uintptr_t, pf_access_t);
-static void user_frame_free(as_area_t *, uintptr_t, uintptr_t);
+static void user_frame_free(as_area_t *, uintptr_t, uintptr_t, pte_t *);
 
 mem_backend_t user_backend = {
 	.create = user_create,
@@ -161,7 +161,7 @@ int user_page_fault(as_area_t *area, uintptr_t upage, pf_access_t access)
  * @param page Virtual address of the page corresponding to the frame.
  * @param frame Frame to be released.
  */
-void user_frame_free(as_area_t *area, uintptr_t page, uintptr_t frame)
+void user_frame_free(as_area_t *area, uintptr_t page, uintptr_t frame, pte_t *pte)
 {
 	assert(page_table_locked(area->as));
 	assert(mutex_locked(&area->lock));

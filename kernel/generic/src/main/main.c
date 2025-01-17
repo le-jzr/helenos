@@ -264,6 +264,7 @@ void main_bsp_separated_stack(void)
 	kio_init();
 	log_init();
 	stats_init();
+	mem_init();
 
 	/*
 	 * Create kernel task.

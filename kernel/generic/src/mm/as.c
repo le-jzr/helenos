@@ -1018,7 +1018,7 @@ errno_t as_area_resize(as_t *as, uintptr_t address, size_t size, unsigned int fl
 				    (area->backend->frame_free)) {
 					area->backend->frame_free(area,
 					    ptr + P2SZ(i),
-					    PTE_GET_FRAME(&pte));
+					    PTE_GET_FRAME(&pte), &pte);
 				}
 
 				page_mapping_remove(as, ptr + P2SZ(i));
@@ -1128,7 +1128,7 @@ errno_t as_area_destroy(as_t *as, uintptr_t address)
 			    (area->backend->frame_free)) {
 				area->backend->frame_free(area,
 				    ptr + P2SZ(size),
-				    PTE_GET_FRAME(&pte));
+				    PTE_GET_FRAME(&pte), &pte);
 			}
 
 			page_mapping_remove(as, ptr + P2SZ(size));
@@ -1623,6 +1623,7 @@ void as_switch(as_t *old_as, as_t *new_as)
 {
 	DEADLOCK_PROBE_INIT(p_asidlock);
 	preemption_disable();
+	assert(CURRENT->mutex_locks == 0);
 
 retry:
 	(void) interrupts_disable();
