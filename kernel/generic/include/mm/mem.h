@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Jakub Jermar
+ * Copyright (c) 2022 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,47 +26,32 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup abi_generic
+/** @addtogroup kernel_generic_mm
  * @{
  */
 /** @file
  */
 
-#ifndef _ABI_CAP_H_
-#define _ABI_CAP_H_
+#ifndef KERN_MM_MEM_H_
+#define KERN_MM_MEM_H_
 
+#include <cap/cap.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef void *cap_handle_t;
+typedef uintptr_t physaddr_t;
+typedef struct mem mem_t;
 
-typedef struct {
-} *cap_call_handle_t;
+extern const kobject_ops_t mem_kobject_ops;
 
-typedef struct {
-} *cap_phone_handle_t;
+void mem_init(void);
 
-typedef struct {
-} *cap_irq_handle_t;
+physaddr_t mem_lookup(mem_t *mem, uintptr_t offset, bool alloc);
+void mem_put(mem_t *);
 
-typedef struct {
-} *cap_waitq_handle_t;
-
-typedef struct {
-} *cap_mem_handle_t;
-
-static cap_handle_t const CAP_NIL = 0;
-
-static inline bool cap_handle_valid(cap_handle_t handle)
-{
-	return handle != CAP_NIL;
-}
-
-static inline intptr_t cap_handle_raw(cap_handle_t handle)
-{
-	return (intptr_t) handle;
-}
-
+sysarg_t sys_mem_create(sysarg_t size, sysarg_t flags);
+sys_errno_t sys_mem_map(cap_mem_handle_t mem_handle, sysarg_t offset, sysarg_t size, uspace_ptr_uintptr_t uspace_vaddr, sysarg_t flags);
 #endif
 
 /** @}
