@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Jakub Jermar
+ * Copyright (c) 2025 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,55 +26,61 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup abi_generic
+/** @addtogroup kernel_generic
  * @{
  */
 /** @file
  */
 
-#ifndef _ABI_CAP_H_
-#define _ABI_CAP_H_
+#ifndef KERN_IPC_B_H_
+#define KERN_IPC_B_H_
 
-#include <stdbool.h>
-#include <stdint.h>
 
-typedef void *cap_handle_t;
+#include <errno.h>
+#include <time/timeout.h>
+#include <cap/cap.h>
 
-typedef struct {
-} *cap_call_handle_t;
+typedef struct ipc_blob ipc_blob_t;
+typedef struct ipc_buffer ipc_buffer_t;
+typedef struct ipc_endpoint ipc_endpoint_t;
 
-typedef struct {
-} *cap_phone_handle_t;
+extern kobject_ops_t ipc_blob_kobject_ops;
+extern kobject_ops_t ipc_buffer_kobject_ops;
+extern kobject_ops_t ipc_endpoint_kobject_ops;
 
-typedef struct {
-} *cap_irq_handle_t;
+typedef struct ipc_write_data {
+	uintptr_t *handles;
+	size_t handles_len;
 
-typedef struct {
-} *cap_waitq_handle_t;
+	// The mandatory part of write.
+	// A successful write will have written at least the handles and data1.
+	uintptr_t data1;
+	size_t data1_len;
 
-typedef struct {
-} *cap_mem_handle_t;
+	// The optional part of write.
+	// A successful write will have written only as much of data2 as could fit
+	// into the buffer (possibly even 0 bytes).
+	// data1 and data2 do not have to be adjacent in memory.
+	uintptr_t data2;
+	size_t data2_len;
 
-typedef struct {
-} *cap_data_handle_t;
+	deadline_t deadline;
+} ipc_write_data_t;
 
-typedef struct {
-} *cap_endpoint_handle_t;
+void ipc_blob_init(void);
 
-typedef struct {
-} *cap_buffer_handle_t;
 
-static cap_handle_t const CAP_NIL = 0;
 
-static inline bool cap_handle_valid(cap_handle_t handle)
-{
-	return handle != CAP_NIL;
-}
+void ipc_buffer_initialize(void);
 
-static inline intptr_t cap_handle_raw(cap_handle_t handle)
-{
-	return (intptr_t) handle;
-}
+errno_t ipc_buffer_read(ipc_buffer_t *, uintptr_t *, deadline_t);
+void ipc_buffer_end_read(ipc_buffer_t *);
+ipc_buffer_t *ipc_buffer_create(size_t, size_t);
+
+ipc_endpoint_t *ipc_endpoint_create(ipc_buffer_t *buffer, uintptr_t userdata,
+		size_t reserve, size_t max_message_len);
+errno_t ipc_endpoint_write(ipc_endpoint_t *, const ipc_write_data_t *,
+		size_t *, deadline_t);
 
 #endif
 
