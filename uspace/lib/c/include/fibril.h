@@ -48,6 +48,10 @@ typedef struct {
 	fibril_t *owned_by;
 } fibril_owner_info_t;
 
+typedef struct {
+	fibril_t *fibril;
+} fibril_event_t;
+
 typedef fibril_t *fid_t;
 
 #ifndef __cplusplus
