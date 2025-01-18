@@ -1,5 +1,5 @@
 
-#include <ipc/new.h>
+#include <ipc_b.h>
 
 #include <stdatomic.h>
 #include <stdalign.h>
@@ -9,15 +9,6 @@
 #include <synch/waitq.h>
 #include <proc/thread.h>
 #include <mem.h>
-
-typedef struct ipc_buffer_weakref ipc_buffer_weakref_t;
-
-/** Weak reference used by endpoints to access their parent buffer. */
-struct ipc_buffer_weakref {
-	refcount_t refcount;
-	atomic_int access;
-	_Atomic(ipc_buffer_t *) buffer;
-};
 
 /**
  * IPC buffer object.
@@ -94,105 +85,7 @@ struct ipc_endpoint {
 	atomic_size_t reservation;
 };
 
-static slab_cache_t *slab_ipc_buffer_cache;
-static slab_cache_t *slab_ipc_endpoint_cache;
-static slab_cache_t *slab_ipc_buffer_weakref_cache;
-
-void ipc_buffer_initialize(void)
-{
-	slab_ipc_buffer_cache = slab_cache_create("ipc_buffer_t",
-			sizeof(ipc_buffer_t), alignof(ipc_buffer_t), NULL, NULL, 0);
-	slab_ipc_endpoint_cache = slab_cache_create("ipc_endpoint_t",
-			sizeof(ipc_endpoint_t), alignof(ipc_endpoint_t), NULL, NULL, 0);
-	slab_ipc_buffer_weakref_cache = slab_cache_create("ipc_buffer_weakref_t",
-			sizeof(ipc_buffer_weakref_t), alignof(ipc_buffer_weakref_t),
-			NULL, NULL, 0);
-}
-
 /* IPC buffer/endpoint implementation. */
-
-static void weakref_free(void *wref)
-{
-	slab_free(slab_ipc_buffer_weakref_cache, wref);
-}
-
-const static kobj_class_t kobj_class_weakref = {
-	.destroy = weakref_free,
-};
-
-#define KOBJ_CLASS_WEAKREF (&kobj_class_weakref)
-
-static ipc_buffer_weakref_t *weakref_create(ipc_buffer_t *buffer)
-{
-	ipc_buffer_weakref_t *wref = slab_alloc(slab_ipc_buffer_weakref_cache, 0);
-	kobj_initialize(&wref->kobj, KOBJ_CLASS_WEAKREF);
-	atomic_init(&wref->access, 0);
-	atomic_init(&wref->buffer, buffer);
-	return wref;
-}
-
-static ipc_buffer_t *weakref_get(ipc_buffer_weakref_t *wref)
-{
-	if (!wref)
-		return NULL;
-
-	// Avoid incrementing access (and possibly delaying buffer destructor)
-	// when the buffer is being destroyed.
-	if (atomic_load_explicit(&wref->buffer, memory_order_relaxed) == NULL)
-		return NULL;
-
-	// Ensure that the buffer can't be deallocated while we're using it.
-
-	// This fetch_add operation synchronizes with the same in weakref_destroy().
-	// If this one happens first, then weakref_destroy() sees non-zero value
-	// of access and consequently waits for weakref_put().
-	// If the other happens first, then by acquire semantics here and release
-	// semantics there, value of NULL is necessarily loaded from buffer.
-	(void) atomic_fetch_add_explicit(&wref->access, 1, memory_order_acquire);
-
-	ipc_buffer_t *b = atomic_load_explicit(&wref->buffer, memory_order_relaxed);
-
-	// The buffer may have been destroyed already.
-	if (!b)
-		(void) atomic_fetch_sub_explicit(&wref->access, 1, memory_order_release);
-
-	return b;
-}
-
-static void weakref_release(ipc_buffer_weakref_t *wref, ipc_buffer_t *buffer)
-{
-	// Just check to make sure we're in the right weakref.
-	ipc_buffer_t *b = atomic_load_explicit(&wref->buffer, memory_order_relaxed);
-	assert(b == buffer || b == NULL);
-
-	// Synchronizes with atomic operations in weakref_destroy(), ensuring
-	// any operations made by this thread until now are seen by the caller
-	// of weakref_destroy().
-	(void) atomic_fetch_sub_explicit(&wref->access, 1, memory_order_release);
-}
-
-static void weakref_put(ipc_buffer_weakref_t *wref)
-{
-	kobj_put(&wref->kobj);
-}
-
-static void weakref_destroy(ipc_buffer_weakref_t *wref)
-{
-	atomic_store_explicit(&wref->buffer, NULL, memory_order_relaxed);
-
-	// One read with acq_rel semantics to make sure we properly synchronize
-	// with both weakref_get() and weakref_put().
-	if (atomic_fetch_add_explicit(&wref->access, 0, memory_order_acq_rel) == 0)
-		return;
-
-	// Wait for all functions using the reference to release it.
-	// This is just acquire since we only need to synchronize with weakref_put.
-	// We assume the caller already woke up/interrupted all that are sleeping.
-	while (atomic_load_explicit(&wref->access, memory_order_acquire) > 0)
-		spin_loop_body();
-
-	weakref_put(wref);
-}
 
 struct message {
 	uintptr_t total_bytes;
