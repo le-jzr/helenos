@@ -127,9 +127,11 @@ extern bool caps_apply_to_kobject_type(struct task *, kobject_type_t,
 
 extern errno_t cap_alloc(struct task *, cap_handle_t *);
 extern void cap_publish(struct task *, cap_handle_t, kobject_t *);
+extern cap_handle_t cap_create(struct task *task, kobject_t *kobj);
 extern kobject_t *cap_unpublish(struct task *, cap_handle_t, kobject_type_t);
 extern void cap_revoke(kobject_t *);
 extern void cap_free(struct task *, cap_handle_t);
+kobject_t *cap_destroy(struct task *task, cap_handle_t handle, kobject_type_t type);
 
 extern void kobject_initialize(kobject_t *, kobject_type_t);
 extern kobject_t *kobject_get(struct task *, cap_handle_t, kobject_type_t);
