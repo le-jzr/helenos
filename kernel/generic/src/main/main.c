@@ -267,6 +267,7 @@ void main_bsp_separated_stack(void)
 	log_init();
 	stats_init();
 	mem_init();
+	ipc_blob_init();
 
 	/*
 	 * Create kernel task.

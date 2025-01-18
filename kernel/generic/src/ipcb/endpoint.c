@@ -7,7 +7,6 @@
 #include <align.h>
 #include <synch/spinlock.h>
 #include <synch/waitq.h>
-#include <kobj.h>
 #include <proc/thread.h>
 #include <mem.h>
 
@@ -15,7 +14,7 @@ typedef struct ipc_buffer_weakref ipc_buffer_weakref_t;
 
 /** Weak reference used by endpoints to access their parent buffer. */
 struct ipc_buffer_weakref {
-	kobj_t kobj;
+	refcount_t refcount;
 	atomic_int access;
 	_Atomic(ipc_buffer_t *) buffer;
 };
@@ -117,7 +116,7 @@ static void weakref_free(void *wref)
 	slab_free(slab_ipc_buffer_weakref_cache, wref);
 }
 
-static kobj_class_t kobj_class_weakref = {
+const static kobj_class_t kobj_class_weakref = {
 	.destroy = weakref_free,
 };
 
