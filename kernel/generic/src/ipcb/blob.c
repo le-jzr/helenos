@@ -34,14 +34,22 @@
 
 #include <ipc_b.h>
 
+#include <mm/slab.h>
+#include <proc/task.h>
+#include <stdalign.h>
 #include <stdlib.h>
 #include <synch/spinlock.h>
+#include <syscall/copy.h>
 
+/**
+ * IPC blob is just a chunk of immutable data slapped into a kobject and
+ * transferable between tasks. It can be created, read, and destroyed.
+ */
 struct ipc_blob {
 	/* Keep first */
 	kobject_t kobject;
 
-	SPINLOCK_DECLARE(lock);
+	IRQ_SPINLOCK_DECLARE(lock);
 	void *data;
 	size_t data_size;
 };
@@ -54,9 +62,9 @@ void ipc_blob_init(void)
 			sizeof(ipc_blob_t), alignof(ipc_blob_t), NULL, NULL, 0);
 }
 
-static void destroy_blob(void *arg)
+static void destroy_blob(kobject_t *arg)
 {
-	ipc_blob_t *blob = arg;
+	ipc_blob_t *blob = (ipc_blob_t *) arg;
 	if (blob->data)
 		free(blob->data);
 	slab_free(slab_ipc_blob_cache, blob);
@@ -76,43 +84,45 @@ static ipc_blob_t *create_blob(void *data, size_t data_size)
 	irq_spinlock_initialize(&blob->lock, "ipc_blob_t.lock");
 	blob->data = data;
 	blob->data_size = data_size;
+	return blob;
 }
 
-sys_errno_t sys_blob_create(uspace_addr_t data, sysarg_t data_size,
-    uspace_ptr_kobj_handle_t out_handle)
+ipc_blob_t *ipc_blob_create(uspace_addr_t data, sysarg_t data_size)
 {
+	if (data_size > IPC_BLOB_SIZE_LIMIT)
+		return NULL;
+
 	void *b = malloc(data_size);
 	if (!b)
-		return ENOMEM;
+		return NULL;
 
 	errno_t rc = copy_from_uspace(b, data, data_size);
 	if (rc != EOK) {
 		free(b);
-		return rc;
+		return NULL;
 	}
 
 	ipc_blob_t *blob = create_blob(b, data_size);
 	if (!blob) {
 		free(b);
-		return ENOMEM;
+		return NULL;
 	}
 
-	kobj_handle_t handle = kobj_table_insert(&TASK->kobj_table, blob);
-	if (!handle) {
-		kobj_put(blob);
-		return ENOMEM;
-	}
-
-	rc = copy_to_uspace(out_handle, &handle, sizeof(handle));
-	if (rc != EOK) {
-		kobj_put(kobj_table_remove(&TASK->kobj_table, handle));
-		return rc;
-	}
-
-	return EOK;
+	return blob;
 }
 
-sys_errno_t sys_blob_read(kobj_handle_t blob_handle,
+sysarg_t sys_blob_create(uspace_addr_t data, sysarg_t data_size)
+{
+	ipc_blob_t *blob = ipc_blob_create(data, data_size);
+
+	cap_handle_t handle = cap_create(TASK, &blob->kobject);
+	if (handle == CAP_NIL)
+		kobject_put(&blob->kobject);
+
+	return (sysarg_t) handle;
+}
+
+sys_errno_t sys_blob_read(cap_handle_t blob_handle,
     sysarg_t offset, sysarg_t size, uspace_addr_t dest)
 {
 	ipc_blob_t *blob =
@@ -137,8 +147,7 @@ sys_errno_t sys_blob_read(kobj_handle_t blob_handle,
 	return rc;
 }
 
-// TODO: associate blob with the creating task for accounting purposes
-//       and destroy owned blobs when task exits.
+// TODO: some form of memory accounting is necessary
 
 /**
  * Deallocate the internal memory of the blob (further reads will return
@@ -149,7 +158,7 @@ sys_errno_t sys_blob_read(kobj_handle_t blob_handle,
 sys_errno_t sys_blob_destroy(cap_handle_t blob_handle)
 {
 	ipc_blob_t *blob =
-	    (ipc_blob_t *) cap_unpublish(TASK, blob_handle, KOBJECT_TYPE_IPC_BLOB);
+	    (ipc_blob_t *) cap_destroy(TASK, blob_handle, KOBJECT_TYPE_IPC_BLOB);
 	if (!blob)
 		return ENOENT;
 
