@@ -37,10 +37,6 @@
 
 #include "./futex.h"
 
-typedef struct {
-	fibril_t *fibril;
-} fibril_event_t;
-
 #define FIBRIL_EVENT_INIT ((fibril_event_t) {0})
 
 struct fibril {

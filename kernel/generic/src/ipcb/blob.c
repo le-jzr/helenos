@@ -114,12 +114,14 @@ ipc_blob_t *ipc_blob_create(uspace_addr_t data, sysarg_t data_size)
 sysarg_t sys_blob_create(uspace_addr_t data, sysarg_t data_size)
 {
 	ipc_blob_t *blob = ipc_blob_create(data, data_size);
+	if (!blob)
+		return (sysarg_t) CAP_NIL;
 
 	cap_handle_t handle = cap_create(TASK, &blob->kobject);
 	if (handle == CAP_NIL)
 		kobject_put(&blob->kobject);
 
-	return handle;
+	return (sysarg_t) handle;
 }
 
 sys_errno_t sys_blob_read(cap_handle_t blob_handle,
