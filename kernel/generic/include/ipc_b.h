@@ -35,56 +35,44 @@
 #ifndef KERN_IPC_B_H_
 #define KERN_IPC_B_H_
 
-#include <errno.h>
-#include <time/timeout.h>
-#include <cap/cap.h>
+#include <abi/ipc_b.h>
 
-#define IPC_BLOB_SIZE_LIMIT 65536
+#include <cap/cap.h>
+#include <errno.h>
+#include <ipc/ipc.h>
+#include <time/timeout.h>
 
 typedef struct ipc_blob ipc_blob_t;
-typedef struct ipc_buffer ipc_buffer_t;
+typedef struct ipc_queue ipc_queue_t;
 typedef struct ipc_endpoint ipc_endpoint_t;
 
 extern kobject_ops_t ipc_blob_kobject_ops;
-extern kobject_ops_t ipc_buffer_kobject_ops;
+extern kobject_ops_t ipc_queue_kobject_ops;
 extern kobject_ops_t ipc_endpoint_kobject_ops;
 
-typedef struct ipc_write_data {
-	uintptr_t *handles;
-	size_t handles_len;
-
-	// The mandatory part of write.
-	// A successful write will have written at least the handles and data1.
-	uintptr_t data1;
-	size_t data1_len;
-
-	// The optional part of write.
-	// A successful write will have written only as much of data2 as could fit
-	// into the buffer (possibly even 0 bytes).
-	// data1 and data2 do not have to be adjacent in memory.
-	uintptr_t data2;
-	size_t data2_len;
-
-	deadline_t deadline;
-} ipc_write_data_t;
-
+void weakref_init(void);
 void ipc_blob_init(void);
+static inline void ipc_queue_init(void)
+{
+}
+
+typedef struct weakref weakref_t;
+weakref_t *weakref_create(void *inner);
+weakref_t *weakref_ref(weakref_t *ref);
+void weakref_put(weakref_t *ref);
+void *weakref_hold(weakref_t *ref);
+void weakref_release(weakref_t *ref);
+void weakref_destroy(weakref_t *ref);
 
 ipc_blob_t *ipc_blob_create(uspace_addr_t, sysarg_t);
 sysarg_t sys_blob_create(uspace_addr_t, sysarg_t);
 sys_errno_t sys_blob_read(cap_handle_t, sysarg_t, sysarg_t, uspace_addr_t);
 sys_errno_t sys_blob_destroy(cap_handle_t);
 
-void ipc_buffer_initialize(void);
+ipc_queue_t *ipc_queue_create(size_t);
+ipc_retval_t ipc_queue_reserve(ipc_queue_t *, size_t);
 
-errno_t ipc_buffer_read(ipc_buffer_t *, uintptr_t *, deadline_t);
-void ipc_buffer_end_read(ipc_buffer_t *);
-ipc_buffer_t *ipc_buffer_create(size_t, size_t);
-
-ipc_endpoint_t *ipc_endpoint_create(ipc_buffer_t *buffer, uintptr_t userdata,
-		size_t reserve, size_t max_message_len);
-errno_t ipc_endpoint_write(ipc_endpoint_t *, const ipc_write_data_t *,
-		size_t *, deadline_t);
+ipc_endpoint_t *ipc_endpoint_create(ipc_queue_t *q, uintptr_t tag, int reserves);
 
 #endif
 

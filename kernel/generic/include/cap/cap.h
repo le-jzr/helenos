@@ -58,7 +58,7 @@ typedef enum {
 	KOBJECT_TYPE_WAITQ,
 	KOBJECT_TYPE_MEM,
 	KOBJECT_TYPE_IPC_BLOB,
-	KOBJECT_TYPE_IPC_BUFFER,
+	KOBJECT_TYPE_IPC_QUEUE,
 	KOBJECT_TYPE_IPC_ENDPOINT,
 	KOBJECT_TYPE_MAX,
 } kobject_type_t;
@@ -132,9 +132,11 @@ extern kobject_t *cap_unpublish(struct task *, cap_handle_t, kobject_type_t);
 extern void cap_revoke(kobject_t *);
 extern void cap_free(struct task *, cap_handle_t);
 kobject_t *cap_destroy(struct task *task, cap_handle_t handle, kobject_type_t type);
+kobject_t *cap_destroy_any(struct task *task, cap_handle_t handle);
 
 extern void kobject_initialize(kobject_t *, kobject_type_t);
 extern kobject_t *kobject_get(struct task *, cap_handle_t, kobject_type_t);
+extern kobject_t *kobject_get_any(struct task *, cap_handle_t);
 extern void kobject_add_ref(kobject_t *);
 extern void kobject_put(kobject_t *);
 

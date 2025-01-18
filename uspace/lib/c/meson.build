@@ -107,6 +107,7 @@ src += files(
 	'generic/ieee_double.c',
 	'generic/imath.c',
 	'generic/inttypes.c',
+	'generic/ipc_b.c',
 	'generic/io/asprintf.c',
 	'generic/io/io.c',
 	'generic/io/kio.c',

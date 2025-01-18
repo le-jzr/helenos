@@ -477,6 +477,35 @@ kobject_t *cap_destroy(task_t *task, cap_handle_t handle, kobject_type_t type)
 	return kobj;
 }
 
+kobject_t *cap_destroy_any(task_t *task, cap_handle_t handle)
+{
+	kobject_t *kobj = NULL;
+
+	mutex_lock(&task->cap_info->lock);
+
+	cap_t *cap = cap_get(task, handle, CAP_STATE_PUBLISHED);
+	if (!cap) {
+		mutex_unlock(&task->cap_info->lock);
+		return NULL;
+	}
+
+	/* Hand over cap's reference to kobj */
+	kobj = cap->kobject;
+	cap->kobject = NULL;
+
+	mutex_lock(&kobj->caps_list_lock);
+	cap_unpublish_unsafe(cap);
+	mutex_unlock(&kobj->caps_list_lock);
+
+	/* The capability is deallocated in the remove callback. */
+	hash_table_remove_item(&task->cap_info->caps, &cap->caps_link);
+	ra_free(task->cap_info->handles, cap_handle_raw(handle), 1);
+
+	mutex_unlock(&task->cap_info->lock);
+
+	return kobj;
+}
+
 /** Revoke access to kobject from all existing capabilities
  *
  * All published capabilities associated with the kobject are unpublished (i.e.
@@ -570,6 +599,22 @@ kobject_get(struct task *task, cap_handle_t handle, kobject_type_t type)
 			kobj = cap->kobject;
 			refcount_up(&kobj->refcnt);
 		}
+	}
+	mutex_unlock(&task->cap_info->lock);
+
+	return kobj;
+}
+
+kobject_t *
+kobject_get_any(struct task *task, cap_handle_t handle)
+{
+	kobject_t *kobj = NULL;
+
+	mutex_lock(&task->cap_info->lock);
+	cap_t *cap = cap_get(task, handle, CAP_STATE_PUBLISHED);
+	if (cap) {
+		kobj = cap->kobject;
+		refcount_up(&kobj->refcnt);
 	}
 	mutex_unlock(&task->cap_info->lock);
 

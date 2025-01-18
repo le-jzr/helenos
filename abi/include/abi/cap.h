@@ -55,15 +55,6 @@ typedef struct {
 typedef struct {
 } *cap_mem_handle_t;
 
-typedef struct {
-} *cap_data_handle_t;
-
-typedef struct {
-} *cap_endpoint_handle_t;
-
-typedef struct {
-} *cap_buffer_handle_t;
-
 static cap_handle_t const CAP_NIL = 0;
 
 static inline bool cap_handle_valid(cap_handle_t handle)
