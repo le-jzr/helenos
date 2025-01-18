@@ -92,6 +92,7 @@
 #include <proc/task.h>
 #include <synch/mutex.h>
 #include <synch/syswaitq.h>
+#include <ipc_b.h>
 
 #define CAPS_START	((intptr_t) CAP_NIL + 1)
 #define CAPS_LAST	((intptr_t) INT_MAX - 1)
@@ -105,8 +106,9 @@ const kobject_ops_t *kobject_ops[KOBJECT_TYPE_MAX] = {
 	[KOBJECT_TYPE_PHONE] = &phone_kobject_ops,
 	[KOBJECT_TYPE_WAITQ] = &waitq_kobject_ops,
 	[KOBJECT_TYPE_MEM] = &mem_kobject_ops,
-	[KOBJECT_TYPE_IPCB_BUFFER] = &ipcb_buffer_kobject_ops,
-	[KOBJECT_TYPE_IPCB_ENDPOINT] = &ipcb_endpoint_kobject_ops,
+	[KOBJECT_TYPE_IPC_BLOB] = &ipc_blob_kobject_ops,
+//	[KOBJECT_TYPE_IPC_BUFFER] = &ipc_buffer_kobject_ops,
+//	[KOBJECT_TYPE_IPC_ENDPOINT] = &ipc_endpoint_kobject_ops,
 };
 
 static size_t caps_hash(const ht_link_t *item)
@@ -134,9 +136,9 @@ static void caps_remove_callback(ht_link_t *item)
 
 	if (cap->kobject) {
 		kobject_t *kobj = cap->kobject;
+		cap->kobject = NULL;
 
 		mutex_lock(&kobj->caps_list_lock);
-		cap->kobject = NULL;
 		list_remove(&cap->kobj_link);
 		mutex_unlock(&kobj->caps_list_lock);
 
@@ -364,6 +366,44 @@ cap_publish(task_t *task, cap_handle_t handle, kobject_t *kobj)
 	mutex_unlock(&task->cap_info->lock);
 }
 
+/** Allocate and publish capability for given kobject.
+ *
+ * @param task    Task in which to publish the capability.
+ * @param kobj    Kernel object. The reference is handed over to the capability.
+ * @return Capability handle or CAP_NIL
+ */
+cap_handle_t
+cap_create(task_t *task, kobject_t *kobj)
+{
+	cap_t *cap = slab_alloc(cap_cache, FRAME_ATOMIC);
+	if (!cap) {
+		mutex_unlock(&task->cap_info->lock);
+		return CAP_NIL;
+	}
+
+	uintptr_t hbase;
+	if (!ra_alloc(task->cap_info->handles, 1, 1, &hbase)) {
+		slab_free(cap_cache, cap);
+		return CAP_NIL;
+	}
+
+	mutex_lock(&task->cap_info->lock);
+
+	cap_initialize(cap, task, (cap_handle_t) hbase);
+	hash_table_insert(&task->cap_info->caps, &cap->caps_link);
+	cap->state = CAP_STATE_PUBLISHED;
+	cap->kobject = kobj;
+
+	mutex_lock(&kobj->caps_list_lock);
+	list_append(&cap->kobj_link, &kobj->caps_list);
+	list_append(&cap->type_link, &task->cap_info->type_list[kobj->type]);
+	mutex_unlock(&kobj->caps_list_lock);
+
+	mutex_unlock(&task->cap_info->lock);
+
+	return cap->handle;
+}
+
 static void cap_unpublish_unsafe(cap_t *cap)
 {
 	cap->kobject = NULL;
@@ -403,6 +443,35 @@ kobject_t *cap_unpublish(task_t *task, cap_handle_t handle, kobject_type_t type)
 			mutex_unlock(&kobj->caps_list_lock);
 		}
 	}
+	mutex_unlock(&task->cap_info->lock);
+
+	return kobj;
+}
+
+kobject_t *cap_destroy(task_t *task, cap_handle_t handle, kobject_type_t type)
+{
+	kobject_t *kobj = NULL;
+
+	mutex_lock(&task->cap_info->lock);
+
+	cap_t *cap = cap_get(task, handle, CAP_STATE_PUBLISHED);
+	if (!cap || cap->kobject->type != type) {
+		mutex_unlock(&task->cap_info->lock);
+		return NULL;
+	}
+
+	/* Hand over cap's reference to kobj */
+	kobj = cap->kobject;
+	cap->kobject = NULL;
+
+	mutex_lock(&kobj->caps_list_lock);
+	cap_unpublish_unsafe(cap);
+	mutex_unlock(&kobj->caps_list_lock);
+
+	/* The capability is deallocated in the remove callback. */
+	hash_table_remove_item(&task->cap_info->caps, &cap->caps_link);
+	ra_free(task->cap_info->handles, cap_handle_raw(handle), 1);
+
 	mutex_unlock(&task->cap_info->lock);
 
 	return kobj;

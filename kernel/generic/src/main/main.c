@@ -89,6 +89,7 @@
 #include <sysinfo/stats.h>
 #include <lib/ra.h>
 #include <cap/cap.h>
+#include <ipc_b.h>
 
 /*
  * Ensure [u]int*_t types are of correct size.

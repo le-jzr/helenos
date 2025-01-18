@@ -35,10 +35,11 @@
 #ifndef KERN_IPC_B_H_
 #define KERN_IPC_B_H_
 
-
 #include <errno.h>
 #include <time/timeout.h>
 #include <cap/cap.h>
+
+#define IPC_BLOB_SIZE_LIMIT 65536
 
 typedef struct ipc_blob ipc_blob_t;
 typedef struct ipc_buffer ipc_buffer_t;
@@ -69,7 +70,10 @@ typedef struct ipc_write_data {
 
 void ipc_blob_init(void);
 
-
+ipc_blob_t *ipc_blob_create(uspace_addr_t, sysarg_t);
+sysarg_t sys_blob_create(uspace_addr_t, sysarg_t);
+sys_errno_t sys_blob_read(cap_handle_t, sysarg_t, sysarg_t, uspace_addr_t);
+sys_errno_t sys_blob_destroy(cap_handle_t);
 
 void ipc_buffer_initialize(void);
 
