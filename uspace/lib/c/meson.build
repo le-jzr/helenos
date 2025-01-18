@@ -104,6 +104,7 @@ src += files(
 	'generic/smc.c',
 	'generic/task.c',
 	'generic/imath.c',
+	'generic/ipc_b.c',
 	'generic/io/asprintf.c',
 	'generic/io/io.c',
 	'generic/io/printf.c',
