@@ -89,7 +89,7 @@ static void timeout_register_deadline_locked(timeout_t *timeout, deadline_t dead
 		.deadline = deadline,
 		.handler = handler,
 		.arg = arg,
-		.finished = ATOMIC_VAR_INIT(false),
+		.finished = false,
 	};
 
 	/* Insert timeout into the active timeouts list according to timeout->deadline. */
