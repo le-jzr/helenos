@@ -59,7 +59,7 @@
 static char kio[KIO_LENGTH];
 
 /** Kernel log initialized */
-static atomic_bool kio_inited = ATOMIC_VAR_INIT(false);
+static atomic_bool kio_inited = false;
 
 /** A mutex for preventing interleaving of output lines from different threads.
  * May not be held in some circumstances, so locking of any internal shared

@@ -95,8 +95,6 @@ int __fcompare(size_t, size_t, ...);
 #define HUGE_VALF  __builtin_huge_valf()
 #define HUGE_VAL   __builtin_huge_val()
 #define HUGE_VALL  __builtin_huge_vall()
-#define INFINITY   __builtin_inff()
-#define NAN        __builtin_nan("")
 
 #define fpclassify(x)  __builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL, FP_SUBNORMAL, FP_ZERO, (x))
 #define isfinite(x)    __builtin_isfinite(x)

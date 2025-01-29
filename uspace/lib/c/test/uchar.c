@@ -41,7 +41,7 @@ PCUT_TEST(mbrtoc16)
 	memset(&mbstate, 0, sizeof(mbstate));
 
 	size_t ret;
-	const char *s = u8"a𐎣";
+	const char *s = (const char *) u8"a𐎣";
 	char16_t out[] = u"AAAAA";
 	const char16_t expected[] = u"a𐎣";
 
@@ -92,7 +92,7 @@ PCUT_TEST(mbrtoc32)
 
 	size_t ret;
 	char32_t c = 0;
-	const char *s = u8"aβℷ𐎣";
+	const char *s = (const char *) u8"aβℷ𐎣";
 
 	ret = mbrtoc32(&c, s, MB_CUR_MAX, &mbstate);
 	PCUT_ASSERT_INT_EQUALS(ret, 1);
