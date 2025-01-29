@@ -52,6 +52,7 @@
 #define panic_memtrap(istate, access, addr, fmt, ...) \
 	panic_common(PANIC_MEMTRAP, istate, access, addr, fmt, ##__VA_ARGS__)
 
+#undef unreachable
 #define unreachable() \
 	panic_assert("%s() at %s:%u:\nUnreachable line reached.", \
 	    __func__, __FILE__, __LINE__);
