@@ -102,7 +102,12 @@ void ipcb_call_cancel(ipcb_call_cancellable_t *call);
 [[gnu::access(write_only, 3)]]
 ipc_call_result_t ipcb_call(ipcb_endpoint_t *ep, const ipc_message_t *m, ipc_message_t *reply);
 
+[[gnu::access(write_only, 3)]]
+ipc_call_result_t ipcb_call_long(ipcb_endpoint_t *ep, const ipc_message_t *m, ipc_message_t *reply,
+	const void *data, size_t data_len);
+
 void ipcb_answer(const ipc_message_t *call, const ipc_message_t *answer);
+void ipcb_answer_long(const ipc_message_t *call, const ipc_message_t *answer, const void *data, size_t data_len);
 void ipcb_answer_protocol_error(const ipc_message_t *call);
 void ipcb_set_cancel_handler(const ipc_message_t *call, void *handler);
 
@@ -111,6 +116,22 @@ void ipc_message_drop(const ipc_message_t *msg);
 void cap_drop(cap_handle_t);
 
 void ipcb_handle_messages(ipcb_queue_t *q, const struct timespec *expires);
+
+void ipc_call_long_1(const ipcb_endpoint_t *ep,
+	ipc_message_t *reply, sysarg_t arg1, const void *data, size_t data_len);
+
+static inline cap_handle_t ipc_get_cap(const ipc_message_t *msg, int i)
+{
+	assert(ipc_get_arg_type(msg, i) == IPC_ARG_TYPE_CAP);
+	return ipc_get_arg(msg, i).cap;
+}
+
+#define ipc_set_arg(m, i, val) _Generic((val), \
+	int: ipc_set_arg((m), (i), (sysarg_t) (val), IPC_ARG_TYPE_VAL), \
+	sysarg_t: ipc_set_arg((m), (i), (val), IPC_ARG_TYPE_VAL), \
+	cap_handle_t: ipc_set_arg((m), (i), (val), IPC_ARG_TYPE_CAP))
+
+//	ipcb_endpoint_handler_t *: ipc_set_arg((m), (i), (void *) (val), IPC_ARG_TYPE_ENDPOINT),
 
 #endif
 
