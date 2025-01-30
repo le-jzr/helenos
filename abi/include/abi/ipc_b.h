@@ -43,6 +43,7 @@
 #define IPC_BLOB_SIZE_LIMIT 65536
 
 typedef enum ipc_arg_type {
+	IPC_ARG_TYPE_NONE,
 	/* Just a plain integer. */
 	IPC_ARG_TYPE_VAL,
 	/* The argument is an endpoint tag.
@@ -106,6 +107,11 @@ enum {
 	 */
 	IPC_MESSAGE_FLAG_AUTOMATIC_MESSAGE = 1 << 28,
 };
+
+static inline uintptr_t ipc_message_flags_2(uintptr_t flags, ipc_arg_type_t type0, ipc_arg_type_t type1)
+{
+	return flags | type0 | (type1 << 4);
+}
 
 typedef enum ipc_retval {
 	ipc_success,
