@@ -227,8 +227,6 @@ extern errno_t vfs_op_write(int fd, aoff64_t, size_t *out_bytes);
 
 extern void vfs_register(ipc_call_t *);
 
-extern void vfs_page_in(ipc_call_t *);
-
 typedef struct {
 	void *buffer;
 	size_t size;
