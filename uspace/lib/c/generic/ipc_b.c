@@ -60,14 +60,6 @@ static inline ipcb_queue_t *_queue_from_handle(cap_handle_t handle)
 	return (ipcb_queue_t *) handle;
 }
 
-#define ipc_set_arg(m, i, val) _Generic((val), \
-	int: ipc_set_arg((m), (i), (sysarg_t) (val), IPC_ARG_TYPE_VAL), \
-	sysarg_t: ipc_set_arg((m), (i), (val), IPC_ARG_TYPE_VAL), \
-	cap_handle_t: ipc_set_arg((m), (i), (val), IPC_ARG_TYPE_CAP))
-
-//	ipcb_endpoint_handler_t *: ipc_set_arg((m), (i), (void *) (val), IPC_ARG_TYPE_ENDPOINT),
-
-
 struct ipc_endpoint_handler {
 	const ipc_endpoint_class_t *class;
 };
@@ -436,6 +428,7 @@ void ipcb_handle_messages(ipcb_queue_t *q, const struct timespec *expires)
 	}
 
 	bool dropped = (msg.flags & IPC_MESSAGE_FLAG_OBJECT_DROPPED);
+	msg.flags &= ~IPC_MESSAGE_FLAG_OBJECT_DROPPED;
 
 	auto class = _class_from_ep_tag(tag);
 	class->on_message((void *) tag, &msg);
@@ -444,4 +437,8 @@ void ipcb_handle_messages(ipcb_queue_t *q, const struct timespec *expires)
 		class->on_destroy((void *) tag);
 }
 
-
+void ipc_call_long_1(const ipcb_endpoint_t *ep,
+	ipc_message_t *reply, sysarg_t arg1, const void *data, size_t data_len)
+{
+	panic("unimplemented");
+}
