@@ -52,30 +52,6 @@
 
 #define NAME  "vfs"
 
-static void vfs_pager(ipc_call_t *icall, void *arg)
-{
-	async_accept_0(icall);
-
-	while (true) {
-		ipc_call_t call;
-		async_get_call(&call);
-
-		if (!ipc_get_imethod(&call)) {
-			async_answer_0(&call, EOK);
-			break;
-		}
-
-		switch (ipc_get_imethod(&call)) {
-		case IPC_M_PAGE_IN:
-			vfs_page_in(&call);
-			break;
-		default:
-			async_answer_0(&call, ENOTSUP);
-			break;
-		}
-	}
-}
-
 static void notification_handler(ipc_call_t *call, void *arg)
 {
 	if (ipc_get_arg1(call) == VFS_PASS_HANDLE)
@@ -121,16 +97,7 @@ int main(int argc, char **argv)
 	async_event_task_subscribe(EVENT_TASK_STATE_CHANGE, notification_handler,
 	    NULL);
 
-	/*
-	 * Register at the naming service.
-	 */
-	errno_t rc = service_register(SERVICE_VFS, INTERFACE_PAGER, vfs_pager, NULL);
-	if (rc != EOK) {
-		printf("%s: Cannot register VFS pager port: %s\n", NAME, str_error(rc));
-		return rc;
-	}
-
-	rc = service_register(SERVICE_VFS, INTERFACE_VFS, vfs_connection, NULL);
+	errno_t rc = service_register(SERVICE_VFS, INTERFACE_VFS, vfs_connection, NULL);
 	if (rc != EOK) {
 		printf("%s: Cannot register VFS file system port: %s\n", NAME, str_error(rc));
 		return rc;

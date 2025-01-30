@@ -35,5 +35,4 @@ src = files(
 	'vfs_lookup.c',
 	'vfs_register.c',
 	'vfs_ipc.c',
-	'vfs_pager.c',
 )
