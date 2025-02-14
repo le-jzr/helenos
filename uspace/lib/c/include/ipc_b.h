@@ -42,6 +42,7 @@
 #include <fibril_synch.h>
 
 typedef struct ipcb_blob ipcb_blob_t;
+typedef struct ipcb_buffer ipcb_buffer_t;
 typedef struct ipcb_endpoint ipcb_endpoint_t;
 typedef struct ipcb_queue ipcb_queue_t;
 
@@ -50,6 +51,18 @@ size_t ipcb_blob_get_len(const ipcb_blob_t *blob);
 size_t ipcb_blob_read(const ipcb_blob_t *blob, void *dst, size_t len, size_t offset);
 void ipcb_blob_put(ipcb_blob_t *blob);
 void ipcb_blob_destroy(ipcb_blob_t *blob);
+
+ipcb_buffer_t *ipcb_buffer_create(size_t len);
+size_t ipcb_buffer_write(ipcb_buffer_t *buf, const void *src, size_t len, size_t offset);
+void ipcb_buffer_put(ipcb_buffer_t *buf);
+void ipcb_buffer_destroy(ipcb_buffer_t *buf);
+
+/* destructive conversion to blob */
+ipcb_blob_t *ipcb_buffer_finalize(ipcb_buffer_t *buf);
+
+/* destructive read */
+size_t ipcb_buffer_read(ipcb_buffer_t *buf, void *dst, size_t len, size_t offset);
+
 
 ipcb_queue_t *ipcb_queue_create(const char *name, size_t buffer_size);
 void ipcb_queue_destroy(ipcb_queue_t *q);
