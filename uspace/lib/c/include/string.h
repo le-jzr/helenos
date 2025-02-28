@@ -35,11 +35,6 @@
 #ifndef _LIBC_STRING_H_
 #define _LIBC_STRING_H_
 
-#if defined(_HELENOS_SOURCE) && !defined(_REALLY_WANT_STRING_H) && \
-    !defined(_LIBC_SOURCE)
-#error Please use str.h and mem.h instead
-#endif
-
 #include <_bits/decls.h>
 #include <_bits/size_t.h>
 #include <_bits/NULL.h>

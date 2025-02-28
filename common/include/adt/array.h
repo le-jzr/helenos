@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 Martin Decky
+ * Copyright (c) 2025 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,26 +26,47 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @addtogroup ns
- * @{
- */
+#ifndef ADT_ARRAY_H_
+#define ADT_ARRAY_H_
 
-#ifndef NS_CLONABLE_H__
-#define NS_CLONABLE_H__
+#include <assert.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <panic.h>
 
-#include <ipc/common.h>
-#include <ipc/services.h>
-#include <abi/ipc/interfaces.h>
-#include <stdbool.h>
+struct adt_array {
+    void *b;
+    size_t len;
+    size_t cap;
+};
 
-extern errno_t ns_clonable_init(void);
+#define adt_array(type) union { struct adt_array data; type *typed_b; }
 
-extern bool ns_service_is_clonable(service_t, iface_t);
-extern void ns_clonable_register(ipc_call_t *);
-extern void ns_clonable_forward(service_t, iface_t, ipc_call_t *);
+#define adt_array_at(a, idx) ((a)->b[(typeof(idx) _idx = (idx), assert(_idx >= 0), assert(_idx < (a)->len), (_idx))])
+
+#define adt_array_len(a) ((a)->data.len)
+
+static inline size_t _adt_array_extend(struct adt_array *data, size_t sizeof_elem)
+{
+    if (data->len >= data->cap) {
+        size_t new_cap = (data->cap == 0) ? 8 : data->cap << 1;
+        if (new_cap > SIZE_MAX / sizeof_elem)
+            panic("array size overflow");
+
+        void *newb = realloc(data->b, new_cap * sizeof_elem);
+        if (newb == NULL)
+            panic("out of memory");
+
+        data->b = newb;
+        data->cap = new_cap;
+    }
+
+    return data->len++;
+}
+
+#define adt_array_push(a, val) (typeof(a) _a = (a), _a->typed_b[_adt_array_extend(&_a->data, sizeof(_a->typed_b[0]))] = (val), (void) 0)
+
+#define adt_array_pop(a) ((a)->b[(assert((a)->len > 0), --((a)->len))])
 
 #endif
-
-/**
- * @}
- */

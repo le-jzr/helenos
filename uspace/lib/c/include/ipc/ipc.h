@@ -112,9 +112,6 @@ extern errno_t ipc_forward_slow(cap_call_handle_t, cap_phone_handle_t, sysarg_t,
 
 extern errno_t ipc_connect_kbox(task_id_t, cap_phone_handle_t *);
 
-typedef struct ipc_buffer ipc_buffer_t;
-typedef struct ipc_data ipc_endpoint_t;
-
 #endif
 
 /** @}
