@@ -61,7 +61,7 @@ void ipcb_buffer_destroy(ipcb_buffer_t *buf);
 ipcb_blob_t *ipcb_buffer_finalize(ipcb_buffer_t *buf);
 
 /* destructive read */
-size_t ipcb_buffer_read(ipcb_buffer_t *buf, void *dst, size_t len, size_t offset);
+size_t ipcb_buffer_consume(ipcb_buffer_t *buf, void *dst, size_t len, size_t offset);
 
 
 ipcb_queue_t *ipcb_queue_create(const char *name, size_t buffer_size);

@@ -254,6 +254,7 @@ ht_link_t *hash_table_find(const hash_table_t *h, const void *key)
 		 * checked if the hashes match but op->key_equal() may very well be
 		 * just as fast as op->hash().
 		 */
+
 		if (h->op->key_equal(key, cur_link)) {
 			return cur_link;
 		}

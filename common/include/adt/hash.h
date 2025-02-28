@@ -107,4 +107,17 @@ static inline size_t hash_combine(size_t seed, size_t hash)
 	return seed;
 }
 
+static inline size_t hash_string(const char *str)
+{
+    /* djb2 hash + extra mixing */
+
+    char c;
+    size_t hash = 5381;
+
+    while ((c = *(str++)))
+        hash = (hash << 5) + hash + c;
+
+    return hash_mix(hash);
+}
+
 #endif
