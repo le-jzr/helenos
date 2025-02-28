@@ -33,6 +33,7 @@
 #ifndef _LIBC_PROTOCOL_FILE_H_
 #define _LIBC_PROTOCOL_FILE_H_
 
+#include <ipc/vfs.h>
 #include <stddef.h>
 #include <ipc/ipc.h>
 
@@ -65,9 +66,32 @@ typedef enum {
 	// TODO
 } ipc_file_open_flags_t;
 
+// TODO
+
+#if 0
+typedef struct ipc_fs_ops {
+    errno_t (*fsprobe)(service_id_t id, vfs_fs_probe_info_t *);
+    errno_t (*mounted)(void *data, service_id_t id, const char *, ipc_node_t *, aoff64_t *);
+	errno_t (*unmounted)(void *data, service_id_t id);
+} ipc_fs_ops_t;
+
+errno_t ipc_fs_fsprobe(ipc_fs_t *fs, service_id_t id, vfs_fs_probe_info_t *);
+
+typedef struct {
+
+	errno_t (*read)(service_id_t, fs_index_t, aoff64_t, size_t *);
+	errno_t (*write)(service_id_t, fs_index_t, aoff64_t, size_t *,
+	    aoff64_t *);
+	errno_t (*truncate)(service_id_t, fs_index_t, aoff64_t);
+	errno_t (*close)(service_id_t, fs_index_t);
+	errno_t (*destroy)(service_id_t, fs_index_t);
+	errno_t (*sync)(service_id_t, fs_index_t);
+} vfs_out_ops_t;
+
 typedef struct ipc_node_ops {
 
 } ipc_node_ops_t;
+#endif
 
 typedef struct ipc_file ipc_file_t;
 

@@ -39,6 +39,22 @@
 #include <stddef.h>
 #include <_bits/decls.h>
 
+#define palloc(type, n) ( \
+    (typeof(type) *) ({ \
+        const size_t __n = (n); \
+        (SIZE_MAX / sizeof(type) < __n) ? NULL : malloc(__n * sizeof(type)); \
+    }) \
+)
+
+#define repalloc(arr, n) ({ \
+    const size_t __n = (n); \
+    (SIZE_MAX / sizeof(*(arr)) < __n) ? false : ({ \
+        const auto __parr = &(arr); \
+        const auto __arr_new = realloc(*__parr, __n * sizeof(**__parr)); \
+        __arr_new == NULL ? false : (*__parr = __arr_new, true); \
+    }); \
+})
+
 __C_DECLS_BEGIN;
 
 extern void *memset(void *, int, size_t)
