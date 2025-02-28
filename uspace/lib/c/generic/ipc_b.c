@@ -408,7 +408,7 @@ void ipcb_handle_messages(ipcb_queue_t *q, const struct timespec *expires)
 		case ipc_e_limit_exceeded:
 		case ipc_e_interrupted_thread:
 		case ipc_e_reserve_failed:
-			/* Fallthrough. */
+			break;
 		}
 
 		panic("unexpected retval from _sys_ipc_receive()");
