@@ -36,6 +36,7 @@
 #define _LIBC_IPC_B_H_
 
 #include <abi/ipc_b.h>
+#include <protocol/core.h>
 #include <stddef.h>
 #include <adt/list.h>
 #include <fibril.h>
@@ -132,6 +133,8 @@ void ipcb_handle_messages(ipcb_queue_t *q, const struct timespec *expires);
 
 void ipc_call_long_1(const ipcb_endpoint_t *ep,
 	ipc_message_t *reply, sysarg_t arg1, const void *data, size_t data_len);
+
+void ipc_object_put(ipc_object_t *);
 
 static inline cap_handle_t ipc_get_cap(const ipc_message_t *msg, int i)
 {

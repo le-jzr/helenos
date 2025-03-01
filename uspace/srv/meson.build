@@ -64,6 +64,7 @@ srvs = [
 	'net/tcp',
 	'net/udp',
 	'ns',
+	'root',
 	'system',
 	'taskmon',
 	'test/chardev-test',

@@ -45,8 +45,8 @@
 
 #ifndef __noreturn
 
-#if (__GNUC__ >= 3) || (defined(__clang__) && __has_attribute(noreturn))
-#define __noreturn __attribute__((noreturn))
+#if (__GNUC__ >= 3) || (defined(__clang__) && __has_attribute(__noreturn__))
+#define __noreturn __attribute__((__noreturn__))
 #else
 #define __noreturn
 #endif

@@ -34,12 +34,13 @@
 #include <adt/hash.h>
 #include <adt/hash_table.h>
 #include <string.h>
+#include <ipc_b.h>
 
 struct entry {
     ht_link_t link;
     char *name;
     ipc_object_t *obj;
-    adt_array(ipc_object_t) waiters;
+    adt_array(ipc_object_t *) waiters;
 };
 
 static size_t _hash(const ht_link_t *item)
@@ -61,16 +62,25 @@ static bool _equal(const ht_link_t *item1, const ht_link_t *item2)
     return strcmp(entry1->name, entry2->name) == 0;
 }
 
-static bool _key_equal(const void *key, const ht_link_t *item)
+static bool _key_equal(const void *key, size_t hash, const ht_link_t *item)
 {
     auto entry = hash_table_get_inst(item, struct entry, link);
 
     return strcmp(entry->name, key) == 0;
 }
 
-static void _remove_callback(ht_link_t *)
+static void _remove_callback(ht_link_t *link)
 {
-    // nop
+    auto entry = hash_table_get_inst(link, struct entry, link);
+
+    adt_array_foreach(&entry->waiters, pwaiter) {
+        ipc_object_put(*pwaiter);
+    }
+
+    adt_array_free(&entry->waiters);
+    ipc_object_put(entry->obj);
+    free(entry->name);
+    free(entry);
 }
 
 static const hash_table_ops_t _hash_ops = {
@@ -92,8 +102,10 @@ static void _initialize_table()
 
 static struct entry *_lookup_entry(const char *id)
 {
+    fibril_mutex_lock(&_lock);
     auto link = hash_table_find(&_table, id);
     return link ? hash_table_get_inst(link, struct entry, link) : NULL;
+    fibril_mutex_unlock(&_lock);
 }
 
 static ipc_root_retval_t _register(const char *id, ipc_object_t *obj)
@@ -111,7 +123,10 @@ static ipc_root_retval_t _register(const char *id, ipc_object_t *obj)
         return ipc_root_failure;
     }
 
+    fibril_mutex_lock(&_lock);
+    hash_table_remove(&_table, id);
     hash_table_insert(&_table, &entry->link);
+    fibril_mutex_unlock(&_lock);
     return ipc_root_success;
 }
 

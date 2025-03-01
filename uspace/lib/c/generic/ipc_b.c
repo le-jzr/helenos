@@ -442,3 +442,8 @@ void ipc_call_long_1(const ipcb_endpoint_t *ep,
 {
 	panic("unimplemented");
 }
+
+void ipc_object_put(ipc_object_t *obj)
+{
+    panic("unimplemented");
+}

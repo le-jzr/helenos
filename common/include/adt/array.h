@@ -43,9 +43,19 @@ struct adt_array {
 
 #define adt_array(type) union { struct adt_array data; type *typed_b; }
 
-#define adt_array_at(a, idx) ((a)->b[(typeof(idx) _idx = (idx), assert(_idx >= 0), assert(_idx < (a)->len), (_idx))])
-
 #define adt_array_len(a) ((a)->data.len)
+
+#define adt_array_at(a, idx) (*({ \
+    auto __a = (a); \
+    auto __idx = (idx); \
+    assert(__idx >= 0); \
+    assert(__idx < adt_array_len(__a)); \
+    &(__a->typed_b[__idx]); \
+}))
+
+#define adt_array_foreach(a, var) \
+    for (auto __a = (a); __a != NULL; __a = NULL) \
+        for (auto var = &__a->typed_b[0]; var < &__a->typed_b[adt_array_len(__a)]; var++)
 
 static inline size_t _adt_array_extend(struct adt_array *data, size_t sizeof_elem)
 {
@@ -68,5 +78,7 @@ static inline size_t _adt_array_extend(struct adt_array *data, size_t sizeof_ele
 #define adt_array_push(a, val) (typeof(a) _a = (a), _a->typed_b[_adt_array_extend(&_a->data, sizeof(_a->typed_b[0]))] = (val), (void) 0)
 
 #define adt_array_pop(a) ((a)->b[(assert((a)->len > 0), --((a)->len))])
+
+#define adt_array_free(a) ((a)->data.len = 0, (a)->data.cap = 0, free((a)->data.b))
 
 #endif
