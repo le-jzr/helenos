@@ -48,7 +48,7 @@
  * In case the file where our macros get expanded
  * does not include cstdlib.
  */
-extern "C" void abort(void) __attribute__((noreturn));
+extern "C" void abort(void) __attribute__((__noreturn__));
 extern "C" int printf(const char*, ...);
 
 namespace std
