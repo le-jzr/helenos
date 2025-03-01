@@ -80,10 +80,10 @@ extern long double strtold(const char *, char **);
 extern int rand(void);
 extern void srand(unsigned int);
 
-extern void abort(void) __attribute__((noreturn));
+extern void abort(void) __attribute__((__noreturn__));
 extern int atexit(void (*)(void));
-extern void exit(int) __attribute__((noreturn));
-extern void _Exit(int) __attribute__((noreturn));
+extern void exit(int) __attribute__((__noreturn__));
+extern void _Exit(int) __attribute__((__noreturn__));
 extern int at_quick_exit(void (*)(void));
 extern void quick_exit(int);
 
