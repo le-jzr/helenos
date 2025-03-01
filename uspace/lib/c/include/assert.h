@@ -49,10 +49,10 @@
 __C_DECLS_BEGIN;
 
 extern void __helenos_assert_abort(const char *, const char *, unsigned int)
-    __attribute__((noreturn));
+    __attribute__((__noreturn__));
 
 extern void __helenos_assert_quick_abort(const char *, const char *, unsigned int)
-    __attribute__((noreturn));
+    __attribute__((__noreturn__));
 
 __C_DECLS_END;
 
