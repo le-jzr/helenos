@@ -13,7 +13,7 @@ typedef enum ipc_root_retval {
 typedef ipc_object_t *(*ipc_root_handler_t)(const ipc_data_t *args);
 
 ipc_root_retval_t ipc_root_register(const char *name, ipc_root_handler_t handler);
-void ipc_root_send(const char *name, const ipc_data_t *args);
+ipc_root_retval_t ipc_root_send(const char *name, const ipc_data_t *args);
 void ipc_root_wait_for(const char *name);
 
 typedef struct {

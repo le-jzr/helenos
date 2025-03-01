@@ -31,56 +31,53 @@
  */
 
 #include <assert.h>
-#include <stdio.h>
 #include <io/kio.h>
-#include <stdlib.h>
+#include <panic.h>
 #include <stacktrace.h>
+#include <stdarg.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <task.h>
 
-__thread int failed_asserts = 0;
+__thread int _nested_panics = 0;
+
+void panic(const char *fmt, ...)
+{
+    va_list vl;
+    va_start(vl);
+    kio_vprintf(fmt, vl);
+    va_end(vl);
+
+    stacktrace_kio_print();
+
+	if (_nested_panics > 0)
+	   abort();
+
+	_nested_panics++;
+
+	va_start(vl);
+	vprintf(fmt, vl);
+	va_end(vl);
+
+	stacktrace_print();
+
+	abort();
+}
 
 void __helenos_assert_quick_abort(const char *cond, const char *file, unsigned int line)
 {
-	/*
-	 * Send the message safely to kio. Nested asserts should not occur.
-	 */
-	kio_printf("Assertion failed (%s) in task %" PRIu64 ", file \"%s\", line %u.\n",
-	    cond, task_get_id(), file, line);
-
-	stacktrace_kio_print();
-
 	/* Sometimes we know in advance that regular printf() would likely fail. */
-	abort();
+	_nested_panics++;
+
+	panic("Assertion failed (%s) in task %" PRIu64 ", file \"%s\", line %u.\n",
+	    cond, task_get_id(), file, line);
 }
 
 void __helenos_assert_abort(const char *cond, const char *file, unsigned int line)
 {
-	/*
-	 * Send the message safely to kio. Nested asserts should not occur.
-	 */
-	kio_printf("Assertion failed (%s) in task %" PRIu64 ", file \"%s\", line %u.\n",
+   	panic("Assertion failed (%s) in task %" PRIu64 ", file \"%s\", line %u.\n",
 	    cond, task_get_id(), file, line);
-
-	stacktrace_kio_print();
-
-	/*
-	 * Check if this is a nested or parallel assert.
-	 */
-	failed_asserts++;
-	if (failed_asserts > 0)
-		abort();
-
-	/*
-	 * Attempt to print the message to standard output and display
-	 * the stack trace. These operations can theoretically trigger nested
-	 * assertions.
-	 */
-	kio_printf("Assertion failed (%s) in task %" PRIu64 ", file \"%s\", line %u.\n",
-	    cond, task_get_id(), file, line);
-	stacktrace_print();
-
-	abort();
 }
 
 /** @}
