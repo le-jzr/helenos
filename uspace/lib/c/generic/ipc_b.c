@@ -45,11 +45,6 @@ static void _sys_ipc_queue_destroy(cap_handle_t queue)
 	panic("unimplemented");
 }
 
-void cap_drop(cap_handle_t handle)
-{
-	panic("unimplemented");
-}
-
 static inline cap_handle_t _queue_handle(ipcb_queue_t *q)
 {
 	return (cap_handle_t) q;
@@ -167,17 +162,17 @@ static const ipc_endpoint_class_t return_class = {
 
 static void _set_status_cap(ipcb_call_cancellable_t *call, ipc_message_t *msg)
 {
-	if (ipc_get_arg_type(msg, 1) != IPC_ARG_TYPE_CAP) {
+	if (ipc_get_arg_type(msg, 1) != IPC_ARG_TYPE_OBJECT) {
 		DEBUG("Received invalid status setup message.");
 		ipc_message_drop(msg);
 		return;
 	}
 
-	auto cap = ipc_get_arg(msg, 1).cap;
+	auto obj = ipc_get_arg(msg, 1).obj;
 	ipc_set_arg(msg, 1, 0);
 	ipc_message_drop(msg);
 
-	if (cap == CAP_NIL) {
+	if (obj == CAP_NIL) {
 		DEBUG("Received invalid status setup message.");
 		return;
 	}
@@ -185,14 +180,14 @@ static void _set_status_cap(ipcb_call_cancellable_t *call, ipc_message_t *msg)
 	fibril_mutex_lock(&call->mutex);
 	bool assigned = (call->status == CAP_NIL);
 	if (assigned)
-		call->status = cap;
+		call->status = obj;
 	fibril_mutex_unlock(&call->mutex);
 
 	if (assigned) {
 		fibril_notify(&call->status_initialized);
 	} else {
 		DEBUG("Received unexpected extra status setup message.");
-		cap_drop(cap);
+		ipc_object_put(obj);
 	}
 }
 
@@ -364,14 +359,14 @@ void ipcb_set_cancel_handler(const ipc_message_t *call, void *handler)
 void ipc_message_drop(const ipc_message_t *msg)
 {
 	for (int i = 0; i < IPC_CALL_LEN; i++) {
-		if (ipc_get_arg_type(msg, i) != IPC_ARG_TYPE_CAP) {
+		if (ipc_get_arg_type(msg, i) != IPC_ARG_TYPE_OBJECT) {
 			assert(ipc_get_arg_type(msg, i) == IPC_ARG_TYPE_VAL);
 			continue;
 		}
 
-		auto cap = ipc_get_arg(msg, i).cap;
-		if (cap != CAP_NIL)
-			cap_drop(cap);
+		auto obj = ipc_get_arg(msg, i).obj;
+		if (obj != NULL)
+			ipc_object_put(obj);
 	}
 }
 

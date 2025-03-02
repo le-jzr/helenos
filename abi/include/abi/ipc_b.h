@@ -36,11 +36,14 @@
 #define _ABI_IPC_B_H_
 
 #include <assert.h>
-#include <abi/ipc/ipc.h>
-#include <abi/cap.h>
+#include <panic.h>
 #include <stdint.h>
 
+#define IPC_MESSAGE_ARGS 6
 #define IPC_BLOB_SIZE_LIMIT 65536
+
+/* 'ipc_object_t *' is the type of userspace capability handles. */
+typedef struct ipc_object ipc_object_t;
 
 typedef enum ipc_arg_type {
 	IPC_ARG_TYPE_NONE,
@@ -52,9 +55,9 @@ typedef enum ipc_arg_type {
 	 */
 	IPC_ARG_TYPE_ENDPOINT,
 	/* The argument is a capability. */
-	IPC_ARG_TYPE_CAP,
+	IPC_ARG_TYPE_OBJECT,
 	/* The argument is a capability and is automatically dropped on send. */
-	IPC_ARG_TYPE_CAP_AUTODROP,
+	IPC_ARG_TYPE_OBJECT_AUTODROP,
 
 #ifdef KERNEL
 	/* Only for kernel. */
@@ -128,7 +131,7 @@ typedef enum ipc_retval {
 
 typedef union ipc_arg {
 	uintptr_t val;
-	cap_handle_t cap;
+	ipc_object_t *obj;
 	void *ptr;
 } ipc_arg_t __attribute__((__transparent_union__));
 
@@ -138,18 +141,18 @@ typedef union ipc_arg {
 typedef struct ipc_message {
 	uintptr_t endpoint_tag;
 	uintptr_t flags;
-	ipc_arg_t args[IPC_CALL_LEN];
+	ipc_arg_t args[IPC_MESSAGE_ARGS];
 } ipc_message_t;
 
 static inline ipc_arg_type_t ipc_get_arg_type(const ipc_message_t *m, int arg)
 {
-	assert(arg >= 0 && arg < IPC_CALL_LEN);
+	assert(arg >= 0 && arg < IPC_MESSAGE_ARGS);
 	return (m->flags >> (arg << 2)) & 0xf;
 }
 
 static inline ipc_arg_t ipc_get_arg(const ipc_message_t *m, int arg)
 {
-	assert(arg >= 0 && arg < IPC_CALL_LEN);
+	assert(arg >= 0 && arg < IPC_MESSAGE_ARGS);
 	return m->args[arg];
 }
 
@@ -161,6 +164,11 @@ static inline void ipc_set_arg(ipc_message_t *m, int arg,
 	m->flags &= ~(0xf << (arg << 2));
 	m->flags |= type << (arg << 2);
 	m->args[arg] = val;
+}
+
+static inline void __ipc_message_prepend(ipc_message_t *msg, ipc_arg_t arg, ipc_arg_type_t type)
+{
+    panic("unimplemented");
 }
 
 #endif

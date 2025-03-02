@@ -4,14 +4,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef void ipc_object_t;
 typedef struct ipc_queue ipc_queue_t;
 typedef struct ipc_blob ipc_blob_t;
 typedef struct ipc_buffer ipc_buffer_t;
 typedef struct ipc_data ipc_endpoint_t;
 typedef struct ipc_mem ipc_mem_t;
 
-ipc_queue_t *ipc_queue_create(size_t buffer_size);
+ipc_queue_t *ipc_queue_create(const char *name, size_t buffer_size);
 void ipc_queue_reserve(ipc_queue_t *q, int msgs);
 void ipc_queue_put(ipc_queue_t *q);
 

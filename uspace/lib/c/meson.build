@@ -136,7 +136,7 @@ src += files(
 	'generic/thread/mpsc.c',
 	'generic/sysinfo.c',
 	'generic/ipc.c',
-#	'generic/ipc/root.c',
+	'generic/ipc/root.c',
 	'generic/ns.c',
 	'generic/async/client.c',
 	'generic/async/server.c',

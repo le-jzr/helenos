@@ -425,7 +425,7 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 
 	if (autodrop) {
 		for (int i = 0; i < IPC_CALL_LEN; i++) {
-			if (ipc_get_arg_type(m, i) == IPC_ARG_TYPE_CAP_AUTODROP) {
+			if (ipc_get_arg_type(m, i) == IPC_ARG_TYPE_OBJECT_AUTODROP) {
 				/*
 				 * We don't guarantee any particular state of the autodrop caps
 				 * when returning ipc_e_invalid_argument. The userspace should
@@ -440,7 +440,7 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 				// TODO: Only lock the capabilities only once, and retrieve
 				//       all the objects at once, atomically.
 
-				kobject_t *kobj = cap_destroy_any(TASK, ipc_get_arg(m, i).cap);
+				kobject_t *kobj = cap_destroy_any(TASK, ipc_get_arg(m, i).obj);
 				if (!kobj) {
 					_deprocess_send(m);
 					DEBUG("Trying to send+drop an invalid capability.\n");
@@ -524,16 +524,16 @@ static ipc_retval_t _preprocess_message(ipc_message_t *m, task_t *task)
 
 		cap_handle_t cap = cap_create(task, ipc_get_arg(m, i).ptr);
 		if (cap != CAP_NIL) {
-			ipc_set_arg(m, i, (ipc_arg_t) cap, IPC_ARG_TYPE_CAP);
+			ipc_set_arg(m, i, (ipc_arg_t) cap, IPC_ARG_TYPE_OBJECT);
 			continue;
 		}
 
 		/* Failed allocating capabilities, restore original values. */
 		for (int j = 0; j < i; j++) {
-			if (ipc_get_arg_type(m, j) != IPC_ARG_TYPE_CAP)
+			if (ipc_get_arg_type(m, j) != IPC_ARG_TYPE_OBJECT)
 				continue;
 
-			kobject_t *kobj = cap_destroy_any(TASK, ipc_get_arg(m, j).cap);
+			kobject_t *kobj = cap_destroy_any(TASK, ipc_get_arg(m, j).obj);
 			ipc_set_arg_kobject(m, j, kobj);
 		}
 

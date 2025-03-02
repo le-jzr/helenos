@@ -32,7 +32,6 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <panic.h>
 
 struct adt_array {
@@ -75,10 +74,13 @@ static inline size_t _adt_array_extend(struct adt_array *data, size_t sizeof_ele
     return data->len++;
 }
 
-#define adt_array_push(a, val) (typeof(a) _a = (a), _a->typed_b[_adt_array_extend(&_a->data, sizeof(_a->typed_b[0]))] = (val), (void) 0)
+#define adt_array_push(a, val) \
+    (typeof(a) _a = (a), _a->typed_b[_adt_array_extend(&_a->data, sizeof(_a->typed_b[0]))] = (val), (void) 0)
 
-#define adt_array_pop(a) ((a)->b[(assert((a)->len > 0), --((a)->len))])
+#define adt_array_pop(a) \
+    ((a)->b[(assert((a)->len > 0), --((a)->len))])
 
-#define adt_array_free(a) ((a)->data.len = 0, (a)->data.cap = 0, free((a)->data.b))
+#define adt_array_free(a) \
+    ((a)->data.len = 0, (a)->data.cap = 0, free((a)->data.b))
 
 #endif
