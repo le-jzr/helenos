@@ -2,18 +2,19 @@
 
 // Root service methods.
 
-#include <protocol/core.h>
 #include <abi/ipc/ipc.h>
+#include <abi/ipc_b.h>
+#include <protocol/core.h>
 
 typedef enum ipc_root_retval {
     ipc_root_success,
     ipc_root_failure,
 } ipc_root_retval_t;
 
-typedef ipc_object_t *(*ipc_root_handler_t)(const ipc_data_t *args);
+typedef ipc_object_t *(*ipc_root_handler_t)(const ipc_message_t *args);
 
 ipc_root_retval_t ipc_root_register(const char *name, ipc_root_handler_t handler);
-ipc_root_retval_t ipc_root_send(const char *name, const ipc_data_t *args);
+ipc_root_retval_t ipc_root_send(const char *name, const ipc_message_t *args);
 void ipc_root_wait_for(const char *name);
 
 typedef struct {

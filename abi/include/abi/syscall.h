@@ -123,7 +123,7 @@ typedef enum {
 
 	SYS_DEBUG_CONSOLE,
 
-	SYS_KLOG
+	SYS_KLOG,
 } syscall_t;
 
 #endif
