@@ -38,35 +38,11 @@
 #include <abi/ipc_b.h>
 #include <protocol/core.h>
 #include <stddef.h>
-#include <adt/list.h>
 #include <fibril.h>
 #include <fibril_synch.h>
 
-typedef struct ipcb_blob ipcb_blob_t;
-typedef struct ipcb_buffer ipcb_buffer_t;
 typedef struct ipcb_endpoint ipcb_endpoint_t;
 typedef struct ipcb_queue ipcb_queue_t;
-
-ipcb_blob_t *ipcb_blob_create(const void *src, size_t len);
-size_t ipcb_blob_get_len(const ipcb_blob_t *blob);
-size_t ipcb_blob_read(const ipcb_blob_t *blob, void *dst, size_t len, size_t offset);
-void ipcb_blob_put(ipcb_blob_t *blob);
-void ipcb_blob_destroy(ipcb_blob_t *blob);
-
-ipcb_buffer_t *ipcb_buffer_create(size_t len);
-size_t ipcb_buffer_write(ipcb_buffer_t *buf, const void *src, size_t len, size_t offset);
-void ipcb_buffer_put(ipcb_buffer_t *buf);
-void ipcb_buffer_destroy(ipcb_buffer_t *buf);
-
-/* destructive conversion to blob */
-ipcb_blob_t *ipcb_buffer_finalize(ipcb_buffer_t *buf);
-
-/* destructive read */
-size_t ipcb_buffer_consume(ipcb_buffer_t *buf, void *dst, size_t len, size_t offset);
-
-
-ipcb_queue_t *ipcb_queue_create(const char *name, size_t buffer_size);
-void ipcb_queue_destroy(ipcb_queue_t *q);
 
 typedef struct ipc_endpoint_class {
 	void (*on_message)(void *self, ipc_message_t *msg);
@@ -86,7 +62,7 @@ typedef struct ipcb_call {
 typedef struct ipcb_call_cancellable {
 	ipcb_call_t call;
 	fibril_mutex_t mutex;
-	cap_handle_t status;
+	ipc_object_t *status;
 	fibril_event_t status_initialized;
 } ipcb_call_cancellable_t;
 
@@ -104,6 +80,8 @@ typedef enum ipc_call_result {
 	/* Server dropped the return endpoint or died before answering. */
 	ipc_call_result_hungup,
 } ipc_call_result_t;
+
+void ipcb_send(ipcb_endpoint_t *ep, const ipc_message_t *m);
 
 [[gnu::access(write_only, 3)]]
 void ipcb_call_start(ipcb_endpoint_t *ep, const ipc_message_t *m, ipcb_call_t *call);
@@ -127,8 +105,6 @@ void ipcb_set_cancel_handler(const ipc_message_t *call, void *handler);
 
 void ipc_message_drop(const ipc_message_t *msg);
 
-void cap_drop(cap_handle_t);
-
 void ipcb_handle_messages(ipcb_queue_t *q, const struct timespec *expires);
 
 void ipc_call_long_1(const ipcb_endpoint_t *ep,
@@ -136,18 +112,25 @@ void ipc_call_long_1(const ipcb_endpoint_t *ep,
 
 void ipc_object_put(ipc_object_t *);
 
-static inline cap_handle_t ipc_get_cap(const ipc_message_t *msg, int i)
+static inline ipc_object_t *ipc_get_object(const ipc_message_t *msg, int i)
 {
-	assert(ipc_get_arg_type(msg, i) == IPC_ARG_TYPE_CAP);
-	return ipc_get_arg(msg, i).cap;
+	assert(ipc_get_arg_type(msg, i) == IPC_ARG_TYPE_OBJECT);
+	return ipc_get_arg(msg, i).obj;
 }
 
 #define ipc_set_arg(m, i, val) _Generic((val), \
 	int: ipc_set_arg((m), (i), (sysarg_t) (val), IPC_ARG_TYPE_VAL), \
 	sysarg_t: ipc_set_arg((m), (i), (val), IPC_ARG_TYPE_VAL), \
-	cap_handle_t: ipc_set_arg((m), (i), (val), IPC_ARG_TYPE_CAP))
+	ipc_blob_t *: ipc_set_arg((m), (i), (val), IPC_ARG_TYPE_OBJECT), \
+	ipc_object_t *: ipc_set_arg((m), (i), (val), IPC_ARG_TYPE_OBJECT))
 
 //	ipcb_endpoint_handler_t *: ipc_set_arg((m), (i), (void *) (val), IPC_ARG_TYPE_ENDPOINT),
+
+#define ipc_message_prepend(m, val) _Generic((val), \
+    int: __ipc_message_prepend((m), (sysarg_t) (val), IPC_ARG_TYPE_VAL), \
+	sysarg_t: __ipc_message_prepend((m), (val), IPC_ARG_TYPE_VAL), \
+	ipc_blob_t *: __ipc_message_prepend((m), (val), IPC_ARG_TYPE_OBJECT), \
+	ipc_object_t *: __ipc_message_prepend((m), (val), IPC_ARG_TYPE_OBJECT))
 
 #endif
 

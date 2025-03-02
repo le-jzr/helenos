@@ -1,23 +1,44 @@
 
-#include <ipc/root.h>
-
+#include <abi/syscall.h>
 #include <ipc_b.h>
+#include <libc.h>
+#include <panic.h>
+#include <protocol/root.h>
 #include <stdatomic.h>
+#include <str.h>
 
-static atomic(cap_handle_t) _root_handle = 0;
+static _Atomic(ipc_endpoint_t *) _root_handle = 0;
 
 static ipc_endpoint_t *_root_ep()
 {
-	auto handle = atomic_load_explicit(&_root_handle, atomic_relaxed);
+	auto handle = atomic_load_explicit(&_root_handle, memory_order_relaxed);
 
-	if (handle == CAP_NIL) {
-		handle = __syscall0(SYS_ROOT_GET);
-		auto old = atomic_exchange_explicit(&_root_handle, handle, atomic_relaxed);
-		if (old != CAP_NIL)
-			cap_drop(old);
+	if (handle == NULL) {
+		handle = (ipc_endpoint_t *) __SYSCALL0(SYS_IPCB_NS_GET);
+		auto old = atomic_exchange_explicit(&_root_handle, handle, memory_order_relaxed);
+		if (old != NULL)
+			ipc_endpoint_put(old);
 	}
 
 	return handle;
+}
+
+void ipc_root_serve(const ipc_root_server_ops_t *ops)
+{
+
+}
+
+ipc_root_retval_t ipc_root_send(const char *name, const ipc_message_t *args)
+{
+    size_t name_sz = str_size(name);
+
+    auto b = ipcb_blob_create(name, name_sz);
+
+    ipc_message_t msg = *args;
+    ipc_message_prepend(&msg, (sysarg_t) name_sz);
+    ipc_message_prepend(&msg, b);
+
+    ipcb_send(_root_ep(), &msg);
 }
 
 cap_handle_t ipc_root_get(const char *name)
@@ -30,7 +51,7 @@ cap_handle_t ipc_root_get(const char *name)
 	ipc_message_t reply = {};
 	ipc_call_long(_root_ep(), &reply, &call, name, name_sz);
 
-	if (reply.flags != ipc_message_flags_2(0, IPC_ARG_TYPE_NONE, IPC_ARG_TYPE_CAP)) {
+	if (reply.flags != ipc_message_flags_2(0, IPC_ARG_TYPE_NONE, IPC_ARG_TYPE_OBJECT)) {
 		ipc_message_drop(&reply);
 		return CAP_NIL;
 	}
