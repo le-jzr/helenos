@@ -1,5 +1,5 @@
 #pragma once
 
-#include <stdnoreturn.h>
+#include <_bits/__noreturn.h>
 
-noreturn void panic(const char *fmt, ...) __attribute__((format (printf, 1, 2)));
+__noreturn void panic(const char *fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));

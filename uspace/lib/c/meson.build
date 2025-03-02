@@ -118,6 +118,7 @@ src += files(
 	'generic/io/table.c',
 	'generic/io/vprintf.c',
 	'generic/ipc.c',
+	'generic/ipc/root.c',
 	'generic/irq.c',
 	'generic/l18n/langs.c',
 	'generic/libc.c',
