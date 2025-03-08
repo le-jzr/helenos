@@ -71,6 +71,8 @@ struct fibril {
 	fibril_event_t *sleep_event;
 };
 
+#pragma GCC visibility push(hidden)
+
 extern fibril_t *fibril_alloc(void);
 extern void fibril_setup(fibril_t *);
 extern void fibril_teardown(fibril_t *f);
@@ -85,6 +87,8 @@ extern void fibril_notify(fibril_event_t *);
 
 extern errno_t fibril_ipc_wait(ipc_call_t *, const struct timespec *);
 extern void fibril_ipc_poke(void);
+
+extern void __tss_on_thread_exit(void);
 
 /**
  * "Restricted" fibril mutex.
@@ -124,5 +128,7 @@ extern void fibril_rmutex_destroy(fibril_rmutex_t *);
 extern void fibril_rmutex_lock(fibril_rmutex_t *);
 extern bool fibril_rmutex_trylock(fibril_rmutex_t *);
 extern void fibril_rmutex_unlock(fibril_rmutex_t *);
+
+#pragma GCC visibility pop
 
 #endif

@@ -854,6 +854,8 @@ _Noreturn void fibril_exit(long retval)
 	// TODO: implement fibril_join() and remember retval
 	(void) retval;
 
+	__tss_on_thread_exit();
+
 	fibril_t *f = _ready_list_pop_nonblocking(false);
 	if (!f)
 		f = fibril_self()->thread_ctx;
