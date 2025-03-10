@@ -120,10 +120,8 @@ static void _tss_update(void)
 
     /* Clear out stale keys. */
     for (size_t i = 0; i < _tss_len; i++) {
-        if (_tss[i].gen != _tss_key[i].gen) {
-            _tss[i].gen = _tss_key[i].gen;
-            _tss[i].val = NULL;
-        }
+        if (_tss[i].gen != _tss_key[i].gen)
+            _tss[i] = (struct _tss) { .gen = _tss_key[i].gen };
     }
 
     /* Resize the array if needed. */
@@ -151,9 +149,7 @@ static void _tss_update(void)
 
 void __tss_on_thread_exit()
 {
-    struct _tss *tss = _tss;
-
-    if (!tss)
+    if (!_tss)
         return;
 
     fibril_mutex_lock(&_tss_key_mutex);

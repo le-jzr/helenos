@@ -71,17 +71,17 @@ typedef struct {
 } once_flag;
 
 enum {
-    mtx_plain = 1,
+    mtx_plain = 0,
+    mtx_recursive = 1,
     mtx_timed = 2,
-    mtx_recursive = 4,
 };
 
 enum {
+    thrd_success = 0,
     thrd_busy = 1,
-    thrd_error,
-    thrd_nomem,
-    thrd_success,
-    thrd_timedout,
+    thrd_error = 2,
+    thrd_nomem = 3,
+    thrd_timedout = 4,
 };
 
 void call_once(once_flag *flag, void (*func)(void));
