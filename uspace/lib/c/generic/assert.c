@@ -47,6 +47,7 @@ void panic(const char *fmt, ...)
     va_list vl;
     va_start(vl);
     kio_vprintf(fmt, vl);
+    kio_printf("\n");
     va_end(vl);
 
     stacktrace_kio_print();
@@ -58,6 +59,7 @@ void panic(const char *fmt, ...)
 
 	va_start(vl);
 	vprintf(fmt, vl);
+	printf("\n");
 	va_end(vl);
 
 	stacktrace_print();
