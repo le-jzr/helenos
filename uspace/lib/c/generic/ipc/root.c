@@ -32,14 +32,21 @@ ipc_root_retval_t ipc_root_send(const char *name, const ipc_message_t *args)
 {
     size_t name_sz = str_size(name);
 
-    auto b = ipcb_blob_create(name, name_sz);
+    auto b = ipc_blob_create(name, name_sz);
 
     ipc_message_t msg = *args;
     ipc_message_prepend(&msg, (sysarg_t) name_sz);
     ipc_message_prepend(&msg, b);
 
     ipcb_send(_root_ep(), &msg);
+    panic("uimplemented");
 }
+
+#if 0
+
+enum {
+    IPC_ROOT_SET = 0,
+};
 
 cap_handle_t ipc_root_get(const char *name)
 {
@@ -77,3 +84,5 @@ bool ipc_root_set(const char *name, cap_handle_t handle)
 
 	return ipc_get_val(&reply, 1);
 }
+
+#endif
