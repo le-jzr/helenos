@@ -41,20 +41,8 @@
 #include <fibril.h>
 #include <fibril_synch.h>
 
-typedef struct ipcb_endpoint ipcb_endpoint_t;
-typedef struct ipcb_queue ipcb_queue_t;
-
-typedef struct ipc_endpoint_class {
-	void (*on_message)(void *self, ipc_message_t *msg);
-	void (*on_destroy)(void *self);
-} ipc_endpoint_class_t;
-
-ipcb_endpoint_t *ipcb_endpoint_create(ipcb_queue_t *q,
-	ipc_endpoint_class_t **data);
-void ipcb_endpoint_put(ipcb_endpoint_t *ep);
-
 typedef struct ipcb_call {
-	const ipc_endpoint_class_t *class;
+	const ipc_endpoint_ops_t *class;
 	fibril_event_t event;
 	ipc_message_t response;
 } ipcb_call_t;
@@ -81,21 +69,21 @@ typedef enum ipc_call_result {
 	ipc_call_result_hungup,
 } ipc_call_result_t;
 
-void ipcb_send(ipcb_endpoint_t *ep, const ipc_message_t *m);
+void ipcb_send(ipc_endpoint_t *ep, const ipc_message_t *m);
 
 [[gnu::access(write_only, 3)]]
-void ipcb_call_start(ipcb_endpoint_t *ep, const ipc_message_t *m, ipcb_call_t *call);
+void ipcb_call_start(ipc_endpoint_t *ep, const ipc_message_t *m, ipcb_call_t *call);
 [[gnu::access(write_only, 3)]]
-void ipcb_call_start_cancellable(ipcb_endpoint_t *ep, ipc_message_t *m, ipcb_call_cancellable_t *call);
+void ipcb_call_start_cancellable(ipc_endpoint_t *ep, ipc_message_t *m, ipcb_call_cancellable_t *call);
 [[gnu::access(write_only, 2)]]
 ipc_call_result_t ipcb_call_finish(ipcb_call_t *call, ipc_message_t *reply);
 void ipcb_call_cancel(ipcb_call_cancellable_t *call);
 
 [[gnu::access(write_only, 3)]]
-ipc_call_result_t ipcb_call(ipcb_endpoint_t *ep, const ipc_message_t *m, ipc_message_t *reply);
+ipc_call_result_t ipcb_call(ipc_endpoint_t *ep, const ipc_message_t *m, ipc_message_t *reply);
 
 [[gnu::access(write_only, 3)]]
-ipc_call_result_t ipcb_call_long(ipcb_endpoint_t *ep, const ipc_message_t *m, ipc_message_t *reply,
+ipc_call_result_t ipcb_call_long(ipc_endpoint_t *ep, const ipc_message_t *m, ipc_message_t *reply,
 	const void *data, size_t data_len);
 
 void ipcb_answer(const ipc_message_t *call, const ipc_message_t *answer);
@@ -105,9 +93,9 @@ void ipcb_set_cancel_handler(const ipc_message_t *call, void *handler);
 
 void ipc_message_drop(const ipc_message_t *msg);
 
-void ipcb_handle_messages(ipcb_queue_t *q, const struct timespec *expires);
+void ipcb_handle_messages(ipc_queue_t *q, const struct timespec *expires);
 
-void ipc_call_long_1(const ipcb_endpoint_t *ep,
+void ipc_call_long_1(const ipc_endpoint_t *ep,
 	ipc_message_t *reply, sysarg_t arg1, const void *data, size_t data_len);
 
 void ipc_object_put(ipc_object_t *);

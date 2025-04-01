@@ -8,13 +8,15 @@
 
 #include "private/fibril.h"
 
+#define __unused __attribute__((unused))
+
 #define DEBUG(fmt, ...) fprintf(stderr, fmt __VA_OPT__(,) __VA_ARGS__)
 
 #define panic(fmt, ...) (fprintf(stderr, fmt __VA_OPT__(,) __VA_ARGS__), abort())
 
 struct ipcb_call_in {
 	const ipc_message_t *msg;
-	ipcb_endpoint_t *return_ep;
+	ipc_endpoint_t *return_ep;
 };
 
 #define _heap_wrap(obj) ({ \
@@ -23,12 +25,14 @@ struct ipcb_call_in {
 	mem; \
 })
 
-static ipc_retval_t _sys_ipc_send(ipcb_endpoint_t *ep, const ipc_message_t *m,
+__unused
+static ipc_retval_t _sys_ipc_send(ipc_endpoint_t *ep, const ipc_message_t *m,
 	cap_handle_t *return_q, uintptr_t return_tag, int reserves)
 {
 	panic("unimplemented");
 }
 
+__unused
 static ipc_retval_t _sys_ipc_receive(cap_handle_t q, ipc_message_t *m)
 {
 	panic("unimplemented");
@@ -40,29 +44,26 @@ static cap_handle_t _sys_ipc_queue_create(uintptr_t name, size_t len,
 	panic("unimplemented");
 }
 
+__unused
 static void _sys_ipc_queue_destroy(cap_handle_t queue)
 {
 	panic("unimplemented");
 }
 
-static inline cap_handle_t _queue_handle(ipcb_queue_t *q)
+static inline cap_handle_t _queue_handle(ipc_queue_t *q)
 {
 	return (cap_handle_t) q;
 }
 
-static inline ipcb_queue_t *_queue_from_handle(cap_handle_t handle)
+static inline ipc_queue_t *_queue_from_handle(cap_handle_t handle)
 {
-	return (ipcb_queue_t *) handle;
+	return (ipc_queue_t *) handle;
 }
-
-struct ipc_endpoint_handler {
-	const ipc_endpoint_class_t *class;
-};
 
 // TODO
 #if 0
 
-static void _sys_ipc_send_slow(ipcb_endpoint_t *ep, const ipc_message_t *m)
+static void _sys_ipc_send_slow(ipc_endpoint_t *ep, const ipc_message_t *m)
 {
 	ipc_message_t m = *m;
 	ipc_endpoint_t *ep;
@@ -100,14 +101,14 @@ static void _sys_ipc_send_slow(ipcb_endpoint_t *ep, const ipc_message_t *m)
  * Does the same thing as _sys_ipc_call(), but ensures the operation cannot
  * fail.
  */
-static void _make_call_slow(ipcb_endpoint_t *ep, const ipc_message_t *m,
-	ipcb_queue_t *return_q, uintptr_t return_tag, int reserves)
+static void _make_call_slow(ipc_endpoint_t *ep, const ipc_message_t *m,
+	ipc_queue_t *return_q, uintptr_t return_tag, int reserves)
 
 #endif
 
 
-static void _make_call(ipcb_endpoint_t *ep, const ipc_message_t *m,
-	ipcb_queue_t *return_q, uintptr_t return_tag, int reserves)
+static void _make_call(ipc_endpoint_t *ep, const ipc_message_t *m,
+	ipc_queue_t *return_q, uintptr_t return_tag, int reserves)
 {
 	assert(ipc_get_arg(m, 0).val == 0);
 
@@ -155,7 +156,7 @@ static void _reply_on_destroy(void *self)
 	fibril_notify(&call->event);
 }
 
-static const ipc_endpoint_class_t return_class = {
+static const ipc_endpoint_ops_t return_class = {
 	.on_message = _reply_on_message,
 	.on_destroy = _reply_on_destroy,
 };
@@ -216,7 +217,7 @@ static void _reply_on_destroy_cancellable(void *self)
 	fibril_notify(&call->status_initialized);
 }
 
-static const ipc_endpoint_class_t return_class_cancellable = {
+static const ipc_endpoint_ops_t return_class_cancellable = {
 	.on_message = _reply_on_message_cancellable,
 	.on_destroy = _reply_on_destroy_cancellable,
 };
@@ -225,7 +226,7 @@ static const ipc_endpoint_class_t return_class_cancellable = {
 /*
  * Make an uncancellable call.
  */
-void ipcb_call_start(ipcb_endpoint_t *ep, const ipc_message_t *m, ipcb_call_t *call)
+void ipcb_call_start(ipc_endpoint_t *ep, const ipc_message_t *m, ipcb_call_t *call)
 {
 	assert(ipc_get_arg(m, 0).val == 0);
 	assert(!(m->flags & IPC_MESSAGE_FLAG_STATUS));
@@ -261,7 +262,7 @@ ipc_call_result_t ipcb_call_finish(ipcb_call_t *call, ipc_message_t *reply)
 	return ipc_call_result_success;
 }
 
-ipc_call_result_t ipcb_call(ipcb_endpoint_t *ep, const ipc_message_t *m, ipc_message_t *reply)
+ipc_call_result_t ipcb_call(ipc_endpoint_t *ep, const ipc_message_t *m, ipc_message_t *reply)
 {
 	ipcb_call_t call;
 	ipcb_call_start(ep, m, &call);
@@ -271,7 +272,7 @@ ipc_call_result_t ipcb_call(ipcb_endpoint_t *ep, const ipc_message_t *m, ipc_mes
 /*
  *
  */
-void ipcb_call_start_cancellable(ipcb_endpoint_t *ep,
+void ipcb_call_start_cancellable(ipc_endpoint_t *ep,
 	ipc_message_t *m, ipcb_call_cancellable_t *call)
 {
 	assert(ipc_get_arg(m, 0).val == 0);
@@ -301,7 +302,7 @@ void ipcb_call_cancel(ipcb_call_cancellable_t *call)
 	panic("unimplemented");
 }
 
-ipcb_queue_t *ipcb_queue_create(const char *name, size_t buffer_size)
+ipc_queue_t *ipc_queue_create(const char *name, size_t buffer_size)
 {
 	assert(buffer_size >= PAGE_SIZE);
 	assert(buffer_size % PAGE_SIZE == 0);
@@ -317,7 +318,7 @@ ipcb_queue_t *ipcb_queue_create(const char *name, size_t buffer_size)
 	return _queue_from_handle(handle);
 }
 
-void ipcb_queue_destroy(ipcb_queue_t *q)
+void ipc_queue_destroy(ipc_queue_t *q)
 {
 	if (!q)
 		return;
@@ -326,12 +327,15 @@ void ipcb_queue_destroy(ipcb_queue_t *q)
 	free(q);
 }
 
-ipcb_endpoint_t *ipcb_endpoint_create(ipcb_queue_t *q, ipc_endpoint_class_t **handler)
+/**
+ * @param epdata  Must start with an `ipc_endpoint_ops_t *` field.
+ */
+ipc_endpoint_t *ipc_endpoint_create(ipc_queue_t *q, void *epdata)
 {
 	panic("unimplemented");
 }
 
-void ipcb_endpoint_put(ipcb_endpoint_t *ep)
+void ipc_endpoint_put(ipc_endpoint_t *ep)
 {
 	panic("unimplemented");
 }
@@ -371,16 +375,16 @@ void ipc_message_drop(const ipc_message_t *msg)
 }
 
 typedef struct {
-	const ipc_endpoint_class_t *class;
+	const ipc_endpoint_ops_t *class;
 } _return_endpoint_t;
 
-static inline const ipc_endpoint_class_t *_class_from_ep_tag(uintptr_t tag)
+static inline const ipc_endpoint_ops_t *_class_from_ep_tag(uintptr_t tag)
 {
 	assert(tag != 0);
-	return *(const ipc_endpoint_class_t **) (void *) tag;
+	return *(const ipc_endpoint_ops_t **) (void *) tag;
 }
 
-void ipcb_handle_messages(ipcb_queue_t *q, const struct timespec *expires)
+void ipcb_handle_messages(ipc_queue_t *q, const struct timespec *expires)
 {
 	// TODO: timeouts
 
@@ -432,13 +436,18 @@ void ipcb_handle_messages(ipcb_queue_t *q, const struct timespec *expires)
 		class->on_destroy((void *) tag);
 }
 
-void ipc_call_long_1(const ipcb_endpoint_t *ep,
+void ipc_call_long_1(const ipc_endpoint_t *ep,
 	ipc_message_t *reply, sysarg_t arg1, const void *data, size_t data_len)
 {
 	panic("unimplemented");
 }
 
 void ipc_object_put(ipc_object_t *obj)
+{
+    panic("unimplemented");
+}
+
+ipc_blob_t *ipc_blob_create(const void *src, size_t src_len)
 {
     panic("unimplemented");
 }
