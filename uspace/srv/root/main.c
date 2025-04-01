@@ -138,7 +138,7 @@ static ipc_object_t *_get(const char *id)
 
 int main(int argc, char **argv)
 {
-    printf("%s: HelenOS IPC Root Server\n", argv[0]);
+    printf("root: HelenOS IPC Root Server\n");
 
     _initialize_table();
 

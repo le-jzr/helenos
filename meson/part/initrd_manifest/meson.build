@@ -35,6 +35,7 @@ rd_init = [
 
 	# IMPORTANT: The order of entries is important for bootloader!
 	'srv/ns',
+	'srv/root',
 	'srv/loader',
 	'app/init',
 	'srv/locsrv',
