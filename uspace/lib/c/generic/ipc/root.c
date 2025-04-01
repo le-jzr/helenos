@@ -25,7 +25,7 @@ static ipc_endpoint_t *_root_ep()
 
 void ipc_root_serve(const ipc_root_server_ops_t *ops)
 {
-
+    panic("unimplemented");
 }
 
 ipc_root_retval_t ipc_root_send(const char *name, const ipc_message_t *args)
