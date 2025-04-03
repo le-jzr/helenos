@@ -1,3 +1,4 @@
+#include "abi/ipc_b.h"
 #include <ipc_b.h>
 
 #include <stdatomic.h>
@@ -173,9 +174,6 @@ static void _release_message_buffer(ipc_queue_t *q, ipc_linked_message_t *m,
 
 	irq_spinlock_unlock(&q->lock, true);
 }
-
-
-
 
 void ipc_queue_init(void)
 {
@@ -397,8 +395,8 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 			ipc_set_arg_kobject(m, i, &ep->kobject);
 			continue;
 
-		case IPC_ARG_TYPE_CAP:
-			kobject_t *kobj = kobject_get_any(TASK, ipc_get_arg(m, i).cap);
+		case IPC_ARG_TYPE_OBJECT:
+			kobject_t *kobj = kobject_get_any(TASK, ipc_get_arg(m, i).obj);
 			if (!kobj) {
 				_deprocess_send(m);
 				DEBUG("Trying to send an invalid capability.\n");
@@ -408,11 +406,12 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 			ipc_set_arg_kobject(m, i, kobj);
 			continue;
 
-		case IPC_ARG_TYPE_CAP_AUTODROP:
+		case IPC_ARG_TYPE_OBJECT_AUTODROP:
 			/* We need all allocations done before we start working on these. */
 			autodrop++;
 			continue;
 
+		case IPC_ARG_TYPE_NONE:
 		case IPC_ARG_TYPE_KOBJECT:
 			/* Fallthrough */
 		}

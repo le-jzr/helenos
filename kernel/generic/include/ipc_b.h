@@ -52,9 +52,7 @@ extern kobject_ops_t ipc_endpoint_kobject_ops;
 
 void weakref_init(void);
 void ipc_blob_init(void);
-static inline void ipc_queue_init(void)
-{
-}
+void ipc_queue_init(void);
 
 typedef struct weakref weakref_t;
 weakref_t *weakref_create(void *inner);
