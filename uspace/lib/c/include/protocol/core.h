@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define IPC_QUEUE_DEFAULT ((ipc_queue_t *) nullptr)
+
 typedef struct ipc_queue ipc_queue_t;
 typedef struct ipc_blob ipc_blob_t;
 typedef struct ipc_buffer ipc_buffer_t;

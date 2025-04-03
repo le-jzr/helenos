@@ -81,7 +81,7 @@ generic_src += files(
 	'src/ipc/sysipc_ops.c',
 	'src/ipcb/blob.c',
 	'src/ipcb/weakref.c',
-#	'src/ipcb/queue.c',
+	'src/ipcb/queue.c',
 	'src/lib/elf.c',
 	'src/lib/halt.c',
 	'src/lib/mem.c',

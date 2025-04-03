@@ -53,7 +53,8 @@ typedef enum ipc_arg_type {
 	 * A new endpoint with this tag is created and sent.
 	 * The sending task doesn't get a capability to the created endpoint.
 	 */
-	IPC_ARG_TYPE_ENDPOINT,
+	IPC_ARG_TYPE_ENDPOINT_1,
+	IPC_ARG_TYPE_ENDPOINT_2,
 	/* The argument is a capability. */
 	IPC_ARG_TYPE_OBJECT,
 	/* The argument is a capability and is automatically dropped on send. */
@@ -96,7 +97,7 @@ enum {
 
 	/*
 	 * Flag set in initial message to signal caller wants a status endpoint.
-	 * Set in a reply message if it carries a status endpoint instead
+	 * Also set in a reply message if it carries a status endpoint instead
 	 * of final result. The caller may signal desire to cancel by dropping
 	 * this endpoint, or make calls on it to ask for status information if
 	 * the callee's protocol supports it.

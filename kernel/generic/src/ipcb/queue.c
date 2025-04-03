@@ -1,3 +1,4 @@
+#include "abi/ipc_b.h"
 #include <ipc_b.h>
 
 #include <stdatomic.h>
@@ -7,6 +8,7 @@
 #include <synch/spinlock.h>
 #include <mem.h>
 #include <proc/task.h>
+#include <str_error.h>
 #include <syscall/copy.h>
 
 #define DEBUG(f, ...) printf("IPC(" __FILE__ ":%d) " f, __LINE__ __VA_OPT__(,) __VA_ARGS__)
@@ -120,7 +122,11 @@ static void _dynamic_message_free(ipc_dynamic_message_t *dyn)
 	bool overbudget =
 		q->free_dynamic_count >= IPC_DYNAMIC_MESSAGE_BUFFER_DEFAULT_SIZE;
 
-	if (!overbudget) {
+	if (overbudget) {
+	    assert(q->reserve_dynamic_requested == 0);
+	} else {
+	    /* Keep a few free ones cached locally. */
+
 		if (q->reserve_dynamic_requested > 0) {
 			assert(q->free_dynamic_count == 0);
 			q->reserve_dynamic_requested--;
@@ -142,10 +148,19 @@ static void _dynamic_message_free(ipc_dynamic_message_t *dyn)
 	}
 }
 
+/**
+ * Free a message buffer that belongs to this queue.
+ * If some pending reservations were fulfilled, *reservations_granted is increased.
+ */
 static void _release_message_buffer(ipc_queue_t *q, ipc_linked_message_t *m,
 	size_t *reservations_granted)
 {
 	irq_spinlock_lock(&q->lock, true);
+
+	/*
+     * If there are pending dynamically allocated message buffers,
+     * the released buffers are first used to free them.
+     */
 
 	ipc_dynamic_message_t *dyn = list_pop(&q->pending_dynamic,
 		ipc_dynamic_message_t, link);
@@ -173,9 +188,6 @@ static void _release_message_buffer(ipc_queue_t *q, ipc_linked_message_t *m,
 
 	irq_spinlock_unlock(&q->lock, true);
 }
-
-
-
 
 void ipc_queue_init(void)
 {
@@ -397,8 +409,8 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 			ipc_set_arg_kobject(m, i, &ep->kobject);
 			continue;
 
-		case IPC_ARG_TYPE_CAP:
-			kobject_t *kobj = kobject_get_any(TASK, ipc_get_arg(m, i).cap);
+		case IPC_ARG_TYPE_OBJECT:
+			kobject_t *kobj = kobject_get_any(TASK, ipc_get_arg(m, i).obj);
 			if (!kobj) {
 				_deprocess_send(m);
 				DEBUG("Trying to send an invalid capability.\n");
@@ -408,11 +420,12 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 			ipc_set_arg_kobject(m, i, kobj);
 			continue;
 
-		case IPC_ARG_TYPE_CAP_AUTODROP:
+		case IPC_ARG_TYPE_OBJECT_AUTODROP:
 			/* We need all allocations done before we start working on these. */
 			autodrop++;
 			continue;
 
+		case IPC_ARG_TYPE_NONE:
 		case IPC_ARG_TYPE_KOBJECT:
 			/* Fallthrough */
 		}
@@ -455,6 +468,8 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 	return ipc_success;
 }
 
+// FIXME
+__attribute__((unused))
 static ipc_retval_t _ipc_queue_send_reserved(ipc_queue_t *q, ipc_queue_t *sender_q,
 	uintptr_t endpoint_tag,
 	uspace_addr_t uspace_buffer, size_t uspace_buffer_size,
@@ -510,6 +525,22 @@ ipc_retval_t _ipc_queue_write_unreserved(ipc_queue_t *q,
 
 #endif
 
+/**
+ * Preprocess message retrieved from queue before sending it to userspace.
+ * It only contains IPC_ARG_TYPE_VAL and IPC_ARG_TYPE_KOBJECT entries before
+ * processing. IPC_ARG_TYPE_KOBJECT entries are converted to newly allocated
+ * capabilities (IPC_ARG_TYPE_OBJECT) in the recipient task.
+ *
+ * If capabilities cannot be allocated for every object in the message,
+ * ipc_e_no_memory is returned and the message is restored to the original
+ * state.
+ *
+ * Otherwise, ipc_success is returned and the message contains only VAL and
+ * OBJECT entries.
+ *
+ * @param m     Message to process.
+ * @param task  Task to allocate capabilities for.
+ */
 static ipc_retval_t _preprocess_message(ipc_message_t *m, task_t *task)
 {
 	for (int i = 0; i < IPC_CALL_LEN; i++) {
@@ -540,29 +571,22 @@ static ipc_retval_t _preprocess_message(ipc_message_t *m, task_t *task)
 		return ipc_e_no_memory;
 	}
 
-	for (int i = 0; i < objects_in_msg(m); i++) {
-		cap_handle_t cap = cap_create(task, (kobject_t *) m->args[i]);
-		if (cap != CAP_NIL) {
-			m->args[i] = cap_handle_raw(cap);
-			continue;
-		}
-
-		/* Failed allocating capabilities, restore original values. */
-		for (int j = 0; j < i; j++) {
-			m->args[j] = (uintptr_t) cap_destroy((cap_handle_t) m->args[j]);
-			assert(m->args[j]);
-		}
-
-		return ipc_e_no_memory;
-	}
+	return ipc_success;
 }
 
+/**
+ * Destroy capabilities in the message and convert them back to kobject pointers.
+ */
 static void _deprocess_message(ipc_message_t *m, task_t *task)
 {
-	for (int i = 0; i < objects_in_msg(m); i++) {
-		m->args[i] = (uintptr_t) cap_destroy((cap_handle_t) m->args[i]);
-		assert(m->args[i]);
-	}
+    for (int i = 0; i < IPC_CALL_LEN; i++) {
+        if (ipc_get_arg_type(m, i) != IPC_ARG_TYPE_OBJECT)
+			continue;
+
+        kobject_t *kobj = cap_destroy_any(TASK, ipc_get_arg(m, i).obj);
+        assert(kobj != nullptr);
+		ipc_set_arg_kobject(m, i, kobj);
+    }
 }
 
 static ipc_retval_t _ipc_queue_read(ipc_queue_t *q,
@@ -578,10 +602,12 @@ static ipc_retval_t _ipc_queue_read(ipc_queue_t *q,
 
 	*uspace_buffer_size = 0;
 
+	// TODO: maybe we could turn this into a singly linked lock-free list?
 	irq_spinlock_lock(&q->lock, true);
 	ipc_linked_message_t *m = list_pop(&q->pending, ipc_linked_message_t, link);
 	irq_spinlock_unlock(&q->lock, true);
 
+	/* Turn kobject references into caps. */
 	ipc_retval_t rc = _preprocess_message(&m->data, TASK);
 	if (rc != ipc_success) {
 		irq_spinlock_lock(&q->lock, true);
@@ -591,6 +617,10 @@ static ipc_retval_t _ipc_queue_read(ipc_queue_t *q,
 		return rc;
 	}
 
+	// TODO: pass the whole message in a vector register
+	//       instead of using copy_to/from_uspace()?
+	// The whole structure is 256b/512b depending on pointer size, so should fit
+	// into register on anything with a vector extension.
 	if (copy_to_uspace(uspace_buffer, &m->data, sizeof(m->data)) != EOK) {
 		_deprocess_message(&m->data, TASK);
 		irq_spinlock_lock(&q->lock, true);
@@ -603,12 +633,15 @@ static ipc_retval_t _ipc_queue_read(ipc_queue_t *q,
 	*uspace_buffer_size = sizeof(ipc_message_t);
 
 	_release_message_buffer(q, m, reservations_granted);
+	return ipc_success;
 }
 
 ipc_retval_t ipc_queue_read(ipc_queue_t *q,
 	uspace_addr_t uspace_buffer, size_t *uspace_buffer_size,
 	size_t *reservations_granted, int timeout_usec)
 {
+    assert(q != NULL);
+
 	if (*uspace_buffer_size < sizeof(ipc_message_t))
 		return ipc_e_invalid_argument;
 
@@ -639,6 +672,8 @@ ipc_retval_t ipc_queue_read(ipc_queue_t *q,
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#if 0
 
 sys_errno_t sys_ipc_endpoint_create(sysarg_t queue_handle, sysarg_t tag,
 	uspace_addr_t out_endpoint_handle)
@@ -788,3 +823,5 @@ sys_errno_t sys_ipc_receive(kobj_handle_t buffer_handle)
 
 	// TODO: process message
 }
+
+#endif

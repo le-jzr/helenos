@@ -1,8 +1,11 @@
 
+#include <abi/ipc_b.h>
 #include <abi/syscall.h>
 #include <ipc_b.h>
+#include <libarch/config.h>
 #include <libc.h>
 #include <panic.h>
+#include <protocol/core.h>
 #include <protocol/root.h>
 #include <stdatomic.h>
 #include <str.h>
@@ -23,8 +26,42 @@ static ipc_endpoint_t *_root_ep()
 	return handle;
 }
 
+static void _root_ep_set(ipc_endpoint_t *ep)
+{
+    //__SYSCALL1(SYS_IPCB_NS_SET, )
+    panic("unimplemented");
+}
+
+static void _server_on_message(void *self, ipc_message_t *msg)
+{
+    panic("unimplemented");
+}
+
+static void _server_on_destroy(void *self)
+{
+    panic("unimplemented");
+}
+
+static const ipc_endpoint_ops_t _ep_ops = {
+    .on_message = _server_on_message,
+    .on_destroy = _server_on_destroy,
+};
+
+struct _server_ep {
+    const ipc_endpoint_ops_t *ep_ops;
+    const ipc_root_server_ops_t *root_ops;
+};
+
 void ipc_root_serve(const ipc_root_server_ops_t *ops)
 {
+    struct _server_ep epdata = {
+        .ep_ops = &_ep_ops,
+        .root_ops = ops,
+    };
+
+    auto ep = ipc_endpoint_create(IPC_QUEUE_DEFAULT, &epdata);
+    _root_ep_set(ep);
+
     panic("unimplemented");
 }
 
