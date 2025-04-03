@@ -52,9 +52,7 @@ extern kobject_ops_t ipc_endpoint_kobject_ops;
 
 void weakref_init(void);
 void ipc_blob_init(void);
-static inline void ipc_queue_init(void)
-{
-}
+void ipc_queue_init(void);
 
 typedef struct weakref weakref_t;
 weakref_t *weakref_create(void *inner);
@@ -71,8 +69,14 @@ sys_errno_t sys_blob_destroy(cap_handle_t);
 
 ipc_queue_t *ipc_queue_create(size_t);
 ipc_retval_t ipc_queue_reserve(ipc_queue_t *, size_t);
+ipc_retval_t ipc_queue_read(ipc_queue_t *q,
+    uspace_addr_t uspace_buffer, size_t *uspace_buffer_size,
+	size_t *reservations_granted, int timeout_usec);
 
 ipc_endpoint_t *ipc_endpoint_create(ipc_queue_t *q, uintptr_t tag, int reserves);
+
+sys_errno_t sys_ipc_endpoint_create(sysarg_t queue_handle, sysarg_t tag,
+	uspace_addr_t out_endpoint_handle);
 
 #endif
 

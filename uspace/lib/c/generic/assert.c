@@ -42,7 +42,7 @@
 
 __thread int _nested_panics = 0;
 
-void panic(const char *fmt, ...)
+void __panic(const char *fmt, ...)
 {
     va_list vl;
     va_start(vl);

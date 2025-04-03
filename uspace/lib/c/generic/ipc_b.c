@@ -12,8 +12,6 @@
 
 #define DEBUG(fmt, ...) fprintf(stderr, fmt __VA_OPT__(,) __VA_ARGS__)
 
-#define panic(fmt, ...) (fprintf(stderr, fmt __VA_OPT__(,) __VA_ARGS__), abort())
-
 struct ipcb_call_in {
 	const ipc_message_t *msg;
 	ipc_endpoint_t *return_ep;
@@ -313,7 +311,7 @@ ipc_queue_t *ipc_queue_create(const char *name, size_t buffer_size)
 	// TODO: handle memory exhaustion
 
 	if (handle == CAP_NIL)
-		return NULL;
+		panic("out of memory");
 
 	return _queue_from_handle(handle);
 }
