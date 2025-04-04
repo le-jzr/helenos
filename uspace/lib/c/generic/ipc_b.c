@@ -1,5 +1,7 @@
 
+#include <abi/syscall.h>
 #include <ipc_b.h>
+#include <libc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <libarch/config.h>
@@ -330,7 +332,11 @@ void ipc_queue_destroy(ipc_queue_t *q)
  */
 ipc_endpoint_t *ipc_endpoint_create(ipc_queue_t *q, void *epdata)
 {
-	panic("unimplemented");
+    auto ep = __SYSCALL2(SYS_IPCB_ENDPOINT_CREATE, (sysarg_t) q, (sysarg_t) epdata);
+    if (ep == 0)
+        panic("unimplemented");
+
+    return (ipc_endpoint_t *) ep;
 }
 
 void ipc_endpoint_put(ipc_endpoint_t *ep)

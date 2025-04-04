@@ -36,6 +36,7 @@
 #ifndef KERN_TASK_H_
 #define KERN_TASK_H_
 
+#include "ipc_b.h"
 #include <abi/proc/task.h>
 #include <abi/sysinfo.h>
 #include <adt/list.h>
@@ -84,6 +85,8 @@ typedef struct task {
 	as_t *as;
 	/** Unique identity of task. */
 	task_id_t taskid;
+	/** Task's initial IPC queue. */
+	ipc_queue_t *default_queue;
 	/** Task security container. */
 	container_id_t container;
 
