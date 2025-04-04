@@ -62,7 +62,7 @@ void ipc_blob_init(void)
 			sizeof(ipc_blob_t), alignof(ipc_blob_t), NULL, NULL, 0);
 }
 
-static void destroy_blob(kobject_t *arg)
+static void _destroy_blob(kobject_t *arg)
 {
 	ipc_blob_t *blob = (ipc_blob_t *) arg;
 	if (blob->data)
@@ -70,11 +70,11 @@ static void destroy_blob(kobject_t *arg)
 	slab_free(slab_ipc_blob_cache, blob);
 }
 
-kobject_ops_t ipc_blob_kobject_ops = {
-	.destroy = destroy_blob,
+const kobject_ops_t ipc_blob_kobject_ops = {
+	.destroy = _destroy_blob,
 };
 
-static ipc_blob_t *create_blob(void *data, size_t data_size)
+static ipc_blob_t *_create_blob(void *data, size_t data_size)
 {
 	ipc_blob_t *blob = slab_alloc(slab_ipc_blob_cache, 0);
 	if (!blob)
@@ -102,7 +102,7 @@ ipc_blob_t *ipc_blob_create(uspace_addr_t data, sysarg_t data_size)
 		return NULL;
 	}
 
-	ipc_blob_t *blob = create_blob(b, data_size);
+	ipc_blob_t *blob = _create_blob(b, data_size);
 	if (!blob) {
 		free(b);
 		return NULL;

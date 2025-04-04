@@ -107,8 +107,8 @@ const kobject_ops_t *kobject_ops[KOBJECT_TYPE_MAX] = {
 	[KOBJECT_TYPE_WAITQ] = &waitq_kobject_ops,
 	[KOBJECT_TYPE_MEM] = &mem_kobject_ops,
 	[KOBJECT_TYPE_IPC_BLOB] = &ipc_blob_kobject_ops,
-//	[KOBJECT_TYPE_IPC_BUFFER] = &ipc_buffer_kobject_ops,
-//	[KOBJECT_TYPE_IPC_ENDPOINT] = &ipc_endpoint_kobject_ops,
+	[KOBJECT_TYPE_IPC_QUEUE] = &ipc_queue_kobject_ops,
+	[KOBJECT_TYPE_IPC_ENDPOINT] = &ipc_endpoint_kobject_ops,
 };
 
 static size_t caps_hash(const ht_link_t *item)
@@ -640,7 +640,7 @@ void kobject_add_ref(kobject_t *kobj)
 void kobject_put(kobject_t *kobj)
 {
 	if (refcount_down(&kobj->refcnt)) {
-		KOBJECT_OP(kobj)->destroy(kobj);
+		kobject_op(kobj)->destroy(kobj);
 	}
 }
 

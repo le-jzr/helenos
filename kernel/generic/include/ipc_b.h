@@ -45,9 +45,9 @@ typedef struct ipc_blob ipc_blob_t;
 typedef struct ipc_queue ipc_queue_t;
 typedef struct ipc_endpoint ipc_endpoint_t;
 
-extern kobject_ops_t ipc_blob_kobject_ops;
-extern kobject_ops_t ipc_queue_kobject_ops;
-extern kobject_ops_t ipc_endpoint_kobject_ops;
+extern const kobject_ops_t ipc_blob_kobject_ops;
+extern const kobject_ops_t ipc_queue_kobject_ops;
+extern const kobject_ops_t ipc_endpoint_kobject_ops;
 
 void weakref_init(void);
 void ipc_blob_init(void);

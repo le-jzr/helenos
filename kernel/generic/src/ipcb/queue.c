@@ -1,6 +1,8 @@
 #include "abi/cap.h"
 #include "abi/ipc_b.h"
+#include "adt/list.h"
 #include "cap/cap.h"
+#include "mm/slab.h"
 #include <ipc_b.h>
 
 #include <stdatomic.h>
@@ -62,7 +64,6 @@ enum {
 	IPC_DYNAMIC_MESSAGE_BUFFER_DEFAULT_SIZE = 8,
 };
 
-
 typedef struct ipc_queue {
 	/* Keep first. */
 	kobject_t kobject;
@@ -101,7 +102,6 @@ struct ipc_endpoint {
 
 	uintptr_t tag;
 	weakref_t *queue_ref;
-	bool oneshot;
 };
 
 static slab_cache_t *slab_ipc_queue_cache;
@@ -204,17 +204,24 @@ void ipc_queue_init(void)
 		NULL, NULL, 0);
 }
 
-static link_t *page_link(void *page)
+typedef struct __attribute__((may_alias)) {
+	char data[PAGE_SIZE - sizeof(link_t)];
+	link_t link;
+} _dummy_page_t;
+
+_Static_assert(sizeof(_dummy_page_t) == PAGE_SIZE);
+
+static link_t *_page_link(void *page)
 {
-	return page + (PAGE_SIZE - sizeof(link_t));
+	return &((_dummy_page_t *) page)->link;
 }
 
-static void insert_page(ipc_queue_t *q, void *page)
+static void _insert_page(ipc_queue_t *q, void *page)
 {
-	list_append(page_link(page), &q->pages);
+	list_append(_page_link(page), &q->pages);
 
-	assert(page < (void *) page_link(page));
-	size_t page_size = (void *) page_link(page) - page;
+	assert(page < (void *) _page_link(page));
+	size_t page_size = (void *) _page_link(page) - page;
 	assert(page_size > sizeof(ipc_linked_message_t));
 	assert(page_size < PAGE_SIZE);
 
@@ -227,15 +234,11 @@ static void insert_page(ipc_queue_t *q, void *page)
 	q->free_count += n;
 }
 
-typedef struct {
-	char data[PAGE_SIZE - sizeof(link_t)];
-	link_t link;
-} dummy_page_t;
-
-_Static_assert(sizeof(dummy_page_t) == PAGE_SIZE, "");
-
-static void queue_free(ipc_queue_t *q)
+static void _queue_destroy(ipc_queue_t *q)
 {
+	if (q->self_wref)
+		weakref_destroy(q->self_wref);
+
 	while (!list_empty(&q->free_dynamic)) {
 		ipc_dynamic_message_t *dyn = list_pop(&q->free_dynamic,
 			ipc_dynamic_message_t, link);
@@ -247,12 +250,9 @@ static void queue_free(ipc_queue_t *q)
 	}
 
 	while (!list_empty(&q->pages)) {
-		void *page = list_pop(&q->pages, dummy_page_t, link);
+		void *page = list_pop(&q->pages, _dummy_page_t, link);
 		slab_free(slab_page_cache, page);
 	}
-
-	if (q->self_wref)
-		weakref_put(q->self_wref);
 
 	slab_free(slab_ipc_queue_cache, q);
 }
@@ -271,7 +271,8 @@ ipc_queue_t *ipc_queue_create(size_t size)
 	if (!q)
 		return NULL;
 
-	memset(q, 0, sizeof(*q));
+	*q = (ipc_queue_t) {};
+
 	irq_spinlock_initialize(&q->lock, "ipc_queue_t::lock");
 	irq_spinlock_initialize(&q->free_dynamic_lock,
 		"ipc_queue_t::free_dynamic_lock");
@@ -283,7 +284,7 @@ ipc_queue_t *ipc_queue_create(size_t size)
 
 	q->self_wref = weakref_create(q);
 	if (!q->self_wref) {
-		queue_free(q);
+		_queue_destroy(q);
 		return NULL;
 	}
 
@@ -291,16 +292,28 @@ ipc_queue_t *ipc_queue_create(size_t size)
 	for (size_t i = 0; i < page_count; i++) {
 		void *page = slab_alloc(slab_page_cache, FRAME_ATOMIC);
 		if (!page) {
-			queue_free(q);
+			_queue_destroy(q);
 			return NULL;
 		}
-		list_append(page_link(page), &q->pages);
-		insert_page(q, page);
+
+		_insert_page(q, page);
 	}
 
 	kobject_initialize(&q->kobject, KOBJECT_TYPE_IPC_QUEUE);
 	return q;
 }
+
+static void _queue_kobj_destroy(kobject_t *kobj)
+{
+    assert(list_empty(&kobj->caps_list));
+
+    auto q = (ipc_queue_t *) kobj;
+    _queue_destroy(q);
+}
+
+const kobject_ops_t ipc_queue_kobject_ops = {
+    .destroy = _queue_kobj_destroy,
+};
 
 void ipc_queue_put(ipc_queue_t *q)
 {
@@ -343,8 +356,36 @@ ipc_retval_t ipc_queue_reserve(ipc_queue_t *q, size_t n)
 
 ipc_endpoint_t *ipc_endpoint_create(ipc_queue_t *q, uintptr_t tag, int reserves)
 {
-	unimplemented();
+    assert(reserves == 0);
+
+    ipc_endpoint_t *ep = slab_alloc(slab_ipc_endpoint_cache, FRAME_ATOMIC);
+    if (!ep)
+        return NULL;
+
+    ep->queue_ref = weakref_ref(q->self_wref);
+    if (!ep->queue_ref) {
+        slab_free(slab_ipc_endpoint_cache, ep);
+        return NULL;
+    }
+
+    kobject_initialize(&ep->kobject, KOBJECT_TYPE_IPC_ENDPOINT);
+    ep->tag = tag;
+
+    return ep;
 }
+
+static void _ipc_endpoint_destroy(kobject_t *kobj)
+{
+    assert(list_empty(&kobj->caps_list));
+
+    auto ep = (ipc_endpoint_t *) kobj;
+    weakref_put(ep->queue_ref);
+    slab_free(slab_ipc_endpoint_cache, ep);
+}
+
+const kobject_ops_t ipc_endpoint_kobject_ops = {
+    .destroy = _ipc_endpoint_destroy,
+};
 
 static void _deprocess_send(ipc_message_t *m)
 {
