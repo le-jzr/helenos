@@ -54,14 +54,12 @@ struct _server_ep {
 
 void ipc_root_serve(const ipc_root_server_ops_t *ops)
 {
-    auto q = ipc_queue_create("IPC root queue", PAGE_SIZE);
-
     struct _server_ep epdata = {
         .ep_ops = &_ep_ops,
         .root_ops = ops,
     };
 
-    auto ep = ipc_endpoint_create(q, &epdata);
+    auto ep = ipc_endpoint_create(IPC_QUEUE_DEFAULT, &epdata);
     _root_ep_set(ep);
 
     panic("unimplemented");
