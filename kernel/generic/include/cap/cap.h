@@ -69,9 +69,7 @@ typedef struct kobject_ops {
 	void (*destroy)(struct kobject *);
 } kobject_ops_t;
 
-extern const kobject_ops_t *kobject_ops[];
-
-#define KOBJECT_OP(k)	kobject_ops[(k)->type]
+extern const kobject_ops_t *kobject_ops[KOBJECT_TYPE_MAX];
 
 /*
  * Everything in kobject_t except for the atomic reference count, the capability
@@ -86,6 +84,14 @@ typedef struct kobject {
 	/** List of published capabilities associated with the kobject */
 	list_t caps_list;
 } kobject_t;
+
+static inline const kobject_ops_t *kobject_op(kobject_t *k)
+{
+    assert(k->type >= 0);
+    assert(k->type < KOBJECT_TYPE_MAX);
+    assert(kobject_ops[k->type] != NULL);
+    return kobject_ops[k->type];
+}
 
 /*
  * A cap_t may only be accessed under the protection of the cap_info_t lock.

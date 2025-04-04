@@ -299,7 +299,10 @@ static void task_destroy(task_t *task)
 	 */
 	as_release(task->as);
 
-	ipc_queue_put(task->default_queue);
+	if (task->default_queue) {
+	    ipc_queue_put(task->default_queue);
+		task->default_queue = NULL;
+	}
 
 	caps_task_clear(task);
 

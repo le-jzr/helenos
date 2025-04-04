@@ -92,6 +92,8 @@ void weakref_release(weakref_t *ref)
 /** Sets ref->inner to NULL and wait for anyone still using it to finish. */
 void weakref_destroy(weakref_t *ref)
 {
+    assert(ref != NULL);
+
 	atomic_store_explicit(&ref->inner, NULL, memory_order_relaxed);
 
 	irq_spinlock_lock(&ref->destroyer_lock, true);
