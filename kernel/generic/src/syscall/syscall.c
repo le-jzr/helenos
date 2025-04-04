@@ -165,7 +165,7 @@ sysarg_t syscall_handler(sysarg_t a1, sysarg_t a2, sysarg_t a3,
 #endif
 
 	sysarg_t rc;
-	if (id < sizeof_array(syscall_table)) {
+	if (id < sizeof_array(syscall_table) && syscall_table[id]) {
 		rc = syscall_table[id](a1, a2, a3, a4, a5, a6);
 	} else {
 		log(LF_OTHER, LVL_ERROR,
