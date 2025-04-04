@@ -36,6 +36,7 @@
  * @brief Task management.
  */
 
+#include "ipc_b.h"
 #include <assert.h>
 #include <proc/thread.h>
 #include <proc/task.h>
@@ -206,6 +207,12 @@ task_t *task_create(as_t *as, const char *name)
 		return NULL;
 	}
 
+	task->default_queue = ipc_queue_create(PAGE_SIZE);
+	if (!task->default_queue) {
+		slab_free(task_cache, task);
+		return NULL;
+	}
+
 	refcount_init(&task->refcount);
 
 	task_create_arch(task);
@@ -246,6 +253,7 @@ task_t *task_create(as_t *as, const char *name)
 		errno_t rc = phone_alloc(task, true, &phone_handle, NULL);
 		if (rc != EOK) {
 			task->as = NULL;
+			ipc_queue_put(task->default_queue);
 			task_destroy_arch(task);
 			slab_free(task_cache, task);
 			return NULL;
@@ -290,6 +298,8 @@ static void task_destroy(task_t *task)
 	 * Drop our reference to the address space.
 	 */
 	as_release(task->as);
+
+	ipc_queue_put(task->default_queue);
 
 	caps_task_clear(task);
 

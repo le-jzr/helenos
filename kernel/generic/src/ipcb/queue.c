@@ -1,4 +1,6 @@
+#include "abi/cap.h"
 #include "abi/ipc_b.h"
+#include "cap/cap.h"
 #include <ipc_b.h>
 
 #include <stdatomic.h>
@@ -298,6 +300,11 @@ ipc_queue_t *ipc_queue_create(size_t size)
 
 	kobject_initialize(&q->kobject, KOBJECT_TYPE_IPC_QUEUE);
 	return q;
+}
+
+void ipc_queue_put(ipc_queue_t *q)
+{
+    kobject_put(&q->kobject);
 }
 
 static ipc_retval_t _ipc_queue_reserve(ipc_queue_t *q, size_t n)
@@ -673,30 +680,33 @@ ipc_retval_t ipc_queue_read(ipc_queue_t *q,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
-
-sys_errno_t sys_ipc_endpoint_create(sysarg_t queue_handle, sysarg_t tag,
+sysarg_t sys_ipcb_endpoint_create(sysarg_t queue_handle, sysarg_t tag,
 	uspace_addr_t out_endpoint_handle)
 {
-	ipc_endpoint_t *ep;
-	errno_t rc = ipc_endpoint_create(queue_handle, tag, &ep);
-	if (rc != EOK)
-		return rc;
+    cap_handle_t ep_cap;
+    if (cap_alloc(TASK, &ep_cap) != EOK)
+        return 0;
 
-	kobj_handle_t ep_handle = kobj_table_insert(&TASK->kobj_table, ep);
-	if (!ep_handle) {
-		kobj_put(ep);
-		return ENOMEM;
-	}
+    ipc_endpoint_t *ep;
 
-	errno_t rc = copy_to_uspace(out_endpoint_handle, &ep_handle, sizeof(ep_handle));
-	if (rc != EOK) {
-		kobj_put(kobj_table_remove(&TASK->kobj_table, ep_handle);
-		return rc;
-	}
+    if (queue_handle == 0) {
+        ep = ipc_endpoint_create(TASK->default_queue, tag, 0);
+    } else {
+        auto q = kobject_get(TASK, (cap_handle_t) queue_handle, KOBJECT_TYPE_IPC_QUEUE);
+        ep = ipc_endpoint_create((ipc_queue_t *) q, tag, 0);
+        kobject_put(q);
+    }
 
-	return EOK;
+    if (!ep) {
+        cap_free(TASK, ep_cap);
+        return 0;
+    }
+
+    cap_publish(TASK, ep_cap, &ep->kobject);
+    return (sysarg_t) ep_cap;
 }
+
+#if 0
 
 sys_errno_t sys_ipc_call(kobj_handle_t endpoint_handle,
     kobj_handle_t return_queue_handle, sysarg_t return_ep_tag,

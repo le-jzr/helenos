@@ -36,6 +36,7 @@
  * @brief Syscall table and syscall wrappers.
  */
 
+#include "abi/syscall.h"
 #include <syscall/syscall.h>
 #include <proc/thread.h>
 #include <proc/task.h>
@@ -47,6 +48,7 @@
 #include <debug.h>
 #include <interrupt.h>
 #include <ipc/sysipc.h>
+#include <ipc_b.h>
 #include <synch/smc.h>
 #include <synch/syswaitq.h>
 #include <ddi/ddi.h>
@@ -103,6 +105,8 @@ static syshandler_t syscall_table[] = {
 	[SYS_IPC_POKE] = (syshandler_t) sys_ipc_poke,
 	[SYS_IPC_HANGUP] = (syshandler_t) sys_ipc_hangup,
 	[SYS_IPC_CONNECT_KBOX] = (syshandler_t) sys_ipc_connect_kbox,
+
+	[SYS_IPCB_ENDPOINT_CREATE] = (syshandler_t) sys_ipcb_endpoint_create,
 
 	/* Event notification syscalls. */
 	[SYS_IPC_EVENT_SUBSCRIBE] = (syshandler_t) sys_ipc_event_subscribe,
