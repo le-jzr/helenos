@@ -28,8 +28,7 @@ static ipc_endpoint_t *_root_ep()
 
 static void _root_ep_set(ipc_endpoint_t *ep)
 {
-    //__SYSCALL1(SYS_IPCB_NS_SET, )
-    panic("unimplemented");
+    __SYSCALL1(SYS_IPCB_NS_SET, (sysarg_t) ep);
 }
 
 static void _server_on_message(void *self, ipc_message_t *msg)

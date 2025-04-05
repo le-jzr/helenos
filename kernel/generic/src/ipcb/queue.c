@@ -1,3 +1,4 @@
+#include "_bits/errno.h"
 #include "abi/cap.h"
 #include "abi/ipc_b.h"
 #include "adt/list.h"
@@ -876,3 +877,40 @@ sys_errno_t sys_ipc_receive(kobj_handle_t buffer_handle)
 }
 
 #endif
+
+// TODO: move elsewhere
+
+static IRQ_SPINLOCK_DECLARE(_root_lock);
+static ipc_endpoint_t *_root_ep;
+
+sys_errno_t sys_ipcb_ns_set(sysarg_t ep_cap)
+{
+    auto ep = (ipc_endpoint_t *)
+        kobject_get(TASK, (cap_handle_t) ep_cap, KOBJECT_TYPE_IPC_ENDPOINT);
+
+    if (!ep)
+        return EINVAL;
+
+    irq_spinlock_lock(&_root_lock, true);
+    auto old_ep = _root_ep;
+    _root_ep = ep;
+    irq_spinlock_unlock(&_root_lock, true);
+
+    if (old_ep)
+        kobject_put(&old_ep->kobject);
+    return EOK;
+}
+
+sysarg_t sys_ipcb_ns_get()
+{
+    irq_spinlock_lock(&_root_lock, true);
+    auto ep = _root_ep;
+    kobject_add_ref(&ep->kobject);
+    irq_spinlock_unlock(&_root_lock, true);
+
+    auto cap = cap_create(TASK, &ep->kobject);
+    if (cap == CAP_NIL)
+        kobject_put(&ep->kobject);
+
+    return (sysarg_t) cap;
+}

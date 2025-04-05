@@ -78,6 +78,9 @@ ipc_endpoint_t *ipc_endpoint_create(ipc_queue_t *q, uintptr_t tag, int reserves)
 sysarg_t sys_ipcb_endpoint_create(sysarg_t queue_handle, sysarg_t tag,
 	uspace_addr_t out_endpoint_handle);
 
+sys_errno_t sys_ipcb_ns_set(sysarg_t ep_cap);
+sysarg_t sys_ipcb_ns_get();
+
 #endif
 
 /** @}
