@@ -258,7 +258,7 @@ void __ubsan_handle_pointer_overflow(struct pointer_overflow_data *data,
 void __ubsan_handle_type_mismatch_v1(struct type_mismatch_data_v1 *data,
     unsigned long ptr)
 {
-	print_loc(__func__, &data->loc);
+    print_loc(ptr ? __func__ : "NULL dereference", &data->loc);
 	ubsan_panic();
 }
 
