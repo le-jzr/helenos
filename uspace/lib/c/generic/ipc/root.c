@@ -31,6 +31,12 @@ static void _root_ep_set(ipc_endpoint_t *ep)
     __SYSCALL1(SYS_IPCB_NS_SET, (sysarg_t) ep);
 }
 
+struct _server_ep {
+    const ipc_endpoint_ops_t *ep_ops;
+    const ipc_root_server_ops_t *root_ops;
+    bool destroyed;
+};
+
 static void _server_on_message(void *self, ipc_message_t *msg)
 {
     panic("unimplemented");
@@ -38,7 +44,8 @@ static void _server_on_message(void *self, ipc_message_t *msg)
 
 static void _server_on_destroy(void *self)
 {
-    panic("unimplemented");
+    struct _server_ep *ep = self;
+    ep->destroyed = true;
 }
 
 static const ipc_endpoint_ops_t _ep_ops = {
@@ -46,22 +53,19 @@ static const ipc_endpoint_ops_t _ep_ops = {
     .on_destroy = _server_on_destroy,
 };
 
-struct _server_ep {
-    const ipc_endpoint_ops_t *ep_ops;
-    const ipc_root_server_ops_t *root_ops;
-};
-
 void ipc_root_serve(const ipc_root_server_ops_t *ops)
 {
     struct _server_ep epdata = {
         .ep_ops = &_ep_ops,
         .root_ops = ops,
+        .destroyed = false,
     };
 
     auto ep = ipc_endpoint_create(IPC_QUEUE_DEFAULT, &epdata);
     _root_ep_set(ep);
 
-    panic("unimplemented");
+    while (!epdata.destroyed)
+        ipcb_handle_messages(IPC_QUEUE_DEFAULT, NULL);
 }
 
 ipc_root_retval_t ipc_root_send(const char *name, const ipc_message_t *args)

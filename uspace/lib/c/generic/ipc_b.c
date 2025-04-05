@@ -428,6 +428,8 @@ void ipcb_handle_messages(ipc_queue_t *q, const struct timespec *expires)
 		if (msg.flags & IPC_MESSAGE_FLAG_RESERVATION_RELEASED) {
 			panic("TODO");
 		}
+
+		panic("TODO");
 	}
 
 	bool dropped = (msg.flags & IPC_MESSAGE_FLAG_OBJECT_DROPPED);

@@ -15,6 +15,7 @@ typedef struct ipc_mem ipc_mem_t;
 ipc_queue_t *ipc_queue_create(const char *name, size_t buffer_size);
 void ipc_queue_reserve(ipc_queue_t *q, int msgs);
 void ipc_queue_destroy(ipc_queue_t *q);
+ipc_retval_t ipc_queue_read(ipc_queue_t *q, ipc_message_t *msg, size_t n);
 
 ipc_blob_t *ipc_blob_create(const void *src, size_t src_len);
 void ipc_blob_read(const ipc_blob_t *blob, void *dst, size_t len, size_t offset);
