@@ -107,6 +107,8 @@ static syshandler_t syscall_table[] = {
 	[SYS_IPC_CONNECT_KBOX] = (syshandler_t) sys_ipc_connect_kbox,
 
 	[SYS_IPCB_ENDPOINT_CREATE] = (syshandler_t) sys_ipcb_endpoint_create,
+	[SYS_IPCB_NS_GET] = (syshandler_t) sys_ipcb_ns_get,
+	[SYS_IPCB_NS_SET] = (syshandler_t) sys_ipcb_ns_set,
 
 	/* Event notification syscalls. */
 	[SYS_IPC_EVENT_SUBSCRIBE] = (syshandler_t) sys_ipc_event_subscribe,
