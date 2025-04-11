@@ -38,6 +38,7 @@
 
 struct entry {
     ht_link_t link;
+    size_t hash;
     char *name;
     ipc_object_t *obj;
     adt_array(ipc_object_t *) waiters;
@@ -46,7 +47,7 @@ struct entry {
 static size_t _hash(const ht_link_t *item)
 {
     auto entry = hash_table_get_inst(item, struct entry, link);
-    return hash_string(entry->name);
+    return entry->hash;
 }
 
 static size_t _key_hash(const void *key)
@@ -59,14 +60,14 @@ static bool _equal(const ht_link_t *item1, const ht_link_t *item2)
     auto entry1 = hash_table_get_inst(item1, struct entry, link);
     auto entry2 = hash_table_get_inst(item2, struct entry, link);
 
-    return strcmp(entry1->name, entry2->name) == 0;
+    return entry1->hash == entry2->hash && strcmp(entry1->name, entry2->name) == 0;
 }
 
 static bool _key_equal(const void *key, size_t hash, const ht_link_t *item)
 {
     auto entry = hash_table_get_inst(item, struct entry, link);
 
-    return strcmp(entry->name, key) == 0;
+    return hash == entry->hash && strcmp(entry->name, key) == 0;
 }
 
 static void _remove_callback(ht_link_t *link)
@@ -115,6 +116,7 @@ static ipc_root_retval_t _register(const char *id, ipc_object_t *obj)
         return ipc_root_failure;
 
     *entry = (struct entry) {
+    	.hash = hash_string(id),
         .name = strdup(id),
     };
 
