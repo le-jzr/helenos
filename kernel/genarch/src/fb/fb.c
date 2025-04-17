@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2008 Martin Decky
  * Copyright (c) 2006 Ondrej Palkovsky
+ * Copyright (c) 2008 Martin Decky
+ * Copyright (c) 2025 Jiří Zárevúcky
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -85,6 +86,17 @@
 typedef void (*rgb_conv_t)(void *, uint32_t);
 
 typedef struct {
+	uint8_t glyphs[FONT_SCANLINES][128];
+} ascii_glyphs_t;
+
+typedef union {
+	uint8_t index;
+	uint16_t color16;
+	uint8_t color24[3];
+	uint32_t color32;
+} fb_color_t;
+
+typedef struct {
 	SPINLOCK_DECLARE(lock);
 
 	parea_t parea;
@@ -94,7 +106,11 @@ typedef struct {
 	uint8_t *glyphs;
 	uint8_t *bgscan;
 
-	rgb_conv_t rgb_conv;
+	ascii_glyphs_t *compact_ascii;
+
+	fb_color_t fg_color;
+	fb_color_t bg_color;
+	fb_color_t inv_color;
 
 	unsigned int xres;
 	unsigned int yres;
@@ -348,12 +364,12 @@ static void glyphs_render(fb_instance_t *instance)
 	uint16_t glyph;
 
 	for (glyph = 0; glyph < FONT_GLYPHS; glyph++) {
-		uint32_t fg_color;
+		fb_color_t fg_color;
 
 		if (glyph == FONT_GLYPHS - 1)
-			fg_color = INV_COLOR;
+			fg_color = instance->inv_color;
 		else
-			fg_color = FG_COLOR;
+			fg_color = instance->fg_color;
 
 		unsigned int y;
 
@@ -364,9 +380,9 @@ static void glyphs_render(fb_instance_t *instance)
 				void *dst =
 				    &instance->glyphs[GLYPH_POS(instance, glyph, y) +
 				    x * instance->pixelbytes];
-				uint32_t rgb = (fb_font[glyph][y] &
-				    (1 << (7 - x))) ? fg_color : BG_COLOR;
-				instance->rgb_conv(dst, rgb);
+				fb_color_t color = (fb_font[glyph][y] &
+				    (1 << (7 - x))) ? fg_color : instance->bg_color;
+				__builtin_memcpy(dst, &color, instance->pixelbytes);
 			}
 		}
 	}
@@ -375,7 +391,7 @@ static void glyphs_render(fb_instance_t *instance)
 	unsigned int x;
 
 	for (x = 0; x < instance->xres; x++)
-		instance->rgb_conv(&instance->bgscan[x * instance->pixelbytes], BG_COLOR);
+		__builtin_memcpy(&instance->bgscan[x * instance->pixelbytes], &instance->bg_color, instance->pixelbytes);
 }
 
 static void fb_redraw_internal(fb_instance_t *instance)
@@ -628,12 +644,25 @@ outdev_t *fb_init(fb_properties_t *props)
 		return NULL;
 	}
 
+	instance->compact_ascii = malloc(sizeof(ascii_glyphs_t));
+	if (!instance->compact_ascii) {
+		free(instance);
+		free(fbdev);
+		return NULL;
+	}
+
 	outdev_initialize("fbdev", fbdev, &fbdev_ops);
 	fbdev->data = instance;
 
 	spinlock_initialize(&instance->lock, "*fb.instance.lock");
 
-	instance->rgb_conv = rgb_conv;
+	instance->fg_color = (fb_color_t) { };
+	rgb_conv(&instance->fg_color, FG_COLOR);
+	instance->bg_color = (fb_color_t) { };
+	rgb_conv(&instance->bg_color, BG_COLOR);
+	instance->inv_color = (fb_color_t) { };
+	rgb_conv(&instance->inv_color, INV_COLOR);
+
 	instance->pixelbytes = pixelbytes;
 	instance->xres = props->x;
 	instance->yres = props->y;
