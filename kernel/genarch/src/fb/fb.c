@@ -363,6 +363,13 @@ static void glyphs_render(fb_instance_t *instance)
 	/* Prerender glyphs */
 	uint16_t glyph;
 
+	for (int line = 0; line < FONT_SCANLINES; line++) {
+		for (int c = 0; c < 0x80; c++) {
+			uint16_t glyph = fb_font_glyph(c, NULL);
+			instance->compact_ascii->glyphs[line][c] = fb_font[glyph][line];
+		}
+	}
+
 	for (glyph = 0; glyph < FONT_GLYPHS; glyph++) {
 		fb_color_t fg_color;
 
