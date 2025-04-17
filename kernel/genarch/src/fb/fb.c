@@ -106,6 +106,8 @@ typedef struct {
 	uint8_t *glyphs;
 	uint8_t *bgscan;
 
+	uint8_t *ascii_bbuf;
+
 	ascii_glyphs_t *compact_ascii;
 
 	fb_color_t fg_color;
@@ -292,30 +294,24 @@ static void screen_scroll(fb_instance_t *instance)
 			unsigned int y = ROW2Y(rel_row);
 			unsigned int row = rel_row + instance->offset_row;
 
+			size_t bb_pos1 = BB_POS(instance, 0, row + 1);
+
 			for (unsigned int yd = 0; yd < FONT_SCANLINES; yd++) {
 				unsigned int x;
 				unsigned int col;
-				size_t bb_pos = BB_POS(instance, 0, row);
-				size_t bb_pos1 = BB_POS(instance, 0, row + 1);
 
-				for (col = 0, x = 0; col < instance->cols;
-				    col++, x += FONT_WIDTH) {
+				for (col = 0, x = 0; col < instance->cols; col++, x += FONT_WIDTH) {
 					uint16_t glyph;
 
-					if (row < instance->rows - 1) {
-						if (instance->backbuf[bb_pos] ==
-						    instance->backbuf[bb_pos1])
-							goto skip;
-
+					if (row < instance->rows - 1)
 						glyph = instance->backbuf[bb_pos1];
-					} else
+					else
 						glyph = 0;
 
 					memcpy(&instance->addr[FB_POS(instance, x, y + yd)],
 					    &instance->glyphs[GLYPH_POS(instance, glyph, yd)],
 					    instance->glyphscanline);
-				skip:
-					BB_NEXT_COL(bb_pos);
+
 					BB_NEXT_COL(bb_pos1);
 				}
 			}
@@ -365,7 +361,7 @@ static void glyphs_render(fb_instance_t *instance)
 
 	for (int line = 0; line < FONT_SCANLINES; line++) {
 		for (int c = 0; c < 0x80; c++) {
-			uint16_t glyph = fb_font_glyph(c, NULL);
+			uint16_t glyph = fb_font_glyph(c);
 			instance->compact_ascii->glyphs[line][c] = fb_font[glyph][line];
 		}
 	}
@@ -645,18 +641,22 @@ outdev_t *fb_init(fb_properties_t *props)
 	if (!fbdev)
 		return NULL;
 
-	fb_instance_t *instance = malloc(sizeof(fb_instance_t));
+	fb_instance_t *instance = calloc(1, sizeof(fb_instance_t));
 	if (!instance) {
 		free(fbdev);
 		return NULL;
 	}
 
+	unsigned cols = X2COL(instance->xres);
+	unsigned scrows = Y2ROW(instance->yres);
+
+	instance->ascii_bbuf = malloc(cols * scrows);
+	if (!instance->ascii_bbuf)
+		goto fail;
+
 	instance->compact_ascii = malloc(sizeof(ascii_glyphs_t));
-	if (!instance->compact_ascii) {
-		free(instance);
-		free(fbdev);
-		return NULL;
-	}
+	if (!instance->compact_ascii)
+		goto fail;
 
 	outdev_initialize("fbdev", fbdev, &fbdev_ops);
 	fbdev->data = instance;
@@ -675,9 +675,9 @@ outdev_t *fb_init(fb_properties_t *props)
 	instance->yres = props->y;
 	instance->scanline = props->scan;
 
-	instance->screen_rows = Y2ROW(instance->yres);
+	instance->screen_rows = scrows;
 
-	instance->cols = X2COL(instance->xres);
+	instance->cols = cols;
 	instance->rows = FB_PAGES * instance->screen_rows;
 
 	instance->start_row = instance->rows - instance->screen_rows;
@@ -693,44 +693,33 @@ outdev_t *fb_init(fb_properties_t *props)
 	size_t bbsize = instance->cols * instance->rows * sizeof(uint16_t);
 	size_t glyphsize = FONT_GLYPHS * instance->glyphbytes;
 
-	instance->addr = (uint8_t *) km_map((uintptr_t) props->addr, fbsize,
-	    KM_NATURAL_ALIGNMENT, PAGE_WRITE | PAGE_WRITE_COMBINE);
-	if (!instance->addr) {
-		LOG("Unable to map framebuffer.");
-		free(instance);
-		free(fbdev);
-		return NULL;
-	}
-
 	instance->backbuf = (uint16_t *) malloc(bbsize);
 	if (!instance->backbuf) {
 		LOG("Unable to allocate backbuffer.");
-		free(instance);
-		free(fbdev);
-		return NULL;
+		goto fail;
 	}
 
 	instance->glyphs = (uint8_t *) malloc(glyphsize);
 	if (!instance->glyphs) {
 		LOG("Unable to allocate glyphs.");
-		free(instance->backbuf);
-		free(instance);
-		free(fbdev);
-		return NULL;
+		goto fail;
 	}
 
 	instance->bgscan = malloc(instance->bgscanbytes);
 	if (!instance->bgscan) {
 		LOG("Unable to allocate background pixel.");
-		free(instance->glyphs);
-		free(instance->backbuf);
-		free(instance);
-		free(fbdev);
-		return NULL;
+		goto fail;
 	}
 
 	memsetw(instance->backbuf, instance->cols * instance->rows, 0);
 	glyphs_render(instance);
+
+	instance->addr = (uint8_t *) km_map((uintptr_t) props->addr, fbsize,
+	    KM_NATURAL_ALIGNMENT, PAGE_WRITE | PAGE_WRITE_COMBINE);
+	if (!instance->addr) {
+		LOG("Unable to map framebuffer.");
+		goto fail;
+	}
 
 	ddi_parea_init(&instance->parea);
 	instance->parea.pbase = props->addr;
@@ -760,6 +749,22 @@ outdev_t *fb_init(fb_properties_t *props)
 
 	fb_redraw(fbdev);
 	return fbdev;
+
+fail:
+	if (instance->ascii_bbuf)
+		free(instance->ascii_bbuf);
+	if (instance->compact_ascii)
+		free(instance->compact_ascii);
+	if (instance->backbuf)
+		free(instance->backbuf);
+	if (instance->glyphs)
+		free(instance->glyphs);
+	if (instance->bgscan)
+		free(instance->bgscan);
+
+	free(instance);
+	free(fbdev);
+	return NULL;
 }
 
 /** @}
