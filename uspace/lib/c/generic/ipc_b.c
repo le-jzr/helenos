@@ -1,4 +1,5 @@
 
+#include <abi/ipc_b.h>
 #include <abi/syscall.h>
 #include <ipc_b.h>
 #include <libc.h>
@@ -128,9 +129,9 @@ static void _make_call(ipc_endpoint_t *ep, const ipc_message_t *m,
 	case ipc_e_memory_fault:
 		panic("Invalid pointer to _make_call().");
 
-	case ipc_reserve_pending:
 	case ipc_e_timed_out:
 	case ipc_e_interrupted_thread:
+	case ipc_e_destination_gone:
 		/* Fallthrough */
 	}
 
@@ -407,10 +408,10 @@ void ipcb_handle_messages(ipc_queue_t *q, const struct timespec *expires)
 			panic("Invalid buffer address to _sys_ipc_receive()");
 		case ipc_e_no_memory:
 			panic("TODO: OOM handling");
-		case ipc_reserve_pending:
 		case ipc_e_limit_exceeded:
 		case ipc_e_interrupted_thread:
 		case ipc_e_reserve_failed:
+		case ipc_e_destination_gone:
 			break;
 		}
 
