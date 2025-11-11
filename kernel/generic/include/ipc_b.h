@@ -66,17 +66,20 @@ sysarg_t sys_blob_create(uspace_addr_t, sysarg_t);
 sys_errno_t sys_blob_read(cap_handle_t, sysarg_t, sysarg_t, uspace_addr_t);
 sys_errno_t sys_blob_destroy(cap_handle_t);
 
-ipc_queue_t *ipc_queue_create(size_t);
+ipc_queue_t *ipc_queue_create();
 void ipc_queue_put(ipc_queue_t *q);
-ipc_retval_t ipc_queue_reserve(ipc_queue_t *, size_t);
 ipc_retval_t ipc_queue_read(ipc_queue_t *q,
     uspace_addr_t uspace_buffer, size_t *uspace_buffer_size,
-	size_t *reservations_granted, int timeout_usec);
+	int timeout_usec);
 
-ipc_endpoint_t *ipc_endpoint_create(ipc_queue_t *q, uintptr_t tag, int reserves);
+ipc_endpoint_t *ipcb_endpoint_create(ipc_queue_t *q, uintptr_t tag, int reserves);
+void ipc_endpoint_put(ipc_endpoint_t *q);
 
 sysarg_t sys_ipcb_endpoint_create(sysarg_t queue_handle, sysarg_t tag,
 	uspace_addr_t out_endpoint_handle);
+
+sysarg_t sys_ipcb_send(sysarg_t return_queue_handle, sysarg_t endpoint_handle,
+	uspace_addr_t uspace_msg);
 
 sys_errno_t sys_ipcb_ns_set(sysarg_t ep_cap);
 sysarg_t sys_ipcb_ns_get();

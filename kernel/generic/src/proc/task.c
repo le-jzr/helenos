@@ -207,7 +207,7 @@ task_t *task_create(as_t *as, const char *name)
 		return NULL;
 	}
 
-	task->default_queue = ipc_queue_create(PAGE_SIZE);
+	task->default_queue = ipc_queue_create();
 	if (!task->default_queue) {
 		slab_free(task_cache, task);
 		return NULL;

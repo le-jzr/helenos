@@ -117,9 +117,12 @@ static inline uintptr_t ipc_message_flags_2(uintptr_t flags, ipc_arg_type_t type
 	return flags | type0 | (type1 << 4);
 }
 
+enum {
+	IPC_ENDPOINT_MAX_RESERVES = 4,
+};
+
 typedef enum ipc_retval {
 	ipc_success,
-	ipc_reserve_pending,
 
 	ipc_e_timed_out,
 	ipc_e_no_memory,
@@ -128,6 +131,7 @@ typedef enum ipc_retval {
 	ipc_e_invalid_argument,
 	ipc_e_memory_fault,
 	ipc_e_reserve_failed,
+	ipc_e_destination_gone,
 } ipc_retval_t;
 
 typedef union ipc_arg {

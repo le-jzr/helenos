@@ -1,9 +1,13 @@
 #include "_bits/errno.h"
+#include "_bits/native.h"
 #include "abi/cap.h"
 #include "abi/ipc_b.h"
 #include "adt/list.h"
+#include "atomic.h"
 #include "cap/cap.h"
+#include "mm/frame.h"
 #include "mm/slab.h"
+#include "panic.h"
 #include <ipc_b.h>
 
 #include <stdatomic.h>
@@ -33,37 +37,10 @@
  *    kernel-side, rather than simple unidirectional message passing.
  */
 
-/*
- * Linked message structure used in the pending and free lists.
- * Allocated and freed with the queue.
- */
 typedef struct  {
 	link_t link;
 	ipc_message_t data;
 } ipc_linked_message_t;
-
-/*
- * Dynamically allocated message structure that is used to send a message when
- * the destination queue's buffer is full. The structure is emptied and
- * returned to sender as soon as space frees in the queue.
- */
-typedef struct {
-	link_t link;
-	ipc_message_t data;
-	weakref_t *parent_queue;
-} ipc_dynamic_message_t;
-
-enum {
-	/* Initial number of free structures in buffer, and also the maximum.
-	 * More can be dynamically allocated when they are being used, but they
-	 * won't be kept around free over this number.
-	 * Not too big, since most of that will be laying unused most of the time,
-	 * and the size of the buffer will only matter during oom conditions when
-	 * dynamically allocating more will not be possible, in which case we
-	 * absolutely don't want a ton of unused memory lying around.
-	 */
-	IPC_DYNAMIC_MESSAGE_BUFFER_DEFAULT_SIZE = 8,
-};
 
 typedef struct ipc_queue {
 	/* Keep first. */
@@ -71,27 +48,11 @@ typedef struct ipc_queue {
 
 	weakref_t *self_wref;
 
-	/* Synchronizes just the fields immediately after. */
-	irq_spinlock_t free_dynamic_lock;
-	list_t free_dynamic;
-	size_t free_dynamic_count;
-	list_t reserve_dynamic;
-	size_t reserve_dynamic_count;
-	size_t reserve_dynamic_requested;
-
 	/* Synchronizes everything below. */
 	irq_spinlock_t lock;
 
-	list_t pending_dynamic;
 	list_t pending;
-	list_t free;
-
-	list_t pages;
-
-	size_t free_count;
-	size_t reserved;
-	size_t reserve_unclaimed;
-	size_t reserve_requested;
+	list_t reserve;
 
 	/* Tied to length of the pending list. */
 	waitq_t reader_waitq;
@@ -103,93 +64,23 @@ struct ipc_endpoint {
 
 	uintptr_t tag;
 	weakref_t *queue_ref;
+
+	/* Synchronized by queue lock. */
+	int reserves;
 };
 
 static slab_cache_t *slab_ipc_queue_cache;
 static slab_cache_t *slab_ipc_endpoint_cache;
-static slab_cache_t *slab_page_cache;
-static slab_cache_t *slab_ipc_dynamic_message_cache;
+static slab_cache_t *slab_ipc_message_cache;
 
-static void _dynamic_message_free(ipc_dynamic_message_t *dyn)
+static ipc_linked_message_t *_message_alloc()
 {
-	ipc_queue_t *q = weakref_hold(dyn->parent_queue);
-	if (!q) {
-		/* The parent queue no longer exists. */
-		weakref_put(dyn->parent_queue);
-		slab_free(slab_ipc_dynamic_message_cache, dyn);
-		return;
-	}
-
-	irq_spinlock_lock(&q->free_dynamic_lock, true);
-
-	bool overbudget =
-		q->free_dynamic_count >= IPC_DYNAMIC_MESSAGE_BUFFER_DEFAULT_SIZE;
-
-	if (overbudget) {
-	    assert(q->reserve_dynamic_requested == 0);
-	} else {
-	    /* Keep a few free ones cached locally. */
-
-		if (q->reserve_dynamic_requested > 0) {
-			assert(q->free_dynamic_count == 0);
-			q->reserve_dynamic_requested--;
-
-			q->reserve_dynamic_count++;
-			list_append(&dyn->link, &q->reserve_dynamic);
-		} else {
-			q->free_dynamic_count++;
-			list_append(&dyn->link, &q->free_dynamic);
-		}
-	}
-
-	irq_spinlock_unlock(&q->free_dynamic_lock, true);
-	weakref_release(dyn->parent_queue);
-
-	if (overbudget) {
-		weakref_put(dyn->parent_queue);
-		slab_free(slab_ipc_dynamic_message_cache, dyn);
-	}
+	return slab_alloc(slab_ipc_message_cache, FRAME_ATOMIC);
 }
 
-/**
- * Free a message buffer that belongs to this queue.
- * If some pending reservations were fulfilled, *reservations_granted is increased.
- */
-static void _release_message_buffer(ipc_queue_t *q, ipc_linked_message_t *m,
-	size_t *reservations_granted)
+static void _message_free(ipc_linked_message_t *m)
 {
-	irq_spinlock_lock(&q->lock, true);
-
-	/*
-     * If there are pending dynamically allocated message buffers,
-     * the released buffers are first used to free them.
-     */
-
-	ipc_dynamic_message_t *dyn = list_pop(&q->pending_dynamic,
-		ipc_dynamic_message_t, link);
-
-	if (dyn) {
-		irq_spinlock_unlock(&q->lock, true);
-
-		m->data = dyn->data;
-		_dynamic_message_free(dyn);
-
-		irq_spinlock_lock(&q->lock, true);
-
-		list_append(&m->link, &q->pending);
-	} else {
-		list_append(&m->link, &q->free);
-
-		if (q->reserve_requested > 0) {
-			q->reserve_requested--;
-			q->reserve_unclaimed++;
-			(*reservations_granted)++;
-		} else {
-			q->free_count++;
-		}
-	}
-
-	irq_spinlock_unlock(&q->lock, true);
+	slab_free(slab_ipc_message_cache, m);
 }
 
 void ipc_queue_init(void)
@@ -198,41 +89,9 @@ void ipc_queue_init(void)
 		sizeof(ipc_queue_t), alignof(ipc_queue_t), NULL, NULL, 0);
 	slab_ipc_endpoint_cache = slab_cache_create("ipc_endpoint_t",
 		sizeof(ipc_endpoint_t), alignof(ipc_endpoint_t), NULL, NULL, 0);
-	slab_page_cache = slab_cache_create("ipc_queue_t::page",
-		PAGE_SIZE, 0, NULL, NULL, 0);
-	slab_ipc_dynamic_message_cache = slab_cache_create("ipc_dynamic_message_t",
-		sizeof(ipc_dynamic_message_t), alignof(ipc_dynamic_message_t),
+	slab_ipc_message_cache = slab_cache_create("ipc_linked_message_t",
+		sizeof(ipc_linked_message_t), alignof(ipc_linked_message_t),
 		NULL, NULL, 0);
-}
-
-typedef struct __attribute__((may_alias)) {
-	char data[PAGE_SIZE - sizeof(link_t)];
-	link_t link;
-} _dummy_page_t;
-
-_Static_assert(sizeof(_dummy_page_t) == PAGE_SIZE);
-
-static link_t *_page_link(void *page)
-{
-	return &((_dummy_page_t *) page)->link;
-}
-
-static void _insert_page(ipc_queue_t *q, void *page)
-{
-	list_append(_page_link(page), &q->pages);
-
-	assert(page < (void *) _page_link(page));
-	size_t page_size = (void *) _page_link(page) - page;
-	assert(page_size > sizeof(ipc_linked_message_t));
-	assert(page_size < PAGE_SIZE);
-
-	int n = page_size / sizeof(ipc_linked_message_t);
-	ipc_linked_message_t *buckets = page;
-
-	for (int i = 0; i < n; i++)
-		list_append(&buckets[i].link, &q->free);
-
-	q->free_count += n;
 }
 
 static void _queue_destroy(ipc_queue_t *q)
@@ -240,20 +99,13 @@ static void _queue_destroy(ipc_queue_t *q)
 	if (q->self_wref)
 		weakref_destroy(q->self_wref);
 
-	while (!list_empty(&q->free_dynamic)) {
-		ipc_dynamic_message_t *dyn = list_pop(&q->free_dynamic,
-			ipc_dynamic_message_t, link);
+	ipc_linked_message_t *msg;
 
-		assert(dyn->parent_queue == q->self_wref);
+	while ((msg = list_pop(&q->reserve, ipc_linked_message_t, link)) != NULL)
+		_message_free(msg);
 
-		weakref_put(dyn->parent_queue);
-		slab_free(slab_ipc_dynamic_message_cache, dyn);
-	}
-
-	while (!list_empty(&q->pages)) {
-		void *page = list_pop(&q->pages, _dummy_page_t, link);
-		slab_free(slab_page_cache, page);
-	}
+	while ((msg = list_pop(&q->pending, ipc_linked_message_t, link)) != NULL)
+		_message_free(msg);
 
 	slab_free(slab_ipc_queue_cache, q);
 }
@@ -263,11 +115,8 @@ static void _queue_destroy(ipc_queue_t *q)
  * @param size  Size of the buffer in bytes. Must be a multiple of PAGE_SIZE.
  * @return      Newly created queue or NULL if out of memory.
  */
-ipc_queue_t *ipc_queue_create(size_t size)
+ipc_queue_t *ipc_queue_create()
 {
-	assert(size >= PAGE_SIZE);
-	assert(IS_ALIGNED(size, PAGE_SIZE));
-
 	ipc_queue_t *q = slab_alloc(slab_ipc_queue_cache, FRAME_ATOMIC);
 	if (!q)
 		return NULL;
@@ -275,29 +124,13 @@ ipc_queue_t *ipc_queue_create(size_t size)
 	*q = (ipc_queue_t) {};
 
 	irq_spinlock_initialize(&q->lock, "ipc_queue_t::lock");
-	irq_spinlock_initialize(&q->free_dynamic_lock,
-		"ipc_queue_t::free_dynamic_lock");
-	list_initialize(&q->free_dynamic);
-	list_initialize(&q->pending_dynamic);
 	list_initialize(&q->pending);
-	list_initialize(&q->free);
-	list_initialize(&q->pages);
+	list_initialize(&q->reserve);
 
 	q->self_wref = weakref_create(q);
 	if (!q->self_wref) {
 		_queue_destroy(q);
 		return NULL;
-	}
-
-	size_t page_count = size / PAGE_SIZE;
-	for (size_t i = 0; i < page_count; i++) {
-		void *page = slab_alloc(slab_page_cache, FRAME_ATOMIC);
-		if (!page) {
-			_queue_destroy(q);
-			return NULL;
-		}
-
-		_insert_page(q, page);
 	}
 
 	kobject_initialize(&q->kobject, KOBJECT_TYPE_IPC_QUEUE);
@@ -321,43 +154,47 @@ void ipc_queue_put(ipc_queue_t *q)
     kobject_put(&q->kobject);
 }
 
-static ipc_retval_t _ipc_queue_reserve(ipc_queue_t *q, size_t n)
+void ipc_endpoint_put(ipc_endpoint_t *ep)
 {
-	if (q->reserve_requested > SIZE_MAX - n)
-		return ipc_e_limit_exceeded;
-
-	if (q->free_count >= n && q->reserve_requested == 0) {
-		q->free_count -= n;
-		q->reserve_unclaimed += n;
-		return ipc_success;
-	} else {
-		q->reserve_requested += n;
-		return ipc_reserve_pending;
-	}
+	kobject_put(&ep->kobject);
 }
 
 /** Reserve space for n messages in the queue.
- * If the space can be reserved immediately, returns ipc_success.
- * Otherwise, returns ipc_reserve_pending, or ipc_limit_exceeded
- * if too many reservations have been requested.
+ * If the space can be reserved, returns ipc_success.
+ * Otherwise, returns ipc_e_no_memory.
  *
  * @param q
  * @return
  */
-ipc_retval_t ipc_queue_reserve(ipc_queue_t *q, size_t n)
+static ipc_retval_t _ipc_queue_reserve(ipc_queue_t *q, int n)
 {
-	if (n <= 0)
-		return ipc_e_invalid_argument;
+	LIST_INITIALIZE(tmp_list);
+
+	for (int i = 0; i < n; i++) {
+		auto m = _message_alloc();
+		if (m == NULL) {
+			while (!list_empty(&tmp_list))
+				_message_free(list_pop(&tmp_list, ipc_linked_message_t, link));
+
+			return ipc_e_no_memory;
+		}
+
+		list_append(&m->link, &tmp_list);
+	}
 
 	irq_spinlock_lock(&q->lock, true);
-	ipc_retval_t rc = _ipc_queue_reserve(q, n);
+	list_concat(&q->reserve, &tmp_list);
 	irq_spinlock_unlock(&q->lock, true);
-	return rc;
+	return ipc_success;
 }
 
-ipc_endpoint_t *ipc_endpoint_create(ipc_queue_t *q, uintptr_t tag, int reserves)
+ipc_endpoint_t *ipcb_endpoint_create(ipc_queue_t *q, uintptr_t tag, int reserves)
 {
-    assert(reserves == 0);
+	if (q == NULL)
+		return NULL;
+
+    if (reserves < 0 || reserves > IPC_ENDPOINT_MAX_RESERVES)
+    	return NULL;
 
     ipc_endpoint_t *ep = slab_alloc(slab_ipc_endpoint_cache, FRAME_ATOMIC);
     if (!ep)
@@ -369,8 +206,16 @@ ipc_endpoint_t *ipc_endpoint_create(ipc_queue_t *q, uintptr_t tag, int reserves)
         return NULL;
     }
 
+    auto rc = _ipc_queue_reserve(q, reserves);
+    if (rc != ipc_success) {
+    	weakref_put(ep->queue_ref);
+     	slab_free(slab_ipc_endpoint_cache, ep);
+      	return NULL;
+    }
+
     kobject_initialize(&ep->kobject, KOBJECT_TYPE_IPC_ENDPOINT);
     ep->tag = tag;
+    ep->reserves = reserves;
 
     return ep;
 }
@@ -439,7 +284,7 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 			continue;
 
 		case IPC_ARG_TYPE_ENDPOINT_1:
-			ep = ipc_endpoint_create(sender_q, ipc_get_arg(m, i).val, 1);
+			ep = ipcb_endpoint_create(sender_q, ipc_get_arg(m, i).val, 1);
 			if (!ep) {
 				_deprocess_send(m);
 				return ipc_e_no_memory;
@@ -449,7 +294,7 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 			continue;
 
 		case IPC_ARG_TYPE_ENDPOINT_2:
-			ep = ipc_endpoint_create(sender_q, ipc_get_arg(m, i).val, 2);
+			ep = ipcb_endpoint_create(sender_q, ipc_get_arg(m, i).val, 2);
 			if (!ep) {
 				_deprocess_send(m);
 				return ipc_e_no_memory;
@@ -517,33 +362,21 @@ static ipc_retval_t _process_send(ipc_queue_t *sender_q, uintptr_t tag,
 	return ipc_success;
 }
 
-// FIXME
-__attribute__((unused))
-static ipc_retval_t _ipc_queue_send_reserved(ipc_queue_t *q, ipc_queue_t *sender_q,
+static ipc_retval_t _ipc_queue_send(ipc_queue_t *q, ipc_queue_t *sender_q,
 	uintptr_t endpoint_tag,
-	uspace_addr_t uspace_buffer, size_t uspace_buffer_size,
-	size_t *reservations_granted)
+	uspace_addr_t uspace_buffer, ipc_linked_message_t *m)
 {
-	/* A write with a reservation can't wait. */
-	irq_spinlock_lock(&q->lock, true);
-
-	assert(q->reserved > 0);
-	q->reserved--;
-
-	ipc_linked_message_t *m = list_pop(&q->free, ipc_linked_message_t, link);
-	assert(m);
-
-	irq_spinlock_unlock(&q->lock, true);
+	assert(m != NULL);
 
 	errno_t rc = copy_from_uspace(&m->data, uspace_buffer, sizeof(m->data));
 	if (rc != EOK) {
-		_release_message_buffer(q, m, reservations_granted);
+		_message_free(m);
 		return ipc_e_memory_fault;
 	}
 
 	ipc_retval_t ret = _process_send(sender_q, endpoint_tag, &m->data);
 	if (ret != ipc_success) {
-		_release_message_buffer(q, m, reservations_granted);
+		_message_free(m);
 		return ret;
 	}
 
@@ -554,25 +387,78 @@ static ipc_retval_t _ipc_queue_send_reserved(ipc_queue_t *q, ipc_queue_t *sender
 	return ipc_success;
 }
 
-#if 0
-
-ipc_retval_t _ipc_queue_write_unreserved(ipc_queue_t *q,
-	uspace_addr_t uspace_buffer, size_t uspace_buffer_size, bool alloc)
+static ipc_queue_t *_queue_from_cap(cap_handle_t cap)
 {
-
-	irq_spinlock_lock(&q->lock, true);
-	ipc_linked_message_t *m = list_pop(&q->free, ipc_linked_message_t, link);
-	if (m) {
-		q->free_count--;
-	}
-	irq_spinlock_unlock(&q->lock, true);
-
-	if (!m) {
-
-	}
+	return (ipc_queue_t *) kobject_get(TASK, cap, KOBJECT_TYPE_IPC_QUEUE);
 }
 
-#endif
+static ipc_endpoint_t *_endpoint_from_cap(cap_handle_t cap)
+{
+	return (ipc_endpoint_t *) kobject_get(TASK, cap, KOBJECT_TYPE_IPC_ENDPOINT);
+}
+
+sysarg_t sys_ipcb_send(sysarg_t return_queue_handle, sysarg_t endpoint_handle,
+	uspace_addr_t uspace_msg)
+{
+	ipc_retval_t rc = ipc_success;
+	auto return_q = _queue_from_cap((cap_handle_t) return_queue_handle);
+	auto ep = _endpoint_from_cap((cap_handle_t) endpoint_handle);
+	ipc_queue_t *dest_q = nullptr;
+	ipc_linked_message_t *m = nullptr;
+
+	if (!ep) {
+		rc = ipc_e_invalid_argument;
+		goto exit;
+	}
+
+	dest_q = weakref_hold(ep->queue_ref);
+	if (!dest_q) {
+		rc = ipc_e_destination_gone;
+		goto exit;
+	}
+
+	irq_spinlock_lock(&dest_q->lock, true);
+	if (ep->reserves > 0) {
+		ep->reserves--;
+		m = list_pop(&dest_q->reserve, ipc_linked_message_t, link);
+	}
+	irq_spinlock_unlock(&dest_q->lock, true);
+
+	if (m == nullptr) {
+		m = _message_alloc();
+		if (m == nullptr) {
+			rc = ipc_e_no_memory;
+			goto exit;
+		}
+	}
+
+	rc = _ipc_queue_send(dest_q, return_q, ep->tag, uspace_msg, m);
+
+exit:
+	if (return_q)
+		ipc_queue_put(return_q);
+	if (ep)
+		ipc_endpoint_put(ep);
+	if (dest_q)
+		ipc_queue_put(dest_q);
+
+	return rc;
+}
+
+/**
+ * Destroy capabilities in the message and convert them back to kobject pointers.
+ */
+static void _deprocess_message(ipc_message_t *m, task_t *task)
+{
+    for (int i = 0; i < IPC_CALL_LEN; i++) {
+        if (ipc_get_arg_type(m, i) != IPC_ARG_TYPE_OBJECT)
+			continue;
+
+        kobject_t *kobj = cap_destroy_any(task, ipc_get_arg(m, i).obj);
+        assert(kobj != nullptr);
+		ipc_set_arg_kobject(m, i, kobj);
+    }
+}
 
 /**
  * Preprocess message retrieved from queue before sending it to userspace.
@@ -609,41 +495,18 @@ static ipc_retval_t _preprocess_message(ipc_message_t *m, task_t *task)
 		}
 
 		/* Failed allocating capabilities, restore original values. */
-		for (int j = 0; j < i; j++) {
-			if (ipc_get_arg_type(m, j) != IPC_ARG_TYPE_OBJECT)
-				continue;
-
-			kobject_t *kobj = cap_destroy_any(TASK, ipc_get_arg(m, j).obj);
-			ipc_set_arg_kobject(m, j, kobj);
-		}
-
+		_deprocess_message(m, task);
 		return ipc_e_no_memory;
 	}
 
 	return ipc_success;
 }
 
-/**
- * Destroy capabilities in the message and convert them back to kobject pointers.
- */
-static void _deprocess_message(ipc_message_t *m, task_t *task)
-{
-    for (int i = 0; i < IPC_CALL_LEN; i++) {
-        if (ipc_get_arg_type(m, i) != IPC_ARG_TYPE_OBJECT)
-			continue;
-
-        kobject_t *kobj = cap_destroy_any(TASK, ipc_get_arg(m, i).obj);
-        assert(kobj != nullptr);
-		ipc_set_arg_kobject(m, i, kobj);
-    }
-}
 
 static ipc_retval_t _ipc_queue_read(ipc_queue_t *q,
-	uspace_addr_t uspace_buffer, size_t *uspace_buffer_size,
-	size_t *reservations_granted)
+	uspace_addr_t uspace_buffer, size_t *uspace_buffer_size)
 {
-	assert(!list_empty(&q->pending));
-	assert(*uspace_buffer_size > sizeof(ipc_message_t));
+	assert(*uspace_buffer_size >= sizeof(ipc_message_t));
 
 	// TODO: read more than one message at a time,
 	//       requires a bit more thought out waitq synchronization,
@@ -655,6 +518,8 @@ static ipc_retval_t _ipc_queue_read(ipc_queue_t *q,
 	irq_spinlock_lock(&q->lock, true);
 	ipc_linked_message_t *m = list_pop(&q->pending, ipc_linked_message_t, link);
 	irq_spinlock_unlock(&q->lock, true);
+
+	assert(m != NULL);
 
 	/* Turn kobject references into caps. */
 	ipc_retval_t rc = _preprocess_message(&m->data, TASK);
@@ -681,13 +546,12 @@ static ipc_retval_t _ipc_queue_read(ipc_queue_t *q,
 
 	*uspace_buffer_size = sizeof(ipc_message_t);
 
-	_release_message_buffer(q, m, reservations_granted);
+	_message_free(m);
 	return ipc_success;
 }
 
 ipc_retval_t ipc_queue_read(ipc_queue_t *q,
-	uspace_addr_t uspace_buffer, size_t *uspace_buffer_size,
-	size_t *reservations_granted, int timeout_usec)
+	uspace_addr_t uspace_buffer, size_t *uspace_buffer_size, int timeout_usec)
 {
     assert(q != NULL);
 
@@ -715,10 +579,8 @@ ipc_retval_t ipc_queue_read(ipc_queue_t *q,
 	case EOK:
 	}
 
-	return _ipc_queue_read(q, uspace_buffer, uspace_buffer_size,
-		reservations_granted);
+	return _ipc_queue_read(q, uspace_buffer, uspace_buffer_size);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -732,11 +594,11 @@ sysarg_t sys_ipcb_endpoint_create(sysarg_t queue_handle, sysarg_t tag,
     ipc_endpoint_t *ep;
 
     if (queue_handle == 0) {
-        ep = ipc_endpoint_create(TASK->default_queue, tag, 0);
+        ep = ipcb_endpoint_create(TASK->default_queue, tag, 0);
     } else {
-        auto q = kobject_get(TASK, (cap_handle_t) queue_handle, KOBJECT_TYPE_IPC_QUEUE);
-        ep = ipc_endpoint_create((ipc_queue_t *) q, tag, 0);
-        kobject_put(q);
+        auto q = _queue_from_cap((cap_handle_t) queue_handle);
+        ep = ipcb_endpoint_create(q, tag, 0);
+        ipc_queue_put(q);
     }
 
     if (!ep) {
@@ -747,138 +609,6 @@ sysarg_t sys_ipcb_endpoint_create(sysarg_t queue_handle, sysarg_t tag,
     cap_publish(TASK, ep_cap, &ep->kobject);
     return (sysarg_t) ep_cap;
 }
-
-#if 0
-
-sys_errno_t sys_ipc_call(kobj_handle_t endpoint_handle,
-    kobj_handle_t return_queue_handle, sysarg_t return_ep_tag,
-    sysarg_t handle_count, uspace_ptr_uintptr_t argptr)
-{
-	ipc_message_t *msg = slab_alloc(slab_ipc_message, 0);
-	if (!msg)
-		return ENOMEM;
-
-	link_initialize(&msg->link);
-	msg->handle_count = handle_count;
-
-	errno_t rc = copy_from_uspace(&msg->args, argptr, sizeof(msg->args));
-	if (rc != EOK) {
-		slab_free(slab_ipc_message, msg);
-		return rc;
-	}
-
-	if (msg->args[0] != 0) {
-		/* Arg 0 is replaced with a newly created endpoint. */
-		slab_free(slab_ipc_message, msg);
-		return EINVAL;
-	}
-
-	ipc_endpoint_t *ep = kobj_table_lookup(&TASK->kobj_table, endpoint_handle, KOBJ_CLASS_ENDPOINT);
-	if (!ep) {
-		slab_free(slab_ipc_message, msg);
-		return ENOENT;
-	}
-
-	msg->endpoint_tag = ep->tag;
-
-	irq_spinlock_lock(&ep->ref->lock, true);
-	ipc_queue_t *queue = ep->ref->queue;
-	if (!ep->ref->queue) {
-		irq_spinlock_unlock(&ep->ref->lock, true);
-		kobj_put(ep);
-		slab_free(slab_ipc_message, msg);
-		return EHANGUP;
-	}
-
-	/* create return endpoint */
-	ipc_queue_t *retq = kobj_table_lookup(&TASK->kobj_table, return_queue_handle, KOBJ_CLASS_QUEUE);
-
-
-	/* translate handles */
-	for (int i = 1; i < handle_count; i++) {
-		kobj_t *kobj = kobj_table_shallow_lookup(&TASK->kobj_table, msg->args[i]);
-		if (kobj)
-			msg->args[i] = kobj_table_insert(&queue->owner->kobj_table, kobj);
-		else
-			msg->args[i] = 0;
-	}
-
-	list_append(&msg->link, &ep->ref->queue->list);
-	waitq_wake_one(&ep->ref->queue->waitq);
-	irq_spinlock_unlock(&ep->ref->lock, true);
-	kobj_put(ep);
-	return EOK;
-}
-
-sys_errno_t sys_ipc_send(sysarg_t endpoint_handle, sysarg_t handle_count,
-	sysarg_t data_size, uspace_addr_t data)
-{
-	ipc_message_t *msg = slab_alloc(slab_ipc_message, 0);
-	if (!msg)
-		return ENOMEM;
-
-	link_initialize(&msg->link);
-	msg->handle_count = handle_count;
-
-	errno_t rc = copy_from_uspace(&msg->args, argptr, sizeof(msg->args));
-	if (rc != EOK) {
-		slab_free(slab_ipc_message, msg);
-		return rc;
-	}
-
-	ipc_endpoint_t *ep = kobj_table_lookup(&TASK->kobj_table, endpoint_handle, KOBJ_CLASS_ENDPOINT);
-	if (!ep) {
-		slab_free(slab_ipc_message, msg);
-		return ENOENT;
-	}
-
-	msg->endpoint_tag = ep->tag;
-
-	irq_spinlock_lock(&ep->ref->lock, true);
-	ipc_queue_t *queue = ep->ref->queue;
-	if (!ep->ref->queue) {
-		irq_spinlock_unlock(&ep->ref->lock, true);
-		kobj_put(ep);
-		slab_free(slab_ipc_message, msg);
-		return EHANGUP;
-	}
-
-	/* translate handles */
-	for (int i = 0; i < handle_count; i++) {
-		kobj_t *kobj = kobj_table_shallow_lookup(&TASK->kobj_table, msg->args[i]);
-		if (kobj)
-			msg->args[i] = kobj_table_insert(&queue->owner->kobj_table, kobj);
-		else
-			msg->args[i] = 0;
-	}
-
-	list_append(&msg->link, &ep->ref->queue->list);
-	waitq_wake_one(&ep->ref->queue->waitq);
-	irq_spinlock_unlock(&ep->ref->lock, true);
-	kobj_put(ep);
-	return EOK;
-}
-
-sys_errno_t sys_ipc_receive(kobj_handle_t buffer_handle)
-{
-	ipc_buffer_t *buffer = kobj_table_lookup(&TASK->kobj_table, buffer_handle, KOBJ_CLASS_BUFFER);
-	if (!buffer)
-		return ENOENT;
-
-	waitq_sleep_interruptible(&buffer->waitq);
-
-	irq_spinlock_lock(&buffer->wref->lock, true);
-	assert(buffer->wref->buffer == buffer);
-	ipc_message_t *msg = list_pop(&buffer->queue, ipc_message_t, link);
-	irq_spinlock_unlock(&buffer->wref->lock);
-	kobj_put(buffer);
-
-	// TODO: process message
-}
-
-#endif
-
-// TODO: move elsewhere
 
 static IRQ_SPINLOCK_DECLARE(_root_lock);
 static ipc_endpoint_t *_root_ep;
@@ -897,7 +627,7 @@ sys_errno_t sys_ipcb_ns_set(sysarg_t ep_cap)
     irq_spinlock_unlock(&_root_lock, true);
 
     if (old_ep)
-        kobject_put(&old_ep->kobject);
+   		ipc_endpoint_put(old_ep);
     return EOK;
 }
 
@@ -910,7 +640,7 @@ sysarg_t sys_ipcb_ns_get()
 
     auto cap = cap_create(TASK, &ep->kobject);
     if (cap == CAP_NIL)
-        kobject_put(&ep->kobject);
+   		ipc_endpoint_put(ep);
 
     return (sysarg_t) cap;
 }
