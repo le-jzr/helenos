@@ -1,23 +1,20 @@
-#include "_bits/errno.h"
-#include "_bits/native.h"
-#include "abi/cap.h"
-#include "abi/ipc_b.h"
-#include "adt/list.h"
-#include "atomic.h"
-#include "cap/cap.h"
-#include "mm/frame.h"
-#include "mm/slab.h"
-#include "panic.h"
-#include <ipc_b.h>
-
-#include <stdatomic.h>
-#include <stdalign.h>
-
+#include <_bits/errno.h>
+#include <_bits/native.h>
+#include <abi/cap.h>
+#include <abi/ipc_b.h>
+#include <adt/list.h>
 #include <align.h>
-#include <synch/spinlock.h>
+#include <cap/cap.h>
+#include <ipc_b.h>
 #include <mem.h>
+#include <mm/frame.h>
+#include <mm/slab.h>
+#include <panic.h>
 #include <proc/task.h>
+#include <stdalign.h>
+#include <stdatomic.h>
 #include <str_error.h>
+#include <synch/spinlock.h>
 #include <syscall/copy.h>
 
 #define DEBUG(f, ...) printf("IPC(" __FILE__ ":%d) " f, __LINE__ __VA_OPT__(,) __VA_ARGS__)
@@ -48,9 +45,8 @@ typedef struct ipc_queue {
 
 	weakref_t *self_wref;
 
-	/* Synchronizes everything below. */
+	/* Synchronizes pending and reserve list. */
 	irq_spinlock_t lock;
-
 	list_t pending;
 	list_t reserve;
 
