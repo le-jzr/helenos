@@ -230,7 +230,6 @@ static const ipc_endpoint_ops_t return_class_cancellable = {
 void ipcb_call_start(ipc_endpoint_t *ep, const ipc_message_t *m, ipcb_call_t *call)
 {
 	assert(ipc_get_arg(m, 0).val == 0);
-	assert(!(m->flags & IPC_MESSAGE_FLAG_STATUS));
 	assert(!(m->flags & IPC_MESSAGE_FLAG_PROTOCOL_ERROR));
 
 	*call = (ipcb_call_t) {
@@ -424,10 +423,6 @@ void ipcb_handle_messages(ipc_queue_t *q, const struct timespec *expires)
 		if (msg.flags & IPC_MESSAGE_FLAG_OBJECT_DROPPED) {
 			_class_from_ep_tag(tag)->on_destroy((void *) tag);
 			return;
-		}
-
-		if (msg.flags & IPC_MESSAGE_FLAG_RESERVATION_RELEASED) {
-			panic("TODO");
 		}
 
 		panic("TODO");

@@ -87,7 +87,8 @@ enum {
 	 * Automatic message sent to itself when a requested reservation
 	 * is available but there's no pending message in the queue.
 	 */
-	IPC_MESSAGE_FLAG_RESERVATION_RELEASED = 1 << 25,
+	// Removed
+	//IPC_MESSAGE_FLAG_RESERVATION_RELEASED = 1 << 25,
 
 	/*
 	 * Automatic message sent to the endpoint's owner when all references
@@ -111,6 +112,11 @@ enum {
 	 */
 	IPC_MESSAGE_FLAG_AUTOMATIC_MESSAGE = 1 << 28,
 };
+
+static inline uintptr_t ipc_message_flags_1(uintptr_t flags, ipc_arg_type_t type0)
+{
+	return flags | type0;
+}
 
 static inline uintptr_t ipc_message_flags_2(uintptr_t flags, ipc_arg_type_t type0, ipc_arg_type_t type1)
 {
@@ -159,6 +165,18 @@ static inline ipc_arg_t ipc_get_arg(const ipc_message_t *m, int arg)
 {
 	assert(arg >= 0 && arg < IPC_MESSAGE_ARGS);
 	return m->args[arg];
+}
+
+static inline uintptr_t ipc_get_val(const ipc_message_t *m, int arg)
+{
+	assert(ipc_get_arg_type(m, arg) == IPC_ARG_TYPE_VAL);
+	return ipc_get_arg(m, arg).val;
+}
+
+static inline ipc_object_t *ipc_get_obj(const ipc_message_t *m, int arg)
+{
+	assert(ipc_get_arg_type(m, arg) == IPC_ARG_TYPE_OBJECT);
+	return ipc_get_arg(m, arg).obj;
 }
 
 static inline void ipc_set_arg(ipc_message_t *m, int arg,

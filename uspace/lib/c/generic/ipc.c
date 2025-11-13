@@ -42,8 +42,6 @@
 
 #include <ipc/ipc.h>
 #include <libc.h>
-#include <stdlib.h>
-#include <errno.h>
 #include <adt/list.h>
 #include <fibril.h>
 #include <macros.h>
