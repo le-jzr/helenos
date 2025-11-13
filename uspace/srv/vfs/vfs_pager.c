@@ -66,7 +66,7 @@ void vfs_page_in(ipc_call_t *req)
 	size_t total = 0;
 	aoff64_t pos = offset;
 	do {
-		rc = vfs_rdwr_internal(fd, pos, true, &chunk);
+		rc = vfs_rdwr_internal(async_get_client_data(), fd, pos, true, &chunk);
 		if (rc != EOK)
 			break;
 		if (chunk.size == 0)

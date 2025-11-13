@@ -36,7 +36,6 @@
  */
 
 #include <vfs/vfs.h>
-#include <stdlib.h>
 #include <ipc/services.h>
 #include <abi/ipc/methods.h>
 #include <libarch/config.h>
