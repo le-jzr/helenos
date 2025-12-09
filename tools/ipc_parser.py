@@ -4,154 +4,261 @@
 
 import sys
 
+
 def parse_ipc_file(content):
     """Parse IPC definition file into structured blocks."""
     # Remove all newlines and extra whitespace - treat as continuous stream
-    content = ' '.join(content.split())
-    
+    content = " ".join(content.split())
+
     blocks = []
     i = 0
-    
+
     while i < len(content):
         # Find block start
-        brace_pos = content.find('{', i)
+        brace_pos = content.find("{", i)
         if brace_pos == -1:
             break
-        
+
         # Extract block header (everything before {)
         header = content[i:brace_pos].strip()
-        
+
         # Find closing brace (no nesting)
-        close_brace = content.find('}', brace_pos)
+        close_brace = content.find("}", brace_pos)
         if close_brace == -1:
             break
-        
+
         # Extract block content (between braces)
-        block_content = content[brace_pos + 1:close_brace].strip()
-        
-        blocks.append({
-            'header': header,
-            'content': block_content
-        })
-        
+        block_content = content[brace_pos + 1 : close_brace].strip()
+
+        blocks.append({"header": header, "content": block_content})
+
         i = close_brace + 1
-    
+
     return blocks
+
 
 def parse_block(block_content):
     """Parse block content into methods by splitting on semicolons."""
     # Split by semicolon
-    statements = [s.strip() for s in block_content.split(';') if s.strip()]
-    
+    statements = [s.strip() for s in block_content.split(";") if s.strip()]
+
     methods = {}
     for stmt in statements:
         # Split by comma to get fields
-        fields = [f.strip() for f in stmt.split(',')]
-        
+        fields = [f.strip() for f in stmt.split(",")]
+
         # Split each field by whitespace
         parsed_fields = []
         for field in fields:
             parts = field.split()
             parsed_fields.append(parts)
-        
+
         method_name = parsed_fields[0][0]
-        
+
         methods[method_name] = parsed_fields
-    
+
     return methods
+
 
 # Main execution
 if len(sys.argv) != 2:
     print("Usage: python script.py <input_file>", file=sys.stderr)
     sys.exit(1)
 
-with open(sys.argv[1], 'r') as f:
+with open(sys.argv[1], "r") as f:
     content = f.read()
 
 data = {}
 
 for block in parse_ipc_file(content):
-    header_parts = block['header'].split()
+    header_parts = block["header"].split()
     block_type = header_parts[0]
     block_name = header_parts[1]
-    
-    if not block_type in data:
-    	data[block_type] = {}
-    
-    data[block_type][block_name] = parse_block(block['content'])
+
+    if block_type not in data:
+        data[block_type] = {}
+
+    data[block_type][block_name] = parse_block(block["content"])
+
 
 def impl_name(server, method):
-    if method in data['server'][server]:
-        return data['server'][server][method][1][0]
+    if method in data["server"][server]:
+        return data["server"][server][method][1][0]
     else:
-    	return data['server'][server]['@default'][1][0].replace('*', method)
+        return data["server"][server]["@default"][1][0].replace("*", method)
+
 
 def enum_name(server, method):
-    enum_prefix = data['server'][server]['@enum_prefix'][1][0]
+    enum_prefix = data["server"][server]["@enum_prefix"][1][0]
     return f"{enum_prefix}{method.upper()}"
+
 
 args = {}
 
-for obj in data['obj']:
+for obj in data["obj"]:
     args[obj] = {}
-    for method in data['obj'][obj]:
+    for method in data["obj"][obj]:
         args[obj][method] = []
-        for arg in data['obj'][obj][method][2:]:
+        for arg in data["obj"][obj][method][2:]:
             argdef = {}
-            argdef['name'] = arg[-1]
+            argdef["name"] = arg[-1]
             arg = arg[:-1]
-            argdef['indirect'] = argdef['name'].startswith('*')
-            if argdef['indirect']:
-            	argdef['name'] = argdef['name'][1:]
-            
-            argdef['in'] = arg[0] == 'in' or arg[0] == 'in64'
-            argdef['out'] = arg[0] == 'out' or arg[0] == 'out64'
-            argdef['wide'] = arg[0] == 'in64' or arg[0] == 'out64'
-            if argdef['in'] or argdef['out']:
-            	arg = arg[1:]
-            
-            if len(arg) == 1:
-            	argdef['type'] = arg[0]
+            argdef["indirect"] = argdef["name"].startswith("*")
+            if argdef["indirect"]:
+                argdef["name"] = argdef["name"][1:]
+
+            if len(arg) > 0:
+                argdef["in"] = arg[0] == "in" or arg[0] == "in64" or arg[0] == "inout" or arg[0] == "inout64"
+                argdef["out"] = arg[0] == "out" or arg[0] == "out64" or arg[0] == "inout" or arg[0] == "inout64"
+                argdef["wide"] = arg[0] == "in64" or arg[0] == "out64" or arg[0] == "inout64"
+                if argdef["in"] or argdef["out"]:
+                    arg = arg[1:]
+
+            if not argdef["out"]:
+                argdef["in"] = True
+
+            if len(arg) > 0:
+                argdef["object"] = arg[0] == "obj"
+                if argdef["object"]:
+                    arg = arg[1:]
+
+            if len(arg) > 0:
+                argdef["type"] = arg[0]
             else:
-            	argdef['type'] = None
-            
+                argdef["type"] = None
+
             args[obj][method].append(argdef)
-        
-print(f"{args}")
 
-for server in data['server']:
-    for method in data['obj'][server]:
-    	print(f"{method} :: {data['obj'][server][method]}")
-    	    
-    	print(f"{enum_name(server, method)}")
-    	
-    	
-    	
-    	
-    	    
+for server in data["server"]:
+    for method in data["obj"][server]:
+        arg = args[server][method]
+        ret = data["obj"][server][method][1][0]
 
-def generate_code(block_type, block_name, methods):
-    """Generate code based on parsed methods."""
-    print(f"// Block: {block_type} {block_name}")
-    print()
-    
-    for method in methods:
-        if not method['fields']:
-            continue
-           
-        method_name = method['fields'][0][0]
-        
-        print(f"  // Fields: {method['fields']}")
-        print(f"  // Method: {method_name}")
-        print(f"  // Raw: {method['raw']}")
-        
-        # Generate parameter list
-        params = []
-        for field in method['fields'][1:]:
-            if len(field) >= 2:
-                param_type = ' '.join(field[:-1])
-                param_name = field[-1]
-                params.append(f"{param_type} {param_name}")
-        
-        print(f"  // Parameters: {', '.join(params)}")
+        # 0: return endpoint
+        # 1: method number
+        # four spare arguments for method args
+        #
+        # if we can put all arguments in directly, we do so, otherwise we go
+        # with single ipc_blob_t for all args
+
+        slots_needed_in = 0
+        indirect_slot_in = 0
+        slots_needed_out = 0
+        indirect_slot_out = 0
+
+        for a in arg:
+            if a["in"]:
+                if a["indirect"] and a["type"] is not None and a["type"] != "str":
+                    indirect_slot_in = 1
+                elif a["wide"] or a["type"] == "str" or (a["indirect"] and a["type"] is None):
+                    slots_needed_in += 2
+                else:
+                    slots_needed_in += 1
+            if a["out"]:
+                if a["indirect"] and a["type"] is not None and a["type"] != "str":
+                    indirect_slot_out = 1
+                elif a["wide"] or a["type"] == "str" or (a["indirect"] and a["type"] is None):
+                    slots_needed_out += 2
+                else:
+                    slots_needed_out += 1
+
+        merge_inputs = (slots_needed_in + indirect_slot_in) > 4
+        merge_outputs = (slots_needed_out + indirect_slot_out) > 4
+
         print()
+        print(f"/* {method} :: {arg} */")
+        print()
+
+        print(f"case {enum_name(server, method)}: // {impl_name(server, method)}")
+        print()
+
+        arg_idx = 2
+
+        if merge_inputs or indirect_slot_in > 0:
+            print("\tstruct __attribute__((packed)) {")
+            for a in arg:
+                if a["in"]:
+                    if a["indirect"] and (a["type"] == "str" or a["type"] is None) and merge_inputs:
+                        print(f"\t\tsize_t {a['name']}_slice;")
+                    elif (a["indirect"] and a["type"] is not None) or (not a["indirect"] and merge_inputs):
+                        print(f"\t\t{a['type']} {a['name']};")
+            print("\t} _indata;")
+            print()
+            print(f"\tipc_blob_read_{arg_idx}(&msg, &_indata, sizeof(_indata));")
+            print()
+            arg_idx += 1
+
+        if merge_inputs:
+            indata_prefix="_indata."
+        else:
+            indata_prefix=""
+
+        for a in arg:
+            if a["in"]:
+                if a["type"] == "str" or a["type"] is None:
+                    if not merge_inputs:
+                        print(f"\tsize_t {a['name']}_slice = ipcb_get_val{arg_idx}(&msg);")
+                        arg_idx += 1
+
+                    print(f"\tsize_t {a['name']}_len = ipcb_slice_len({indata_prefix}{a['name']}_slice);")
+                    print(f"\tvoid *{a['name']} = malloc({a['name']}_len);")
+                    print(f"\tif ({a['name']} == nullptr) \n\t\treturn;")
+                    print()
+                    # TODO: error handling
+                    print(f"\tipc_blob_read_{arg_idx}(&msg, {a['name']}, {a['name']}_slice);")
+                    if a["type"] == "str":
+                        print(f"\t{a['name']}[{a['name']}_len - 1] = '\\0';")
+
+                    print()
+                    arg_idx += 1
+                elif a["object"]:
+                    print(f"\t{a['type']} {a['name']} = ipcb_get_obj{arg_idx}(&msg);")
+                    arg_idx += 1
+                elif (not a["indirect"] and a["wide"] and not merge_inputs):
+                    print(f"\t{a['type']} {a['name']} = ipcb_get_val64_{arg_idx}(&msg);")
+                    arg_idx += 2
+                elif (not a["indirect"] and not merge_inputs):
+                    print(f"\t{a['type']} {a['name']} = ipcb_get_val{arg_idx}(&msg);")
+                    arg_idx += 1
+
+        for a in arg:
+            if a["out"]:
+                if a["type"] == "str":
+                    raise Exception("todo")
+                print(f"\t{a['type']} {a['name']} = {{0}};")
+            elif a["indirect"] and a['type'] is not None and a['type'] != "str":
+                print(f"\t{a['type']} {a['name']} = _indata.{a['name']};")
+
+        print(f"\t{ret} rc = {impl_name(server, method)}(", end="")
+
+        arglist = []
+
+        for a in arg:
+            if a["indirect"] and a["type"] is None:
+                arglist += [a['name'], f"{a['name']}_len"]
+            elif a["indirect"] and a["type"] == "str":
+                arglist += [a['name']]
+            elif a["out"] or a["indirect"]:
+                arglist += ["&" + a['name']]
+            else:
+                arglist += [indata_prefix + a['name']]
+
+        print(*arglist, sep=", ", end=");\n")
+
+        if merge_outputs or indirect_slot_out > 0:
+            print()
+            print("\tstruct __attribute__((packed)) {")
+            for a in arg:
+                if a["out"]:
+                    if a["type"] == "str":
+                        print(f"\t\tsize_t {a['name']}_len;")
+                    elif (a["indirect"] and a["type"] is not None) or (not a["indirect"] and merge_inputs):
+                        print(f"\t\t{a['type']} {a['name']};")
+            print("\t} _outdata = {")
+            for a in arg:
+                if a["out"]:
+                    if a["type"] == "str":
+                        print(f"\t\t.{a['name']}_len = {a['name']}_len,")
+                    elif (a["indirect"] and a["type"] is not None) or (not a["indirect"] and merge_inputs):
+                        print(f"\t\t.{a['name']} = {a['name']},")
+            print("\t};")
