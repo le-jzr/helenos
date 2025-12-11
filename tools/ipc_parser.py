@@ -129,7 +129,16 @@ for obj in data["obj"]:
 
             args[obj][method].append(argdef)
 
+print("#include <stddef.h>")
+print("#include <stdlib.h>")
+
 for server in data["server"]:
+
+    print(f"void {server}_handle_message(const ipcb_message_t *msg, {server} *instance)")
+    print("{")
+
+    print("switch (ipcb_get_val_1(msg) {")
+
     for method in data["obj"][server]:
         arg = args[server][method]
         ret = data["obj"][server][method][1][0]
@@ -157,8 +166,10 @@ for server in data["server"]:
             if a["out"]:
                 if a["indirect"] and a["type"] is not None and a["type"] != "str":
                     indirect_slot_out = 1
-                elif a["wide"] or a["type"] == "str" or (a["indirect"] and a["type"] is None):
+                elif a["wide"]:
                     slots_needed_out += 2
+                elif a["type"] == "str" or (a["indirect"] and a["type"] is None):
+                    slots_needed_in += 2 # yes, it's meant to be "in"
                 else:
                     slots_needed_out += 1
 
@@ -170,7 +181,9 @@ for server in data["server"]:
         print()
 
         print(f"case {enum_name(server, method)}: // {impl_name(server, method)}")
-        print()
+        print("{")
+
+        print("\t// TODO: check message type and detect protocol mismatch")
 
         arg_idx = 2
 
@@ -182,6 +195,8 @@ for server in data["server"]:
                         print(f"\t\tsize_t {a['name']}_slice;")
                     elif (a["indirect"] and a["type"] is not None) or (not a["indirect"] and merge_inputs):
                         print(f"\t\t{a['type']} {a['name']};")
+                elif (a["type"] == "str" or a["type"] is None) and merge_inputs:
+                    print(f"\t\tsize_t {a['name']}_slice;")
             print("\t} _indata;")
             print()
             print(f"\tipc_blob_read_{arg_idx}(&msg, &_indata, sizeof(_indata));")
@@ -193,25 +208,37 @@ for server in data["server"]:
         else:
             indata_prefix=""
 
-        for a in arg:
-            if a["in"]:
-                if a["type"] == "str" or a["type"] is None:
-                    if not merge_inputs:
-                        print(f"\tsize_t {a['name']}_slice = ipcb_get_val{arg_idx}(&msg);")
-                        arg_idx += 1
+        allocs = []
 
-                    print(f"\tsize_t {a['name']}_len = ipcb_slice_len({indata_prefix}{a['name']}_slice);")
-                    print(f"\tvoid *{a['name']} = malloc({a['name']}_len);")
-                    print(f"\tif ({a['name']} == nullptr) \n\t\treturn;")
-                    print()
-                    # TODO: error handling
+        for a in arg:
+            if a["type"] == "str" or a["type"] is None:
+                if not merge_inputs:
+                    print(f"\tsize_t {a['name']}_slice = ipcb_get_val_{arg_idx}(&msg);")
+                    arg_idx += 1
+
+                print(f"\tsize_t {a['name']}_len = ipcb_slice_len({indata_prefix}{a['name']}_slice);")
+                print(f"\tvoid *{a['name']} = calloc({a['name']}_len, 1);")
+                print(f"\tif ({a['name']} == nullptr) {{")
+                print("\t\tipcb_answer_nomem(msg);")
+                for alloc in allocs:
+                    print(f"\t\tfree({alloc});")
+                print("\t\treturn;")
+                print("\t}")
+                allocs += [a['name']]
+
+                print()
+
+                if a["in"]:
                     print(f"\tipc_blob_read_{arg_idx}(&msg, {a['name']}, {a['name']}_slice);")
                     if a["type"] == "str":
                         print(f"\t{a['name']}[{a['name']}_len - 1] = '\\0';")
+                else:
+                    print(f"\tipcb_buffer_t {a['name']}_obj = ipc_get_obj_{arg_idx}(msg);")
 
-                    print()
-                    arg_idx += 1
-                elif a["object"]:
+                print()
+                arg_idx += 1
+            elif a["in"]:
+                if a["object"]:
                     print(f"\t{a['type']} {a['name']} = ipcb_get_obj{arg_idx}(&msg);")
                     arg_idx += 1
                 elif (not a["indirect"] and a["wide"] and not merge_inputs):
@@ -222,11 +249,9 @@ for server in data["server"]:
                     arg_idx += 1
 
         for a in arg:
-            if a["out"]:
-                if a["type"] == "str":
-                    raise Exception("todo")
-                print(f"\t{a['type']} {a['name']} = {{0}};")
-            elif a["indirect"] and a['type'] is not None and a['type'] != "str":
+            if a["out"] and a["type"] != "str" and a["type"] is not None:
+                print(f"\t{a['type']} {a['name']};")
+            if a["in"] and a["indirect"] and a['type'] is not None and a['type'] != "str":
                 print(f"\t{a['type']} {a['name']} = _indata.{a['name']};")
 
         print(f"\t{ret} rc = {impl_name(server, method)}(", end="")
@@ -245,6 +270,14 @@ for server in data["server"]:
 
         print(*arglist, sep=", ", end=");\n")
 
+        for a in arg:
+            if a["out"] and a["indirect"] and (a["type"] is None or a["type"] == "str"):
+                print(f"\tipcb_buffer_write({a["name"]}_obj, {indata_prefix + a["name"]}_slice, {a["name"]}, {a["name"]}_len);")
+
+        print("\tipcb_message_t answer = ipcb_start_answer(&msg, rc);")
+
+        arg_idx = 1
+
         if merge_outputs or indirect_slot_out > 0:
             print()
             print("\tstruct __attribute__((packed)) {")
@@ -262,3 +295,24 @@ for server in data["server"]:
                     elif (a["indirect"] and a["type"] is not None) or (not a["indirect"] and merge_inputs):
                         print(f"\t\t.{a['name']} = {a['name']},")
             print("\t};")
+
+            print(f"\tipc_blob_write_{arg_idx}(&answer, &_outdata, sizeof(_outdata));")
+            arg_idx += 1
+            print()
+
+        if not merge_outputs:
+            for a in arg:
+                if a["out"]:
+                    if not a["indirect"]:
+                        print(f"\tipcb_set_val_{arg_idx}(&answer, {a['name']});")
+                        arg_idx += 1
+                    elif a["type"] == "str":
+                        print(f"\tipcb_set_val_{arg_idx}(&answer, {a['name']}_len);")
+                        arg_idx += 1
+
+        print("\tipcb_send_answer(&msg, answer);")
+
+        for alloc in allocs:
+            print(f"\tfree({alloc});")
+
+        print("}")
