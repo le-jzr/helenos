@@ -35,4 +35,5 @@ src = files(
 	'vfs_lookup.c',
 	'vfs_register.c',
 	'vfs_ipc.c',
+	'ipc_b_server.c',
 )
