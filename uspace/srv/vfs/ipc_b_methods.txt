@@ -1,10 +1,10 @@
 singleton VFS {
-	new_instance, errno_t, out obj vfs_instance_t instance;
+	new_instance, errno_t, out obj vfs_instance *instance;
 }
 
-obj vfs_wrapped_handle_t {}
+obj vfs_wrapped_handle {}
 
-obj vfs_instance_t {
+obj vfs_instance {
 	clone, errno_t, int oldfd, int newfd, bool desc, out int outfd;
 	fsprobe, errno_t, service_id_t service_id, in str *fs_name, out vfs_fs_probe_info_t *info;
 	fstypes, errno_t, out *fstypes;
@@ -19,22 +19,8 @@ obj vfs_instance_t {
 	sync, errno_t, int fd;
 	unlink, errno_t, int parentfd, int expectfd, in str *path;
 	unmount, errno_t, int mpfd;
-	wrap_handle, errno_t, int fd, out obj vfs_wrapped_handle_t handle;
-	unwrap_handle, errno_t, obj vfs_wrapped_handle_t handle, bool high_fd, out int fd;
+	wrap_handle, errno_t, int fd, out obj vfs_wrapped_handle *handle;
+	unwrap_handle, errno_t, obj vfs_wrapped_handle *handle, bool high_fd, out int fd;
 	walk, errno_t, int parentfd, int flags, in str *path, out int fd;
 	write, errno_t, int fd, in64 aoff64_t pos, in *buffer, out size_t written;
-}
-
-server vfs_instance_t {
-	@default, vfs_op_*;
-	@enum_prefix, VFS_IN_;
-	fsprobe, vfs_in_fsprobe;
-	fstypes, vfs_in_fstypes;
-	read, vfs_op_read_direct;
-	rename, vfs_in_rename;
-	stat, vfs_op_stat_direct;
-	statfs, vfs_op_statfs_direct;
-	wrap_handle, vfs_in_wrap_handle, encapsulate:handle;
-	unwrap_handle, vfs_in_unwrap_handle, decapsulate:handle;
-	write, vfs_op_write_direct;
 }

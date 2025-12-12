@@ -79,19 +79,6 @@ for block in parse_ipc_file(content):
 
     data[block_type][block_name] = parse_block(block["content"])
 
-
-def impl_name(server, method):
-    if method in data["server"][server]:
-        return data["server"][server][method][1][0]
-    else:
-        return data["server"][server]["@default"][1][0].replace("*", method)
-
-
-def enum_name(server, method):
-    enum_prefix = data["server"][server]["@enum_prefix"][1][0]
-    return f"{enum_prefix}{method.upper()}"
-
-
 args = {}
 
 for obj in data["obj"]:
@@ -112,14 +99,17 @@ for obj in data["obj"]:
                 argdef["wide"] = arg[0] == "in64" or arg[0] == "out64" or arg[0] == "inout64"
                 if argdef["in"] or argdef["out"]:
                     arg = arg[1:]
+            else:
+                argdef["in"] = True
+                argdef["out"] = False
+                argdef["wide"] = False
 
             if not argdef["out"]:
                 argdef["in"] = True
 
-            if len(arg) > 0:
-                argdef["object"] = arg[0] == "obj"
-                if argdef["object"]:
-                    arg = arg[1:]
+            argdef["object"] = len(arg) > 0 and arg[0] == "obj"
+            if argdef["object"]:
+                arg = arg[1:]
 
             if len(arg) > 0:
                 argdef["type"] = arg[0]
@@ -135,19 +125,68 @@ print()
 
 print("#include <stddef.h>")
 print("#include <stdlib.h>")
+print("#include <ipc_b.h>")
 print("#include \"ipc_shim.h\"")
 
 print()
-for server in data["server"]:
+for server in data["obj"]:
+    methods = data["obj"][server]
+    if not methods:
+        continue
 
-    print(f"void {server}_handle_message(const ipcb_message_t *msg, {server} *instance)")
+    print(f"enum {server}_methods {{")
+    print(f"\t_{server}_op_undef,")
+    for method in methods:
+        print(f"\t_{server}_op_{method},")
+    print("};")
+    print()
+
+    print(f"struct {server}_ops {{")
+    print(f"\tvoid (*_handle_message)({server}_impl_t *self, const ipc_message_t *msg);")
+    for method in methods:
+        argdecl = [ f"{server}_impl_t *self" ]
+        for a in args[server][method]:
+            if a["in"]:
+                if a["object"]:
+                    if a["indirect"]:
+                        argdecl += [f"{a["type"]}_impl_t *{a["name"]}"]
+                    else:
+                        argdecl += [f"{a["type"]}_t *{a["name"]}"]
+                elif a["indirect"]:
+                    if a["type"] == "str":
+                        argdecl += [f"const char *{a["name"]}"]
+                    elif a["type"] is None:
+                        argdecl += [f"const ipc_blob_t *{a["name"]}", f"size_t {a["name"]}_len"]
+                    else:
+                        argdecl += [f"const {a["type"]} *{a["name"]}"]
+                else:
+                    argdecl += [f"{a["type"]} {a["name"]}"]
+            if a["out"]:
+                if a["object"]:
+                    if a["indirect"]:
+                        argdecl += [f"{a["type"]}_impl_t **{a["name"]}"]
+                    else:
+                        argdecl += [f"{a["type"]}_t **{a["name"]}"]
+                elif a["type"] == "str":
+                    argdecl += [f"ipc_blob_t *{a["name"]}"]
+                elif a["type"] is None:
+                    argdecl += [f"ipc_buffer_t *{a["name"]}", f"size_t {a["name"]}_len"]
+                else:
+                    argdecl += [f"{a["type"]} *{a["name"]}"]
+
+        print(f"\t{methods[method][1][0]} (*{method})(", end="")
+        print(*argdecl, sep=", ", end=");\n")
+    print("};")
+    print()
+
+    print(f"void {server}_handle_message({server}_impl_t *self, const ipc_message_t *msg)")
     print("{")
 
     print("\tswitch (ipcb_get_val_1(msg)) {")
 
-    for method in data["obj"][server]:
+    for method in methods:
         arg = args[server][method]
-        ret = data["obj"][server][method][1][0]
+        ret = methods[method][1][0]
 
         # 0: return endpoint
         # 1: method number
@@ -186,10 +225,18 @@ for server in data["server"]:
         print(f"\t/* {method} :: {arg} */")
         print()
 
-        print(f"\tcase {enum_name(server, method)}: // {impl_name(server, method)}")
+        print(f"\tcase _{server}_op_{method}:")
         print("\t{")
 
         print("\t\t// TODO: check message type and detect protocol mismatch")
+
+        # passing sizeof(ops) from the caller allows safely adding entries while
+        # maintaining compatibility with code linked to older/newer version
+        print(f"\t\t\tif (offsetof(typeof(*ops), {method}) + sizeof(void *) > ops_size || !ops->{method}) {{")
+        print("\t\t\t\tipcb_answer_protocol_error(msg);")
+        print("\t\t\t\treturn;")
+        print("\t\t\t}")
+        print()
 
         arg_idx = 2
 
@@ -260,9 +307,9 @@ for server in data["server"]:
             if a["in"] and a["indirect"] and a['type'] is not None and a['type'] != "str":
                 print(f"\t\t{a['type']} {a['name']} = _indata.{a['name']};")
 
-        print(f"\t\t{ret} rc = {impl_name(server, method)}(", end="")
+        print(f"\t\t{ret} rc = ops->{method}(", end="")
 
-        arglist = []
+        arglist = [ "self" ]
 
         for a in arg:
             if a["indirect"] and a["type"] is None:
