@@ -60,7 +60,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_clone:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), clone) + sizeof(void *) > ops_size || !ops->clone) {
+			if (offsetof(typeof(*ops), clone) + sizeof(ops->clone) > ops_size || !ops->clone) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -81,7 +81,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_fsprobe:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), fsprobe) + sizeof(void *) > ops_size || !ops->fsprobe) {
+			if (offsetof(typeof(*ops), fsprobe) + sizeof(ops->fsprobe) > ops_size || !ops->fsprobe) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -119,7 +119,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_fstypes:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), fstypes) + sizeof(void *) > ops_size || !ops->fstypes) {
+			if (offsetof(typeof(*ops), fstypes) + sizeof(ops->fstypes) > ops_size || !ops->fstypes) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -147,7 +147,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_mount:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), mount) + sizeof(void *) > ops_size || !ops->mount) {
+			if (offsetof(typeof(*ops), mount) + sizeof(ops->mount) > ops_size || !ops->mount) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -199,7 +199,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_open:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), open) + sizeof(void *) > ops_size || !ops->open) {
+			if (offsetof(typeof(*ops), open) + sizeof(ops->open) > ops_size || !ops->open) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -217,7 +217,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_put:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), put) + sizeof(void *) > ops_size || !ops->put) {
+			if (offsetof(typeof(*ops), put) + sizeof(ops->put) > ops_size || !ops->put) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -234,7 +234,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_read:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), read) + sizeof(void *) > ops_size || !ops->read) {
+			if (offsetof(typeof(*ops), read) + sizeof(ops->read) > ops_size || !ops->read) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -271,7 +271,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_rename:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), rename) + sizeof(void *) > ops_size || !ops->rename) {
+			if (offsetof(typeof(*ops), rename) + sizeof(ops->rename) > ops_size || !ops->rename) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -318,7 +318,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_resize:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), resize) + sizeof(void *) > ops_size || !ops->resize) {
+			if (offsetof(typeof(*ops), resize) + sizeof(ops->resize) > ops_size || !ops->resize) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -336,7 +336,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_stat:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), stat) + sizeof(void *) > ops_size || !ops->stat) {
+			if (offsetof(typeof(*ops), stat) + sizeof(ops->stat) > ops_size || !ops->stat) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -362,7 +362,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_statfs:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), statfs) + sizeof(void *) > ops_size || !ops->statfs) {
+			if (offsetof(typeof(*ops), statfs) + sizeof(ops->statfs) > ops_size || !ops->statfs) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -388,7 +388,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_sync:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), sync) + sizeof(void *) > ops_size || !ops->sync) {
+			if (offsetof(typeof(*ops), sync) + sizeof(ops->sync) > ops_size || !ops->sync) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -405,7 +405,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_unlink:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), unlink) + sizeof(void *) > ops_size || !ops->unlink) {
+			if (offsetof(typeof(*ops), unlink) + sizeof(ops->unlink) > ops_size || !ops->unlink) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -435,7 +435,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_unmount:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), unmount) + sizeof(void *) > ops_size || !ops->unmount) {
+			if (offsetof(typeof(*ops), unmount) + sizeof(ops->unmount) > ops_size || !ops->unmount) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -452,7 +452,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_wrap_handle:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), wrap_handle) + sizeof(void *) > ops_size || !ops->wrap_handle) {
+			if (offsetof(typeof(*ops), wrap_handle) + sizeof(ops->wrap_handle) > ops_size || !ops->wrap_handle) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -478,7 +478,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_unwrap_handle:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), unwrap_handle) + sizeof(void *) > ops_size || !ops->unwrap_handle) {
+			if (offsetof(typeof(*ops), unwrap_handle) + sizeof(ops->unwrap_handle) > ops_size || !ops->unwrap_handle) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -505,7 +505,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_walk:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), walk) + sizeof(void *) > ops_size || !ops->walk) {
+			if (offsetof(typeof(*ops), walk) + sizeof(ops->walk) > ops_size || !ops->walk) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
@@ -537,7 +537,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	case _vfs_instance_op_write:
 	{
 		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), write) + sizeof(void *) > ops_size || !ops->write) {
+			if (offsetof(typeof(*ops), write) + sizeof(ops->write) > ops_size || !ops->write) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}

@@ -123,10 +123,14 @@ print("// Command: ", *sys.argv)
 print("// Source timestamp: ", datetime.fromtimestamp(os.path.getmtime(sys.argv[1])))
 print()
 
-print("#include <stddef.h>")
-print("#include <stdlib.h>")
-print("#include <ipc_b.h>")
-print("#include \"ipc_shim.h\"")
+header = False
+
+if header:
+    print("#include <stddef.h>")
+    print("#include <stdlib.h>")
+    print("#include <ipc_b.h>")
+else:
+    print("#include \"ipc_shim.h\"")
 
 print()
 for server in data["obj"]:
@@ -134,48 +138,56 @@ for server in data["obj"]:
     if not methods:
         continue
 
+    if header:
+        print(f"typedef struct {server}_impl {server}_impl_t;")
+        print(f"typedef struct {server} {server}_t;")
+        print()
+
+        print(f"struct {server}_ops {{")
+        print(f"\tvoid (*_handle_message)({server}_impl_t *self, const ipc_message_t *msg);")
+        for method in methods:
+            argdecl = [ f"{server}_impl_t *self" ]
+            for a in args[server][method]:
+                if a["in"]:
+                    if a["object"]:
+                        if a["indirect"]:
+                            argdecl += [f"{a["type"]}_impl_t *{a["name"]}"]
+                        else:
+                            argdecl += [f"{a["type"]}_t *{a["name"]}"]
+                    elif a["indirect"]:
+                        if a["type"] == "str":
+                            argdecl += [f"const char *{a["name"]}"]
+                        elif a["type"] is None:
+                            argdecl += [f"const ipc_blob_t *{a["name"]}", f"size_t {a["name"]}_len"]
+                        else:
+                            argdecl += [f"const {a["type"]} *{a["name"]}"]
+                    else:
+                        argdecl += [f"{a["type"]} {a["name"]}"]
+                if a["out"]:
+                    if a["object"]:
+                        if a["indirect"]:
+                            argdecl += [f"{a["type"]}_impl_t **{a["name"]}"]
+                        else:
+                            argdecl += [f"{a["type"]}_t **{a["name"]}"]
+                    elif a["type"] == "str":
+                        argdecl += [f"ipc_blob_t *{a["name"]}"]
+                    elif a["type"] is None:
+                        argdecl += [f"ipc_buffer_t *{a["name"]}", f"size_t {a["name"]}_len"]
+                    else:
+                        argdecl += [f"{a["type"]} *{a["name"]}"]
+
+            print(f"\t{methods[method][1][0]} (*{method})(", end="")
+            print(*argdecl, sep=", ", end=");\n")
+        print("};")
+        print()
+        print(f"void {server}_handle_message({server}_impl_t *self, const ipc_message_t *msg);")
+        print()
+        continue
+
     print(f"enum {server}_methods {{")
     print(f"\t_{server}_op_undef,")
     for method in methods:
         print(f"\t_{server}_op_{method},")
-    print("};")
-    print()
-
-    print(f"struct {server}_ops {{")
-    print(f"\tvoid (*_handle_message)({server}_impl_t *self, const ipc_message_t *msg);")
-    for method in methods:
-        argdecl = [ f"{server}_impl_t *self" ]
-        for a in args[server][method]:
-            if a["in"]:
-                if a["object"]:
-                    if a["indirect"]:
-                        argdecl += [f"{a["type"]}_impl_t *{a["name"]}"]
-                    else:
-                        argdecl += [f"{a["type"]}_t *{a["name"]}"]
-                elif a["indirect"]:
-                    if a["type"] == "str":
-                        argdecl += [f"const char *{a["name"]}"]
-                    elif a["type"] is None:
-                        argdecl += [f"const ipc_blob_t *{a["name"]}", f"size_t {a["name"]}_len"]
-                    else:
-                        argdecl += [f"const {a["type"]} *{a["name"]}"]
-                else:
-                    argdecl += [f"{a["type"]} {a["name"]}"]
-            if a["out"]:
-                if a["object"]:
-                    if a["indirect"]:
-                        argdecl += [f"{a["type"]}_impl_t **{a["name"]}"]
-                    else:
-                        argdecl += [f"{a["type"]}_t **{a["name"]}"]
-                elif a["type"] == "str":
-                    argdecl += [f"ipc_blob_t *{a["name"]}"]
-                elif a["type"] is None:
-                    argdecl += [f"ipc_buffer_t *{a["name"]}", f"size_t {a["name"]}_len"]
-                else:
-                    argdecl += [f"{a["type"]} *{a["name"]}"]
-
-        print(f"\t{methods[method][1][0]} (*{method})(", end="")
-        print(*argdecl, sep=", ", end=");\n")
     print("};")
     print()
 
@@ -232,7 +244,7 @@ for server in data["obj"]:
 
         # passing sizeof(ops) from the caller allows safely adding entries while
         # maintaining compatibility with code linked to older/newer version
-        print(f"\t\t\tif (offsetof(typeof(*ops), {method}) + sizeof(void *) > ops_size || !ops->{method}) {{")
+        print(f"\t\t\tif (offsetof(typeof(*ops), {method}) + sizeof(ops->{method}) > ops_size || !ops->{method}) {{")
         print("\t\t\t\tipcb_answer_protocol_error(msg);")
         print("\t\t\t\treturn;")
         print("\t\t\t}")

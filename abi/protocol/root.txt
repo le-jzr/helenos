@@ -1,0 +1,9 @@
+obj singleton {
+	get_instance, void, uintptr_t arg1, uintptr_t arg2, out obj ipc_object instance;
+}
+
+obj root {
+	register, ipc_root_retval_t, str *name, obj singleton singleton;
+	get_instance, ipc_root_retval_t, str *name, uintptr_t arg1, uintptr_t arg2, out obj ipc_object instance;
+	get_instance_blocking, void, str *name, uintptr_t arg1, uintptr_t arg2, out obj ipc_object instance;
+}
