@@ -5,10 +5,13 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <ipc_b.h>
+
 typedef struct test_instance_impl test_instance_impl_t;
 typedef struct test_instance test_instance_t;
+typedef struct test_instance_ops test_instance_ops_t;
 
 struct test_instance_ops {
+	size_t _sizeof;
 	void (*_handle_message)(test_instance_impl_t *self, const ipc_message_t *msg);
 	errno_t (*hello)(test_instance_impl_t *self);
 };

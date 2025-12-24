@@ -3,6 +3,7 @@
 // Source timestamp:  2025-12-24 11:43:02.556459
 
 #include "ipc_test.h"
+
 enum test_instance_methods {
 	_test_instance_op_undef,
 	_test_instance_op_hello,
@@ -10,23 +11,25 @@ enum test_instance_methods {
 
 void test_instance_handle_message(test_instance_impl_t *self, const ipc_message_t *msg)
 {
+	test_instance_ops_t *ops = *(test_instance_ops_t **) self;
+	
 	switch (ipcb_get_val_1(msg)) {
-
+	
 	/* hello :: [] */
-
+	
 	case _test_instance_op_hello:
-	{
-		// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), hello) + sizeof(ops->hello) > ops_size || !ops->hello) {
+		{
+			// TODO: check message type and detect protocol mismatch
+			if (offsetof(typeof(*ops), hello) + sizeof(ops->hello) > ops->_sizeof || !ops->hello) {
 				ipcb_answer_protocol_error(msg);
 				return;
 			}
-
-		errno_t rc = ops->hello(self);
-		ipcb_message_t answer = ipcb_start_answer(&msg, rc);
-		ipcb_send_answer(&msg, answer);
-		return;
-	}
+			
+			errno_t rc = ops->hello(			self);
+			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
+			ipcb_send_answer(&msg, answer);
+			return;
+		}
 	default:
 		ipcb_answer_protocol_error(msg);
 	}
