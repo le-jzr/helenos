@@ -54,6 +54,7 @@ unzip = find_program('unzip')
 which = find_program('which')
 cpc = find_program(_tools_dir / 'cc.sh')
 cppcheck = find_program('cppcheck', required: false)
+ipc_generator = find_program(_tools_dir / 'ipc_generator.py')
 
 sh = [ find_program('sh'), '-u', '-e' ]
 if debug_shell_scripts

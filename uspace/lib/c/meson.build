@@ -224,3 +224,24 @@ if CONFIG_DEVEL_FILES
 	install_files += [[ 'lib', libstartfiles.full_path(), 'libstartfiles.a' ]]
 	install_deps += [ libstartfiles ]
 endif
+
+# IPC code
+
+ipc_defs = ['test']
+ipc_files = []
+
+foreach x : ipc_defs
+    tgt = custom_target('ipc_' + x + '.c',
+        input: root_path / 'abi/protocol/' + x + '.txt',
+        output: [ 'ipc_' + x + '.c', 'ipc_' + x + '.h' ],
+        command: [ ipc_generator, '@INPUT@', '@OUTPUT@' ],
+    )
+
+    src += tgt
+    ipc_files += tgt.to_list()
+endforeach
+
+src += custom_target('copy_ipc',
+    output: 'copy_ipc',
+    command: [cp, ipc_files, '@SOURCE_ROOT@/abi/protocol/']
+)

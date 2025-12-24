@@ -1,0 +1,7 @@
+singleton test {
+	new_instance, errno_t, out obj test_instance *instance;
+}
+
+obj test_instance {
+    hello, errno_t;
+}
