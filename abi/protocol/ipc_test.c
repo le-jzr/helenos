@@ -34,3 +34,7 @@ void test_instance_handle_message(test_instance_impl_t *self, const ipc_message_
 		ipcb_answer_protocol_error(msg);
 	}
 }
+
+errno_t test_instance_hello(test_instance_t *self)
+{
+}

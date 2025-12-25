@@ -227,7 +227,7 @@ endif
 
 # IPC code
 
-ipc_defs = ['test']
+ipc_defs = ['vfs', 'test']
 ipc_files = []
 
 foreach x : ipc_defs
