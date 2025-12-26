@@ -2,21 +2,90 @@
 
 import os
 import sys
+from dataclasses import dataclass
 from datetime import datetime
+from typing import List
+
+from typeguard import install_import_hook
+
+install_import_hook("__main__")
 
 
-def parse_block(block_content):
+@dataclass
+class Arg:
+    name: str
+    type: str | None = None
+    indirect: bool = False
+    input: bool = False
+    output: bool = False
+    wide: bool = False
+    object: bool = False
+
+    def __repr__(self) -> str:
+        s = ""
+
+        if self.input:
+            if self.output:
+                if self.wide:
+                    s += "inout64 "
+                else:
+                    s += "inout "
+            else:
+                if self.wide:
+                    s += "in64 "
+                else:
+                    s += "in "
+        else:
+            if self.output:
+                if self.wide:
+                    s += "out64 "
+                else:
+                    s += "out "
+            else:
+                if self.wide:
+                    s += "invalid64 "
+                else:
+                    s += "invalid "
+
+        if self.object:
+            s += "obj "
+
+        s += f"{self.name}: "
+        if self.indirect:
+            s += "*"
+        if self.type is None:
+            s += "data"
+        else:
+            s += self.type
+
+        return s
+
+
+@dataclass
+class Method:
+    name: str
+    retval: str
+    args: List[Arg]
+
+
+@dataclass
+class ObjType:
+    name: str
+    methods: List[Method]
+
+
+def parse_block(block_content: str) -> dict[str, List[List[str]]]:
     """Parse block content into methods by splitting on semicolons."""
     # Split by semicolon
     statements = [s.strip() for s in block_content.split(";") if s.strip()]
 
-    methods = {}
+    methods: dict[str, List[List[str]]] = {}
     for stmt in statements:
         # Split by comma to get fields
         fields = [f.strip() for f in stmt.split(",")]
 
         # Split each field by whitespace
-        parsed_fields = []
+        parsed_fields: List[List[str]] = []
         for field in fields:
             parts = field.split()
             parsed_fields.append(parts)
@@ -28,14 +97,14 @@ def parse_block(block_content):
     return methods
 
 
-def parse_ipc_file(content):
+def parse_ipc_file(content: str) -> dict[str, dict[str, dict[str, List[List[str]]]]]:
     """Parse IPC definition file into structured blocks."""
     # Remove all newlines and extra whitespace - treat as continuous stream
     content = " ".join(content.split())
 
     i = 0
 
-    data = {}
+    data: dict[str, dict[str, dict[str, List[List[str]]]]] = {}
 
     while i < len(content):
         # Find block start
@@ -65,59 +134,62 @@ def parse_ipc_file(content):
     return data
 
 
-def parse_args(data):
-    args = {}
+def parse_objs(data: dict[str, dict[str, dict[str, List[List[str]]]]]) -> List[ObjType]:
+    objs: List[ObjType] = []
 
-    for obj in data["obj"]:
-        args[obj] = {}
-        for method in data["obj"][obj]:
-            args[obj][method] = []
-            for arg in data["obj"][obj][method][2:]:
-                argdef = {}
-                argdef["name"] = arg[-1]
-                arg = arg[:-1]
-                argdef["indirect"] = argdef["name"].startswith("*")
-                if argdef["indirect"]:
-                    argdef["name"] = argdef["name"][1:]
+    for obj_name in data["obj"]:
+        obj = ObjType(obj_name, [])
+        objs.append(obj)
 
-                if len(arg) > 0:
-                    argdef["in"] = (
-                        arg[0] == "in"
-                        or arg[0] == "in64"
-                        or arg[0] == "inout"
-                        or arg[0] == "inout64"
+        for method_name in data["obj"][obj_name]:
+            retval = data["obj"][obj_name][method_name][1][0]
+            method = Method(method_name, retval, [])
+            obj.methods.append(method)
+
+            for argdata in data["obj"][obj_name][method_name][2:]:
+                arg = Arg(argdata.pop())
+                method.args.append(arg)
+
+                arg.indirect = arg.name.startswith("*")
+                if arg.indirect:
+                    arg.name = arg.name[1:]
+
+                if len(argdata) > 0:
+                    fst = argdata[0]
+
+                    arg.input = (
+                        fst == "in"
+                        or fst == "in64"
+                        or fst == "inout"
+                        or fst == "inout64"
                     )
-                    argdef["out"] = (
-                        arg[0] == "out"
-                        or arg[0] == "out64"
-                        or arg[0] == "inout"
-                        or arg[0] == "inout64"
+                    arg.output = (
+                        fst == "out"
+                        or fst == "out64"
+                        or fst == "inout"
+                        or fst == "inout64"
                     )
-                    argdef["wide"] = (
-                        arg[0] == "in64" or arg[0] == "out64" or arg[0] == "inout64"
-                    )
-                    if argdef["in"] or argdef["out"]:
-                        arg = arg[1:]
+                    arg.wide = fst == "in64" or fst == "out64" or fst == "inout64"
+                    if arg.input or arg.output:
+                        argdata = argdata[1:]
                 else:
-                    argdef["in"] = True
-                    argdef["out"] = False
-                    argdef["wide"] = False
+                    arg.input = True
+                    arg.output = False
+                    arg.wide = False
 
-                if not argdef["out"]:
-                    argdef["in"] = True
+                if not arg.output:
+                    arg.input = True
 
-                argdef["object"] = len(arg) > 0 and arg[0] == "obj"
-                if argdef["object"]:
-                    arg = arg[1:]
+                arg.object = len(argdata) > 0 and argdata[0] == "obj"
+                if arg.object:
+                    argdata = argdata[1:]
 
-                if len(arg) > 0:
-                    argdef["type"] = arg[0]
+                if len(argdata) > 0:
+                    arg.type = argdata[0]
                 else:
-                    argdef["type"] = None
+                    arg.type = None
 
-                args[obj][method].append(argdef)
-
-    return args
+    return objs
 
 
 # Main program
@@ -135,7 +207,7 @@ h_out = open(header_name, "w")
 
 data = parse_ipc_file(content)
 
-args = parse_args(data)
+objs = parse_objs(data)
 
 indent = 0
 
@@ -151,41 +223,41 @@ def print_h(*values: object, sep: str | None = " ", end: str | None = "\n"):
     print(*values, file=h_out, sep=sep, end=end)
 
 
-def arg_signature(a):
-    if a["out"]:
-        if a["object"]:
-            return [f"{a['type']}_t **{a['name']}"]
-        elif a["type"] == "str":
+def arg_signature(a: Arg) -> List[str]:
+    if a.output:
+        if a.object:
+            return [f"{a.type}_t **{a.name}"]
+        elif a.type == "str":
             return [
-                f"char *{a['name']}",
-                f"size_t {a['name']}_size",
+                f"char *{a.name}",
+                f"size_t {a.name}_size",
             ]
-        elif a["type"] == "str" or a["type"] is None:
+        elif a.type == "str" or a.type is None:
             return [
-                f"ipc_buffer_t *{a['name']}",
-                f"size_t {a['name']}_slice",
+                f"ipc_buffer_t *{a.name}",
+                f"size_t {a.name}_slice",
             ]
         else:
-            return [f"{a['type']} *{a['name']}"]
+            return [f"{a.type} *{a.name}"]
     else:
-        if a["object"]:
-            return [f"{a['type']}_t *{a['name']}"]
-        elif a["type"] == "str":
-            return [f"const char *{a['name']}"]
-        elif a["type"] is None:
+        if a.object:
+            return [f"{a.type}_t *{a.name}"]
+        elif a.type == "str":
+            return [f"const char *{a.name}"]
+        elif a.type is None:
             return [
-                f"const ipc_blob_t *{a['name']}",
-                f"size_t {a['name']}_slice",
+                f"const ipc_blob_t *{a.name}",
+                f"size_t {a.name}_slice",
             ]
-        elif a["indirect"]:
-            return [f"const {a['type']} *{a['name']}"]
+        elif a.indirect:
+            return [f"const {a.type} *{a.name}"]
         else:
-            return [f"{a['type']} {a['name']}"]
+            return [f"{a.type} {a.name}"]
 
 
-def method_signature(server: str, method: str):
-    argdecl = []
-    for a in args[server][method]:
+def method_signature(method: Method) -> List[str]:
+    argdecl: List[str] = []
+    for a in method.args:
         argdecl += arg_signature(a)
 
     return argdecl
@@ -196,14 +268,14 @@ def print_both(*values: object):
     print(*values, file=h_out)
 
 
-def indata_structdecl(arg, merge_inputs):
+def indata_structdecl(args: List[Arg], merge_inputs: bool):
     print_c("struct __attribute__((packed)) {")
-    for a in arg:
-        if a["type"] == "str" or a["type"] is None:
+    for a in args:
+        if a.type == "str" or a.type is None:
             if merge_inputs:
-                print_c(f"\tsize_t {a['name']}_slice;")
-        elif a["in"] and (a["indirect"] or merge_inputs) and not a["object"]:
-            print_c(f"\t{a['type']} {a['name']};")
+                print_c(f"\tsize_t {a.name}_slice;")
+        elif a.input and (a.indirect or merge_inputs) and not a.object:
+            print_c(f"\t{a.type} {a.name};")
     print_c("} _indata;")
     print_c()
 
@@ -221,10 +293,12 @@ print_h("#include <ipc_b.h>")
 print_c(f'#include "{os.path.basename(header_name)}"')
 print_both()
 
-for server in data["obj"]:
-    methods = data["obj"][server]
-    if not methods:
+for obj in objs:
+    if not obj.methods:
         continue
+
+    server = obj.name
+    methods = obj.methods
 
     if True:
         print_h(f"typedef struct {server}_impl {server}_impl_t;")
@@ -239,7 +313,7 @@ for server in data["obj"]:
         )
         for method in methods:
             print_h(
-                f"\t{methods[method][1][0]} (*{method})({', '.join([f'{server}_impl_t *self'] + method_signature(server, method))});",
+                f"\t{method.retval} (*{method.name})({', '.join([f'{server}_impl_t *self'] + method_signature(method))});",
             )
 
         print_h("};")
@@ -250,14 +324,14 @@ for server in data["obj"]:
         print_h()
         for method in methods:
             print_h(
-                f"{methods[method][1][0]} {server}_{method}({', '.join([f'{server}_t *self'] + method_signature(server, method))});",
+                f"{method.retval} {server}_{method.name}({', '.join([f'{server}_t *self'] + method_signature(method))});",
             )
 
     print_c(f"enum {server}_methods {{")
     indent += 1
     print_c(f"_{server}_op_undef,")
     for method in methods:
-        print_c(f"_{server}_op_{method},")
+        print_c(f"_{server}_op_{method.name},")
     indent -= 1
     print_c("};")
     print_c()
@@ -274,9 +348,6 @@ for server in data["obj"]:
     print_c("switch (ipcb_get_val_1(msg)) {")
 
     for method in methods:
-        arg = args[server][method]
-        ret = methods[method][1][0]
-
         # 0: return endpoint
         # 1: method number
         # four spare arguments for method args
@@ -289,23 +360,23 @@ for server in data["obj"]:
         slots_needed_out = 0
         indirect_slot_out = 0
 
-        for a in arg:
-            if a["type"] == "str" or a["type"] is None:
+        for a in method.args:
+            if a.type == "str" or a.type is None:
                 slots_needed_in += 2
                 continue
 
-            if a["in"]:
-                if a["indirect"] and not a["object"]:
+            if a.input:
+                if a.indirect and not a.object:
                     indirect_slot_in = 1
-                elif a["wide"]:
+                elif a.wide:
                     slots_needed_in += 2
                 else:
                     slots_needed_in += 1
 
-            if a["out"]:
-                if a["indirect"] and not a["object"]:
+            if a.output:
+                if a.indirect and not a.object:
                     indirect_slot_out = 1
-                elif a["wide"]:
+                elif a.wide:
                     slots_needed_out += 2
                 else:
                     slots_needed_out += 1
@@ -314,10 +385,10 @@ for server in data["obj"]:
         merge_outputs = (slots_needed_out + indirect_slot_out) > 4
 
         print_c()
-        print_c(f"/* {method} :: {arg} */")
+        print_c(f"/* {method} */")
         print_c()
 
-        print_c(f"case _{server}_op_{method}:")
+        print_c(f"case _{server}_op_{method.name}:")
         indent += 1
         print_c("{")
         indent += 1
@@ -327,7 +398,7 @@ for server in data["obj"]:
         # passing sizeof(ops) from the caller allows safely adding entries while
         # maintaining compatibility with code linked to older/newer version
         print_c(
-            f"if (offsetof(typeof(*ops), {method}) + sizeof(ops->{method}) > ops->_sizeof || !ops->{method}) {{"
+            f"if (offsetof(typeof(*ops), {method.name}) + sizeof(ops->{method.name}) > ops->_sizeof || !ops->{method.name}) {{"
         )
         indent += 1
         print_c("ipcb_answer_protocol_error(msg);")
@@ -341,7 +412,7 @@ for server in data["obj"]:
         # TODO: named declaration for indata type
 
         if merge_inputs or indirect_slot_in > 0:
-            indata_structdecl(arg, merge_inputs)
+            indata_structdecl(method.args, merge_inputs)
             print_c(f"ipc_blob_read_{arg_idx}(&msg, &_indata, sizeof(_indata));")
             print_c()
             arg_idx += 1
@@ -353,17 +424,17 @@ for server in data["obj"]:
 
         allocs = []
 
-        for a in arg:
-            if a["type"] == "str" or a["type"] is None:
+        for a in method.args:
+            if a.type == "str" or a.type is None:
                 if not merge_inputs:
-                    print_c(f"size_t {a['name']}_slice = ipcb_get_val_{arg_idx}(&msg);")
+                    print_c(f"size_t {a.name}_slice = ipcb_get_val_{arg_idx}(&msg);")
                     arg_idx += 1
 
                 print_c(
-                    f"size_t {a['name']}_len = ipcb_slice_len({indata_prefix}{a['name']}_slice);"
+                    f"size_t {a.name}_len = ipcb_slice_len({indata_prefix}{a.name}_slice);"
                 )
-                print_c(f"void *{a['name']} = calloc({a['name']}_len, 1);")
-                print_c(f"if ({a['name']} == nullptr) {{")
+                print_c(f"void *{a.name} = calloc({a.name}_len, 1);")
+                print_c(f"if ({a.name} == nullptr) {{")
                 indent += 1
                 print_c("ipcb_answer_nomem(msg);")
                 for alloc in allocs:
@@ -371,67 +442,56 @@ for server in data["obj"]:
                 print_c("return;")
                 indent -= 1
                 print_c("}")
-                allocs += [a["name"]]
+                allocs += [a.name]
 
                 print_c()
 
-                if a["in"]:
-                    print_c(
-                        f"ipc_blob_read_{arg_idx}(&msg, {a['name']}, {a['name']}_slice);"
-                    )
-                    if a["type"] == "str":
-                        print_c(f"{a['name']}[{a['name']}_len - 1] = '\\0';")
+                if a.input:
+                    print_c(f"ipc_blob_read_{arg_idx}(&msg, {a.name}, {a.name}_slice);")
+                    if a.type == "str":
+                        print_c(f"{a.name}[{a.name}_len - 1] = '\\0';")
                 else:
-                    print_c(
-                        f"ipcb_buffer_t {a['name']}_obj = ipc_get_obj_{arg_idx}(msg);"
-                    )
+                    print_c(f"ipcb_buffer_t {a.name}_obj = ipc_get_obj_{arg_idx}(msg);")
 
                 print_c()
                 arg_idx += 1
-            elif a["in"]:
-                if a["object"]:
-                    print_c(f"{a['type']} {a['name']} = ipcb_get_obj{arg_idx}(&msg);")
+            elif a.input:
+                if a.object:
+                    print_c(f"{a.type} {a.name} = ipcb_get_obj{arg_idx}(&msg);")
                     arg_idx += 1
-                elif not a["indirect"] and a["wide"] and not merge_inputs:
-                    print_c(
-                        f"{a['type']} {a['name']} = ipcb_get_val64_{arg_idx}(&msg);"
-                    )
+                elif not a.indirect and a.wide and not merge_inputs:
+                    print_c(f"{a.type} {a.name} = ipcb_get_val64_{arg_idx}(&msg);")
                     arg_idx += 2
-                elif not a["indirect"] and not merge_inputs:
-                    print_c(f"{a['type']} {a['name']} = ipcb_get_val{arg_idx}(&msg);")
+                elif not a.indirect and not merge_inputs:
+                    print_c(f"{a.type} {a.name} = ipcb_get_val{arg_idx}(&msg);")
                     arg_idx += 1
 
-        for a in arg:
-            if a["out"] and a["type"] != "str" and a["type"] is not None:
-                print_c(f"{a['type']} {a['name']};")
-            if (
-                a["in"]
-                and a["indirect"]
-                and a["type"] is not None
-                and a["type"] != "str"
-            ):
-                print_c(f"{a['type']} {a['name']} = _indata.{a['name']};")
+        for a in method.args:
+            if a.output and a.type != "str" and a.type is not None:
+                print_c(f"{a.type} {a.name};")
+            if a.input and a.indirect and a.type is not None and a.type != "str":
+                print_c(f"{a.type} {a.name} = _indata.{a.name};")
 
-        print_c(f"{ret} rc = ops->{method}(", end="")
+        print_c(f"{method.retval} rc = ops->{method.name}(", end="")
 
         arglist = ["self"]
 
-        for a in arg:
-            if a["indirect"] and a["type"] is None:
-                arglist += [a["name"], f"{a['name']}_len"]
-            elif a["indirect"] and a["type"] == "str":
-                arglist += [a["name"]]
-            elif a["out"] or a["indirect"]:
-                arglist += ["&" + a["name"]]
+        for a in method.args:
+            if a.indirect and a.type is None:
+                arglist += [a.name, f"{a.name}_len"]
+            elif a.indirect and a.type == "str":
+                arglist += [a.name]
+            elif a.output or a.indirect:
+                arglist += ["&" + a.name]
             else:
-                arglist += [indata_prefix + a["name"]]
+                arglist += [indata_prefix + a.name]
 
         print_c(*arglist, sep=", ", end=");\n")
 
-        for a in arg:
-            if a["out"] and a["indirect"] and (a["type"] is None or a["type"] == "str"):
+        for a in method.args:
+            if a.output and a.indirect and (a.type is None or a.type == "str"):
                 print_c(
-                    f"ipcb_buffer_write({a['name']}_obj, {indata_prefix + a['name']}_slice, {a['name']}, {a['name']}_len);"
+                    f"ipcb_buffer_write({a.name}_obj, {indata_prefix + a.name}_slice, {a.name}, {a.name}_len);"
                 )
 
         print_c("ipcb_message_t answer = ipcb_start_answer(&msg, rc);")
@@ -442,25 +502,25 @@ for server in data["obj"]:
             print_c()
             print_c("struct __attribute__((packed)) {")
             indent += 1
-            for a in arg:
-                if a["out"]:
-                    if a["type"] == "str":
-                        print_c(f"size_t {a['name']}_len;")
-                    elif (a["indirect"] and a["type"] is not None) or (
-                        not a["indirect"] and merge_inputs
+            for a in method.args:
+                if a.output:
+                    if a.type == "str":
+                        print_c(f"size_t {a.name}_len;")
+                    elif (a.indirect and a.type is not None) or (
+                        not a.indirect and merge_inputs
                     ):
-                        print_c(f"{a['type']} {a['name']};")
+                        print_c(f"{a.type} {a.name};")
             indent -= 1
             print_c("} _outdata = {")
             indent += 1
-            for a in arg:
-                if a["out"]:
-                    if a["type"] == "str":
-                        print_c(f".{a['name']}_len = {a['name']}_len,")
-                    elif (a["indirect"] and a["type"] is not None) or (
-                        not a["indirect"] and merge_inputs
+            for a in method.args:
+                if a.output:
+                    if a.type == "str":
+                        print_c(f".{a.name}_len = {a.name}_len,")
+                    elif (a.indirect and a.type is not None) or (
+                        not a.indirect and merge_inputs
                     ):
-                        print_c(f".{a['name']} = {a['name']},")
+                        print_c(f".{a.name} = {a.name},")
             indent -= 1
             print_c("};")
 
@@ -469,13 +529,13 @@ for server in data["obj"]:
             print_c()
 
         if not merge_outputs:
-            for a in arg:
-                if a["out"]:
-                    if not a["indirect"]:
-                        print_c(f"ipcb_set_val_{arg_idx}(&answer, {a['name']});")
+            for a in method.args:
+                if a.output:
+                    if not a.indirect:
+                        print_c(f"ipcb_set_val_{arg_idx}(&answer, {a.name});")
                         arg_idx += 1
-                    elif a["type"] == "str":
-                        print_c(f"ipcb_set_val_{arg_idx}(&answer, {a['name']}_len);")
+                    elif a.type == "str":
+                        print_c(f"ipcb_set_val_{arg_idx}(&answer, {a.name}_len);")
                         arg_idx += 1
 
         print_c("ipcb_send_answer(&msg, answer);")
@@ -499,7 +559,7 @@ for server in data["obj"]:
     for method in methods:
         print_c()
         print_c(
-            f"{methods[method][1][0]} {server}_{method}({', '.join([f'{server}_t *self'] + method_signature(server, method))})",
+            f"{method.retval} {server}_{method.name}({', '.join([f'{server}_t *self'] + method_signature(method))})",
         )
         print_c("{")
         indent += 1

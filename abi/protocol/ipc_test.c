@@ -15,7 +15,7 @@ void test_instance_handle_message(test_instance_impl_t *self, const ipc_message_
 	
 	switch (ipcb_get_val_1(msg)) {
 	
-	/* hello :: [] */
+	/* Method(name='hello', retval='errno_t', args=[]) */
 	
 	case _test_instance_op_hello:
 		{

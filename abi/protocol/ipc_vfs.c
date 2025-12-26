@@ -32,7 +32,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	
 	switch (ipcb_get_val_1(msg)) {
 	
-	/* clone :: [{'name': 'oldfd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'newfd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'desc', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'bool'}, {'name': 'outfd', 'indirect': False, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': 'int'}] */
+	/* Method(name='clone', retval='errno_t', args=[in oldfd: int, in newfd: int, in desc: bool, out outfd: int]) */
 	
 	case _vfs_instance_op_clone:
 		{
@@ -53,7 +53,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* fsprobe :: [{'name': 'service_id', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'service_id_t'}, {'name': 'fs_name', 'indirect': True, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'str'}, {'name': 'info', 'indirect': True, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': 'vfs_fs_probe_info_t'}] */
+	/* Method(name='fsprobe', retval='errno_t', args=[in service_id: service_id_t, in fs_name: *str, out info: *vfs_fs_probe_info_t]) */
 	
 	case _vfs_instance_op_fsprobe:
 		{
@@ -91,7 +91,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* fstypes :: [{'name': 'fstypes', 'indirect': True, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': None}] */
+	/* Method(name='fstypes', retval='errno_t', args=[out fstypes: *data]) */
 	
 	case _vfs_instance_op_fstypes:
 		{
@@ -119,7 +119,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* mount :: [{'name': 'mpfd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'service_id', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'service_id_t'}, {'name': 'flags', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'unsigned'}, {'name': 'instance', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'unsigned'}, {'name': 'opts', 'indirect': True, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'str'}, {'name': 'fs_name', 'indirect': True, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'str'}, {'name': 'outfd', 'indirect': False, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': 'int'}] */
+	/* Method(name='mount', retval='errno_t', args=[in mpfd: int, in service_id: service_id_t, in flags: unsigned, in instance: unsigned, in opts: *str, in fs_name: *str, out outfd: int]) */
 	
 	case _vfs_instance_op_mount:
 		{
@@ -171,7 +171,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* open :: [{'name': 'fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'mode', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}] */
+	/* Method(name='open', retval='errno_t', args=[in fd: int, in mode: int]) */
 	
 	case _vfs_instance_op_open:
 		{
@@ -189,7 +189,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* put :: [{'name': 'fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}] */
+	/* Method(name='put', retval='errno_t', args=[in fd: int]) */
 	
 	case _vfs_instance_op_put:
 		{
@@ -206,7 +206,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* read :: [{'name': 'fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'pos', 'indirect': False, 'in': True, 'out': False, 'wide': True, 'object': False, 'type': 'aoff64_t'}, {'name': 'buffer', 'indirect': True, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': None}, {'name': 'read', 'indirect': False, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': 'size_t'}] */
+	/* Method(name='read', retval='errno_t', args=[in fd: int, in64 pos: aoff64_t, out buffer: *data, out read: size_t]) */
 	
 	case _vfs_instance_op_read:
 		{
@@ -243,7 +243,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* rename :: [{'name': 'basefd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'old', 'indirect': True, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'str'}, {'name': 'new', 'indirect': True, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'str'}] */
+	/* Method(name='rename', retval='errno_t', args=[in basefd: int, in old: *str, in new: *str]) */
 	
 	case _vfs_instance_op_rename:
 		{
@@ -290,7 +290,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* resize :: [{'name': 'fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'size', 'indirect': False, 'in': True, 'out': False, 'wide': True, 'object': False, 'type': 'int64_t'}] */
+	/* Method(name='resize', retval='errno_t', args=[in fd: int, in64 size: int64_t]) */
 	
 	case _vfs_instance_op_resize:
 		{
@@ -308,7 +308,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* stat :: [{'name': 'fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'data', 'indirect': True, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': 'vfs_stat_t'}] */
+	/* Method(name='stat', retval='errno_t', args=[in fd: int, out data: *vfs_stat_t]) */
 	
 	case _vfs_instance_op_stat:
 		{
@@ -334,7 +334,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* statfs :: [{'name': 'fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'data', 'indirect': True, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': 'vfs_statfs_t'}] */
+	/* Method(name='statfs', retval='errno_t', args=[in fd: int, out data: *vfs_statfs_t]) */
 	
 	case _vfs_instance_op_statfs:
 		{
@@ -360,7 +360,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* sync :: [{'name': 'fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}] */
+	/* Method(name='sync', retval='errno_t', args=[in fd: int]) */
 	
 	case _vfs_instance_op_sync:
 		{
@@ -377,7 +377,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* unlink :: [{'name': 'parentfd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'expectfd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'path', 'indirect': True, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'str'}] */
+	/* Method(name='unlink', retval='errno_t', args=[in parentfd: int, in expectfd: int, in path: *str]) */
 	
 	case _vfs_instance_op_unlink:
 		{
@@ -407,7 +407,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* unmount :: [{'name': 'mpfd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}] */
+	/* Method(name='unmount', retval='errno_t', args=[in mpfd: int]) */
 	
 	case _vfs_instance_op_unmount:
 		{
@@ -424,7 +424,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* wrap_handle :: [{'name': 'fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'handle', 'indirect': True, 'in': False, 'out': True, 'wide': False, 'object': True, 'type': 'vfs_wrapped_handle'}] */
+	/* Method(name='wrap_handle', retval='errno_t', args=[in fd: int, out obj handle: *vfs_wrapped_handle]) */
 	
 	case _vfs_instance_op_wrap_handle:
 		{
@@ -442,7 +442,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* unwrap_handle :: [{'name': 'handle', 'indirect': True, 'in': True, 'out': False, 'wide': False, 'object': True, 'type': 'vfs_wrapped_handle'}, {'name': 'high_fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'bool'}, {'name': 'fd', 'indirect': False, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': 'int'}] */
+	/* Method(name='unwrap_handle', retval='errno_t', args=[in obj handle: *vfs_wrapped_handle, in high_fd: bool, out fd: int]) */
 	
 	case _vfs_instance_op_unwrap_handle:
 		{
@@ -463,7 +463,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* walk :: [{'name': 'parentfd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'flags', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'path', 'indirect': True, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'str'}, {'name': 'fd', 'indirect': False, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': 'int'}] */
+	/* Method(name='walk', retval='errno_t', args=[in parentfd: int, in flags: int, in path: *str, out fd: int]) */
 	
 	case _vfs_instance_op_walk:
 		{
@@ -495,7 +495,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* write :: [{'name': 'fd', 'indirect': False, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': 'int'}, {'name': 'pos', 'indirect': False, 'in': True, 'out': False, 'wide': True, 'object': False, 'type': 'aoff64_t'}, {'name': 'buffer', 'indirect': True, 'in': True, 'out': False, 'wide': False, 'object': False, 'type': None}, {'name': 'written', 'indirect': False, 'in': False, 'out': True, 'wide': False, 'object': False, 'type': 'size_t'}] */
+	/* Method(name='write', retval='errno_t', args=[in fd: int, in64 pos: aoff64_t, in buffer: *data, out written: size_t]) */
 	
 	case _vfs_instance_op_write:
 		{
