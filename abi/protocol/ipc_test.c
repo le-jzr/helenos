@@ -13,6 +13,19 @@ void test_instance_handle_message(test_instance_impl_t *self, const ipc_message_
 {
 	test_instance_ops_t *ops = *(test_instance_ops_t **) self;
 	
+	bool dropped = msg->flags & IPC_MESSAGE_FLAG_OBJECT_DROPPED;
+	bool auto = msg->flags & IPC_MESSAGE_FLAG_AUTOMATIC_MESSAGE;
+	bool protocol_error = msg->flags & IPC_MESSAGE_FLAG_PROTOCOL_ERROR;
+	
+	if (protocol_error)
+		return;
+	
+	if (auto) {
+		if (dropped)
+			ops->_destroy(self);
+		return;
+	}
+	
 	switch (ipcb_get_val_1(msg)) {
 	
 	// hello() -> errno_t
@@ -21,17 +34,20 @@ void test_instance_handle_message(test_instance_impl_t *self, const ipc_message_
 			// TODO: check message type and detect protocol mismatch
 			if (offsetof(typeof(*ops), hello) + sizeof(ops->hello) > ops->_sizeof || !ops->hello) {
 				ipcb_answer_protocol_error(msg);
-				return;
+				break;
 			}
 			
 			errno_t rc = ops->hello(self);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
-			return;
+			break;
 		}
 	default:
 		ipcb_answer_protocol_error(msg);
 	}
+	
+	if (dropped)
+		ops->_destroy(self);
 }
 
 errno_t test_instance_hello(test_instance_t *self)

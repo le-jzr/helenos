@@ -13,6 +13,7 @@ typedef struct vfs_instance_ops vfs_instance_ops_t;
 struct vfs_instance_ops {
 	size_t _sizeof;
 	void (*_handle_message)(vfs_instance_impl_t *self, const ipc_message_t *msg);
+	void (*_destroy)(vfs_instance_impl_t *self);
 	errno_t (*clone)(vfs_instance_impl_t *self, int oldfd, int newfd, bool desc, int *outfd);
 	errno_t (*fsprobe)(vfs_instance_impl_t *self, service_id_t service_id, const char *fs_name, vfs_fs_probe_info_t *info);
 	errno_t (*fstypes)(vfs_instance_impl_t *self, ipc_buffer_t *fstypes, size_t fstypes_slice);

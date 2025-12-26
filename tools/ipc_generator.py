@@ -315,6 +315,7 @@ def print_header_defs(obj: ObjType):
     print_h(
         f"\tvoid (*_handle_message)({server}_impl_t *self, const ipc_message_t *msg);"
     )
+    print_h(f"\tvoid (*_destroy)({server}_impl_t *self);")
     for method in obj.methods:
         print_h(
             f"\t{method.retval} (*{method.name})({', '.join([f'{server}_impl_t *self'] + method_signature(method))});",
@@ -411,8 +412,23 @@ for obj in objs:
     )
     print_c("{")
     indent += 1
-
     print_c(f"{obj.name}_ops_t *ops = *({obj.name}_ops_t **) self;")
+    print_c()
+
+    print_c("bool dropped = msg->flags & IPC_MESSAGE_FLAG_OBJECT_DROPPED;")
+    print_c("bool auto = msg->flags & IPC_MESSAGE_FLAG_AUTOMATIC_MESSAGE;")
+    print_c("bool protocol_error = msg->flags & IPC_MESSAGE_FLAG_PROTOCOL_ERROR;")
+    print_c()
+
+    print_c("if (protocol_error)")
+    print_c("\treturn;")
+    print_c()
+
+    print_c("if (auto) {")
+    print_c("\tif (dropped)")
+    print_c("\t\tops->_destroy(self);")
+    print_c("\treturn;")
+    print_c("}")
     print_c()
 
     print_c("switch (ipcb_get_val_1(msg)) {")
@@ -444,7 +460,7 @@ for obj in objs:
         )
         indent += 1
         print_c("ipcb_answer_protocol_error(msg);")
-        print_c("return;")
+        print_c("break;")
         indent -= 1
         print_c("}")
         print_c()
@@ -479,7 +495,7 @@ for obj in objs:
                 print_c("ipcb_answer_nomem(msg);")
                 for alloc in allocs:
                     print_c(f"free({alloc});")
-                print_c("return;")
+                print_c("break;")
                 indent -= 1
                 print_c("}")
                 allocs += [a.name]
@@ -566,7 +582,7 @@ for obj in objs:
         for alloc in allocs:
             print_c(f"free({alloc});")
 
-        print_c("return;")
+        print_c("break;")
         indent -= 1
         print_c("}")
         indent -= 1
@@ -576,6 +592,11 @@ for obj in objs:
     print_c("ipcb_answer_protocol_error(msg);")
     indent -= 1
     print_c("}")
+
+    print_c()
+    print_c("if (dropped)")
+    print_c("\tops->_destroy(self);")
+
     indent -= 1
     print_c("}")
 
@@ -586,6 +607,8 @@ for obj in objs:
         )
         print_c("{")
         indent += 1
+
+        # ipc_message_t msg = {};
 
         indent -= 1
         print_c("}")

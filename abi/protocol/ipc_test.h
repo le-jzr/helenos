@@ -13,6 +13,7 @@ typedef struct test_instance_ops test_instance_ops_t;
 struct test_instance_ops {
 	size_t _sizeof;
 	void (*_handle_message)(test_instance_impl_t *self, const ipc_message_t *msg);
+	void (*_destroy)(test_instance_impl_t *self);
 	errno_t (*hello)(test_instance_impl_t *self);
 };
 

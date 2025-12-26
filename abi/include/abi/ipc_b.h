@@ -103,7 +103,7 @@ enum {
 	 * this endpoint, or make calls on it to ask for status information if
 	 * the callee's protocol supports it.
 	 */
-	IPC_MESSAGE_FLAG_STATUS = 1 << 27,
+	//IPC_MESSAGE_FLAG_STATUS = 1 << 27,
 
 	/*
 	 * Set whenever the message is synthetic and not explicitly sent by
