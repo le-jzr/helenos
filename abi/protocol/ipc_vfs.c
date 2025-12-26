@@ -32,8 +32,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 	
 	switch (ipcb_get_val_1(msg)) {
 	
-	/* Method(name='clone', retval='errno_t', args=[in oldfd: int, in newfd: int, in desc: bool, out outfd: int]) */
-	
+	// clone(in oldfd: int, in newfd: int, in desc: bool, out outfd: int) -> errno_t
 	case _vfs_instance_op_clone:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -46,15 +45,14 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			int newfd = ipcb_get_val3(&msg);
 			bool desc = ipcb_get_val4(&msg);
 			int outfd;
-			errno_t rc = ops->clone(			self, oldfd, newfd, desc, &outfd);
+			errno_t rc = ops->clone(self, oldfd, newfd, desc, &outfd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, outfd);
 			ipcb_send_answer(&msg, answer);
 			return;
 		}
 	
-	/* Method(name='fsprobe', retval='errno_t', args=[in service_id: service_id_t, in fs_name: *str, out info: *vfs_fs_probe_info_t]) */
-	
+	// fsprobe(in service_id: service_id_t, in fs_name: *str, out info: *vfs_fs_probe_info_t) -> errno_t
 	case _vfs_instance_op_fsprobe:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -76,7 +74,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			fs_name[fs_name_len - 1] = '\0';
 			
 			vfs_fs_probe_info_t info;
-			errno_t rc = ops->fsprobe(			self, service_id, fs_name, &info);
+			errno_t rc = ops->fsprobe(self, service_id, fs_name, &info);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			
 			struct __attribute__((packed)) {
@@ -91,8 +89,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* Method(name='fstypes', retval='errno_t', args=[out fstypes: *data]) */
-	
+	// fstypes(out fstypes: *data) -> errno_t
 	case _vfs_instance_op_fstypes:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -111,7 +108,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			ipcb_buffer_t fstypes_obj = ipc_get_obj_3(msg);
 			
-			errno_t rc = ops->fstypes(			self, fstypes, fstypes_len);
+			errno_t rc = ops->fstypes(self, fstypes, fstypes_len);
 			ipcb_buffer_write(fstypes_obj, fstypes_slice, fstypes, fstypes_len);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
@@ -119,8 +116,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* Method(name='mount', retval='errno_t', args=[in mpfd: int, in service_id: service_id_t, in flags: unsigned, in instance: unsigned, in opts: *str, in fs_name: *str, out outfd: int]) */
-	
+	// mount(in mpfd: int, in service_id: service_id_t, in flags: unsigned, in instance: unsigned, in opts: *str, in fs_name: *str, out outfd: int) -> errno_t
 	case _vfs_instance_op_mount:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -162,7 +158,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			fs_name[fs_name_len - 1] = '\0';
 			
 			int outfd;
-			errno_t rc = ops->mount(			self, _indata.mpfd, _indata.service_id, _indata.flags, _indata.instance, opts, fs_name, &outfd);
+			errno_t rc = ops->mount(self, _indata.mpfd, _indata.service_id, _indata.flags, _indata.instance, opts, fs_name, &outfd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, outfd);
 			ipcb_send_answer(&msg, answer);
@@ -171,8 +167,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* Method(name='open', retval='errno_t', args=[in fd: int, in mode: int]) */
-	
+	// open(in fd: int, in mode: int) -> errno_t
 	case _vfs_instance_op_open:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -183,14 +178,13 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			int fd = ipcb_get_val2(&msg);
 			int mode = ipcb_get_val3(&msg);
-			errno_t rc = ops->open(			self, fd, mode);
+			errno_t rc = ops->open(self, fd, mode);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
 			return;
 		}
 	
-	/* Method(name='put', retval='errno_t', args=[in fd: int]) */
-	
+	// put(in fd: int) -> errno_t
 	case _vfs_instance_op_put:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -200,14 +194,13 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			}
 			
 			int fd = ipcb_get_val2(&msg);
-			errno_t rc = ops->put(			self, fd);
+			errno_t rc = ops->put(self, fd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
 			return;
 		}
 	
-	/* Method(name='read', retval='errno_t', args=[in fd: int, in64 pos: aoff64_t, out buffer: *data, out read: size_t]) */
-	
+	// read(in fd: int, in64 pos: aoff64_t, out buffer: *data, out read: size_t) -> errno_t
 	case _vfs_instance_op_read:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -234,7 +227,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			ipcb_buffer_t buffer_obj = ipc_get_obj_3(msg);
 			
 			size_t read;
-			errno_t rc = ops->read(			self, _indata.fd, _indata.pos, buffer, buffer_len, &read);
+			errno_t rc = ops->read(self, _indata.fd, _indata.pos, buffer, buffer_len, &read);
 			ipcb_buffer_write(buffer_obj, _indata.buffer_slice, buffer, buffer_len);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, read);
@@ -243,8 +236,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* Method(name='rename', retval='errno_t', args=[in basefd: int, in old: *str, in new: *str]) */
-	
+	// rename(in basefd: int, in old: *str, in new: *str) -> errno_t
 	case _vfs_instance_op_rename:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -282,7 +274,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			ipc_blob_read_4(&msg, new, new_slice);
 			new[new_len - 1] = '\0';
 			
-			errno_t rc = ops->rename(			self, _indata.basefd, old, new);
+			errno_t rc = ops->rename(self, _indata.basefd, old, new);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
 			free(old);
@@ -290,8 +282,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* Method(name='resize', retval='errno_t', args=[in fd: int, in64 size: int64_t]) */
-	
+	// resize(in fd: int, in64 size: int64_t) -> errno_t
 	case _vfs_instance_op_resize:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -302,14 +293,13 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			int fd = ipcb_get_val2(&msg);
 			int64_t size = ipcb_get_val64_3(&msg);
-			errno_t rc = ops->resize(			self, fd, size);
+			errno_t rc = ops->resize(self, fd, size);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
 			return;
 		}
 	
-	/* Method(name='stat', retval='errno_t', args=[in fd: int, out data: *vfs_stat_t]) */
-	
+	// stat(in fd: int, out data: *vfs_stat_t) -> errno_t
 	case _vfs_instance_op_stat:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -320,7 +310,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			int fd = ipcb_get_val2(&msg);
 			vfs_stat_t data;
-			errno_t rc = ops->stat(			self, fd, &data);
+			errno_t rc = ops->stat(self, fd, &data);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			
 			struct __attribute__((packed)) {
@@ -334,8 +324,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* Method(name='statfs', retval='errno_t', args=[in fd: int, out data: *vfs_statfs_t]) */
-	
+	// statfs(in fd: int, out data: *vfs_statfs_t) -> errno_t
 	case _vfs_instance_op_statfs:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -346,7 +335,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			int fd = ipcb_get_val2(&msg);
 			vfs_statfs_t data;
-			errno_t rc = ops->statfs(			self, fd, &data);
+			errno_t rc = ops->statfs(self, fd, &data);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			
 			struct __attribute__((packed)) {
@@ -360,8 +349,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* Method(name='sync', retval='errno_t', args=[in fd: int]) */
-	
+	// sync(in fd: int) -> errno_t
 	case _vfs_instance_op_sync:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -371,14 +359,13 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			}
 			
 			int fd = ipcb_get_val2(&msg);
-			errno_t rc = ops->sync(			self, fd);
+			errno_t rc = ops->sync(self, fd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
 			return;
 		}
 	
-	/* Method(name='unlink', retval='errno_t', args=[in parentfd: int, in expectfd: int, in path: *str]) */
-	
+	// unlink(in parentfd: int, in expectfd: int, in path: *str) -> errno_t
 	case _vfs_instance_op_unlink:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -400,15 +387,14 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			ipc_blob_read_5(&msg, path, path_slice);
 			path[path_len - 1] = '\0';
 			
-			errno_t rc = ops->unlink(			self, parentfd, expectfd, path);
+			errno_t rc = ops->unlink(self, parentfd, expectfd, path);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
 			free(path);
 			return;
 		}
 	
-	/* Method(name='unmount', retval='errno_t', args=[in mpfd: int]) */
-	
+	// unmount(in mpfd: int) -> errno_t
 	case _vfs_instance_op_unmount:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -418,14 +404,13 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			}
 			
 			int mpfd = ipcb_get_val2(&msg);
-			errno_t rc = ops->unmount(			self, mpfd);
+			errno_t rc = ops->unmount(self, mpfd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
 			return;
 		}
 	
-	/* Method(name='wrap_handle', retval='errno_t', args=[in fd: int, out obj handle: *vfs_wrapped_handle]) */
-	
+	// wrap_handle(in fd: int, out obj handle: *vfs_wrapped_handle) -> errno_t
 	case _vfs_instance_op_wrap_handle:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -436,14 +421,13 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			int fd = ipcb_get_val2(&msg);
 			vfs_wrapped_handle handle;
-			errno_t rc = ops->wrap_handle(			self, fd, &handle);
+			errno_t rc = ops->wrap_handle(self, fd, &handle);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
 			return;
 		}
 	
-	/* Method(name='unwrap_handle', retval='errno_t', args=[in obj handle: *vfs_wrapped_handle, in high_fd: bool, out fd: int]) */
-	
+	// unwrap_handle(in obj handle: *vfs_wrapped_handle, in high_fd: bool, out fd: int) -> errno_t
 	case _vfs_instance_op_unwrap_handle:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -456,15 +440,14 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			bool high_fd = ipcb_get_val3(&msg);
 			vfs_wrapped_handle handle = _indata.handle;
 			int fd;
-			errno_t rc = ops->unwrap_handle(			self, &handle, high_fd, &fd);
+			errno_t rc = ops->unwrap_handle(self, &handle, high_fd, &fd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, fd);
 			ipcb_send_answer(&msg, answer);
 			return;
 		}
 	
-	/* Method(name='walk', retval='errno_t', args=[in parentfd: int, in flags: int, in path: *str, out fd: int]) */
-	
+	// walk(in parentfd: int, in flags: int, in path: *str, out fd: int) -> errno_t
 	case _vfs_instance_op_walk:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -487,7 +470,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			path[path_len - 1] = '\0';
 			
 			int fd;
-			errno_t rc = ops->walk(			self, parentfd, flags, path, &fd);
+			errno_t rc = ops->walk(self, parentfd, flags, path, &fd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, fd);
 			ipcb_send_answer(&msg, answer);
@@ -495,8 +478,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			return;
 		}
 	
-	/* Method(name='write', retval='errno_t', args=[in fd: int, in64 pos: aoff64_t, in buffer: *data, out written: size_t]) */
-	
+	// write(in fd: int, in64 pos: aoff64_t, in buffer: *data, out written: size_t) -> errno_t
 	case _vfs_instance_op_write:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -523,7 +505,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			ipc_blob_read_3(&msg, buffer, buffer_slice);
 			
 			size_t written;
-			errno_t rc = ops->write(			self, _indata.fd, _indata.pos, buffer, buffer_len, &written);
+			errno_t rc = ops->write(self, _indata.fd, _indata.pos, buffer, buffer_len, &written);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, written);
 			ipcb_send_answer(&msg, answer);

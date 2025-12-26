@@ -15,8 +15,7 @@ void test_instance_handle_message(test_instance_impl_t *self, const ipc_message_
 	
 	switch (ipcb_get_val_1(msg)) {
 	
-	/* Method(name='hello', retval='errno_t', args=[]) */
-	
+	// hello() -> errno_t
 	case _test_instance_op_hello:
 		{
 			// TODO: check message type and detect protocol mismatch
@@ -25,7 +24,7 @@ void test_instance_handle_message(test_instance_impl_t *self, const ipc_message_
 				return;
 			}
 			
-			errno_t rc = ops->hello(			self);
+			errno_t rc = ops->hello(self);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
 			return;
