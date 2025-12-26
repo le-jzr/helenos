@@ -279,15 +279,27 @@ def print_both(*values: object):
     print(*values, file=h_out)
 
 
-def indata_structdecl(method: Method):
-    print_c("struct __attribute__((packed)) {")
+def indata_structdecl(obj_name: str, method: Method):
+    print_c("typedef struct __attribute__((packed)) {")
     for a in method.args:
         if a.type == "str" or a.type is None:
             if method.merge_inputs:
                 print_c(f"\tsize_t {a.name}_slice;")
         elif a.input and (a.indirect or method.merge_inputs) and not a.object:
             print_c(f"\t{a.type} {a.name};")
-    print_c("} _indata;")
+    print_c(f"}} _{obj_name}_{method.name}_indata_t;")
+    print_c()
+
+
+def outdata_structdecl(obj_name: str, method: Method):
+    print_c("typedef struct __attribute__((packed)) {")
+    for a in method.args:
+        if a.output and not a.object and a.type is not None:
+            if a.type == "str":
+                print_c(f"\tsize_t {a.name}_slice;")
+            elif a.indirect or method.merge_outputs:
+                print_c(f"\t{a.type} {a.name};")
+    print_c(f"}} _{obj_name}_{method.name}_outdata_t;")
     print_c()
 
 
@@ -388,6 +400,12 @@ for obj in objs:
     print_c("};")
     print_c()
 
+    for method in obj.methods:
+        if method.has_indata:
+            indata_structdecl(obj.name, method)
+        if method.has_outdata:
+            outdata_structdecl(obj.name, method)
+
     print_c(
         f"void {obj.name}_handle_message({obj.name}_impl_t *self, const ipc_message_t *msg)"
     )
@@ -433,10 +451,8 @@ for obj in objs:
 
         arg_idx = 2
 
-        # TODO: named declaration for indata type
-
         if method.has_indata:
-            indata_structdecl(method)
+            print_c(f"_{obj.name}_{method.name}_indata_t _indata;")
             print_c(f"ipc_blob_read_{arg_idx}(&msg, &_indata, sizeof(_indata));")
             print_c()
             arg_idx += 1
@@ -522,24 +538,13 @@ for obj in objs:
 
         if method.has_outdata:
             print_c()
-            print_c("struct __attribute__((packed)) {")
-            indent += 1
+            print_c(f"_{obj.name}_{method.name}_outdata_t _outdata = {{")
             for a in method.args:
                 if a.output and not a.object and a.type is not None:
                     if a.type == "str":
-                        print_c(f"size_t {a.name}_len;")
+                        print_c(f"\t.{a.name}_slice = {a.name}_slice,")
                     elif a.indirect or method.merge_outputs:
-                        print_c(f"{a.type} {a.name};")
-            indent -= 1
-            print_c("} _outdata = {")
-            indent += 1
-            for a in method.args:
-                if a.output and not a.object and a.type is not None:
-                    if a.type == "str":
-                        print_c(f".{a.name}_len = {a.name}_len,")
-                    elif a.indirect or method.merge_outputs:
-                        print_c(f".{a.name} = {a.name},")
-            indent -= 1
+                        print_c(f"\t.{a.name} = {a.name},")
             print_c("};")
 
             print_c(f"ipc_blob_write_{arg_idx}(&answer, &_outdata, sizeof(_outdata));")

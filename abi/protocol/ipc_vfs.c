@@ -26,6 +26,45 @@ enum vfs_instance_methods {
 	_vfs_instance_op_write,
 };
 
+typedef struct __attribute__((packed)) {
+	vfs_fs_probe_info_t info;
+} _vfs_instance_fsprobe_outdata_t;
+
+typedef struct __attribute__((packed)) {
+	int mpfd;
+	service_id_t service_id;
+	unsigned flags;
+	unsigned instance;
+	size_t opts_slice;
+	size_t fs_name_slice;
+} _vfs_instance_mount_indata_t;
+
+typedef struct __attribute__((packed)) {
+	int fd;
+	aoff64_t pos;
+	size_t buffer_slice;
+} _vfs_instance_read_indata_t;
+
+typedef struct __attribute__((packed)) {
+	int basefd;
+	size_t old_slice;
+	size_t new_slice;
+} _vfs_instance_rename_indata_t;
+
+typedef struct __attribute__((packed)) {
+	vfs_stat_t data;
+} _vfs_instance_stat_outdata_t;
+
+typedef struct __attribute__((packed)) {
+	vfs_statfs_t data;
+} _vfs_instance_statfs_outdata_t;
+
+typedef struct __attribute__((packed)) {
+	int fd;
+	aoff64_t pos;
+	size_t buffer_slice;
+} _vfs_instance_write_indata_t;
+
 void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t *msg)
 {
 	vfs_instance_ops_t *ops = *(vfs_instance_ops_t **) self;
@@ -77,9 +116,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			errno_t rc = ops->fsprobe(self, service_id, fs_name, &info);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			
-			struct __attribute__((packed)) {
-				vfs_fs_probe_info_t info;
-			} _outdata = {
+			_vfs_instance_fsprobe_outdata_t _outdata = {
 				.info = info,
 			};
 			ipc_blob_write_1(&answer, &_outdata, sizeof(_outdata));
@@ -125,15 +162,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 				return;
 			}
 			
-			struct __attribute__((packed)) {
-				int mpfd;
-				service_id_t service_id;
-				unsigned flags;
-				unsigned instance;
-				size_t opts_slice;
-				size_t fs_name_slice;
-			} _indata;
-			
+			_vfs_instance_mount_indata_t _indata;
 			ipc_blob_read_2(&msg, &_indata, sizeof(_indata));
 			
 			size_t opts_len = ipcb_slice_len(_indata.opts_slice);
@@ -209,12 +238,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 				return;
 			}
 			
-			struct __attribute__((packed)) {
-				int fd;
-				aoff64_t pos;
-				size_t buffer_slice;
-			} _indata;
-			
+			_vfs_instance_read_indata_t _indata;
 			ipc_blob_read_2(&msg, &_indata, sizeof(_indata));
 			
 			size_t buffer_len = ipcb_slice_len(_indata.buffer_slice);
@@ -245,12 +269,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 				return;
 			}
 			
-			struct __attribute__((packed)) {
-				int basefd;
-				size_t old_slice;
-				size_t new_slice;
-			} _indata;
-			
+			_vfs_instance_rename_indata_t _indata;
 			ipc_blob_read_2(&msg, &_indata, sizeof(_indata));
 			
 			size_t old_len = ipcb_slice_len(_indata.old_slice);
@@ -313,9 +332,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			errno_t rc = ops->stat(self, fd, &data);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			
-			struct __attribute__((packed)) {
-				vfs_stat_t data;
-			} _outdata = {
+			_vfs_instance_stat_outdata_t _outdata = {
 				.data = data,
 			};
 			ipc_blob_write_1(&answer, &_outdata, sizeof(_outdata));
@@ -338,9 +355,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			errno_t rc = ops->statfs(self, fd, &data);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			
-			struct __attribute__((packed)) {
-				vfs_statfs_t data;
-			} _outdata = {
+			_vfs_instance_statfs_outdata_t _outdata = {
 				.data = data,
 			};
 			ipc_blob_write_1(&answer, &_outdata, sizeof(_outdata));
@@ -487,12 +502,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 				return;
 			}
 			
-			struct __attribute__((packed)) {
-				int fd;
-				aoff64_t pos;
-				size_t buffer_slice;
-			} _indata;
-			
+			_vfs_instance_write_indata_t _indata;
 			ipc_blob_read_2(&msg, &_indata, sizeof(_indata));
 			
 			size_t buffer_len = ipcb_slice_len(_indata.buffer_slice);
