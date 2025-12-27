@@ -354,8 +354,6 @@ def map_args(method: Method):
     for a in method.args:
         if a.type == "str" or a.type is None:
             slots_needed_in += 2
-            if a.output:
-                slots_needed_out += 1
             continue
 
         if a.input:
@@ -404,9 +402,6 @@ def map_args(method: Method):
             in_idx += 1
             if not method.merge_inputs:
                 in_idx += 1
-            if a.output and not method.merge_outputs:
-                a.out_idx = out_idx
-                out_idx += 1
             continue
 
         if a.input:
@@ -532,13 +527,12 @@ for obj in objs:
         print_c("}")
         print_c()
 
-        arg_idx = 2
-
-        if method.has_indata:
+        if method.indata_idx is not None:
             print_c(f"_{obj.name}_{method.name}_indata_t _indata;")
-            print_c(f"ipc_blob_read_{arg_idx}(&msg, &_indata, sizeof(_indata));")
+            print_c(
+                f"ipc_blob_read_{method.indata_idx}(&msg, &_indata, sizeof(_indata));"
+            )
             print_c()
-            arg_idx += 1
 
         if method.merge_inputs:
             indata_prefix = "_indata."
@@ -549,9 +543,10 @@ for obj in objs:
 
         for a in method.args:
             if a.type == "str" or a.type is None:
-                if not method.merge_inputs:
-                    print_c(f"size_t {a.name}_slice = ipcb_get_val_{arg_idx}(&msg);")
-                    arg_idx += 1
+                if not method.merge_inputs and a.in_idx is not None:
+                    print_c(
+                        f"size_t {a.name}_slice = ipcb_get_val_{a.in_idx + 1}(&msg);"
+                    )
 
                 print_c(
                     f"size_t {a.name}_len = ipcb_slice_len({indata_prefix}{a.name}_slice);"
@@ -570,24 +565,24 @@ for obj in objs:
                 print_c()
 
                 if a.input:
-                    print_c(f"ipc_blob_read_{arg_idx}(&msg, {a.name}, {a.name}_slice);")
+                    print_c(
+                        f"ipc_blob_read_{a.in_idx}(&msg, {a.name}, {a.name}_slice);"
+                    )
                     if a.type == "str":
                         print_c(f"{a.name}[{a.name}_len - 1] = '\\0';")
                 else:
-                    print_c(f"ipcb_buffer_t {a.name}_obj = ipc_get_obj_{arg_idx}(msg);")
+                    print_c(
+                        f"ipcb_buffer_t {a.name}_obj = ipc_get_obj_{a.in_idx}(msg);"
+                    )
 
                 print_c()
-                arg_idx += 1
             elif a.input:
                 if a.object:
-                    print_c(f"{a.type} {a.name} = ipcb_get_obj{arg_idx}(&msg);")
-                    arg_idx += 1
+                    print_c(f"{a.type} {a.name} = ipcb_get_obj{a.in_idx}(&msg);")
                 elif not a.indirect and a.wide and not method.merge_inputs:
-                    print_c(f"{a.type} {a.name} = ipcb_get_val64_{arg_idx}(&msg);")
-                    arg_idx += 2
+                    print_c(f"{a.type} {a.name} = ipcb_get_val64_{a.in_idx}(&msg);")
                 elif not a.indirect and not method.merge_inputs:
-                    print_c(f"{a.type} {a.name} = ipcb_get_val{arg_idx}(&msg);")
-                    arg_idx += 1
+                    print_c(f"{a.type} {a.name} = ipcb_get_val{a.in_idx}(&msg);")
 
         for a in method.args:
             if a.output and a.type != "str" and a.type is not None:
@@ -617,9 +612,7 @@ for obj in objs:
 
         print_c("ipcb_message_t answer = ipcb_start_answer(&msg, rc);")
 
-        arg_idx = 1
-
-        if method.has_outdata:
+        if method.outdata_idx is not None:
             print_c()
             print_c(f"_{obj.name}_{method.name}_outdata_t _outdata = {{")
             for a in method.args:
@@ -630,19 +623,21 @@ for obj in objs:
                         print_c(f"\t.{a.name} = {a.name},")
             print_c("};")
 
-            print_c(f"ipc_blob_write_{arg_idx}(&answer, &_outdata, sizeof(_outdata));")
-            arg_idx += 1
+            print_c(
+                f"ipc_blob_write_{method.outdata_idx}(&answer, &_outdata, sizeof(_outdata));"
+            )
             print_c()
 
-        if not method.merge_outputs:
-            for a in method.args:
-                if a.output:
-                    if not a.indirect:
-                        print_c(f"ipcb_set_val_{arg_idx}(&answer, {a.name});")
-                        arg_idx += 1
-                    elif a.type == "str":
-                        print_c(f"ipcb_set_val_{arg_idx}(&answer, {a.name}_len);")
-                        arg_idx += 1
+        for a in method.args:
+            if a.output and a.out_idx is not None:
+                if a.type == "str":
+                    print_c(f"ipcb_set_val_{a.out_idx}(&answer, {a.name}_len);")
+                elif a.object:
+                    print_c(f"ipcb_set_obj_{a.out_idx}(&answer, {a.name});")
+                elif a.wide:
+                    print_c(f"ipcb_set_val64_{a.out_idx}(&answer, {a.name});")
+                else:
+                    print_c(f"ipcb_set_val_{a.out_idx}(&answer, {a.name});")
 
         print_c("ipcb_send_answer(&msg, answer);")
 

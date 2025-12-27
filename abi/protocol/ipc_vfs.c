@@ -114,7 +114,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			}
 			
 			service_id_t service_id = ipcb_get_val2(&msg);
-			size_t fs_name_slice = ipcb_get_val_3(&msg);
+			size_t fs_name_slice = ipcb_get_val_4(&msg);
 			size_t fs_name_len = ipcb_slice_len(fs_name_slice);
 			void *fs_name = calloc(fs_name_len, 1);
 			if (fs_name == nullptr) {
@@ -122,7 +122,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 				break;
 			}
 			
-			ipc_blob_read_4(&msg, fs_name, fs_name_slice);
+			ipc_blob_read_3(&msg, fs_name, fs_name_slice);
 			fs_name[fs_name_len - 1] = '\0';
 			
 			vfs_fs_probe_info_t info = {};
@@ -148,7 +148,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 				break;
 			}
 			
-			size_t fstypes_slice = ipcb_get_val_2(&msg);
+			size_t fstypes_slice = ipcb_get_val_3(&msg);
 			size_t fstypes_len = ipcb_slice_len(fstypes_slice);
 			void *fstypes = calloc(fstypes_len, 1);
 			if (fstypes == nullptr) {
@@ -156,7 +156,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 				break;
 			}
 			
-			ipcb_buffer_t fstypes_obj = ipc_get_obj_3(msg);
+			ipcb_buffer_t fstypes_obj = ipc_get_obj_2(msg);
 			
 			errno_t rc = ops->fstypes(self, fstypes, fstypes_len);
 			ipcb_buffer_write(fstypes_obj, fstypes_slice, fstypes, fstypes_len);
@@ -404,7 +404,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			int parentfd = ipcb_get_val2(&msg);
 			int expectfd = ipcb_get_val3(&msg);
-			size_t path_slice = ipcb_get_val_4(&msg);
+			size_t path_slice = ipcb_get_val_5(&msg);
 			size_t path_len = ipcb_slice_len(path_slice);
 			void *path = calloc(path_len, 1);
 			if (path == nullptr) {
@@ -412,7 +412,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 				break;
 			}
 			
-			ipc_blob_read_5(&msg, path, path_slice);
+			ipc_blob_read_4(&msg, path, path_slice);
 			path[path_len - 1] = '\0';
 			
 			errno_t rc = ops->unlink(self, parentfd, expectfd, path);
@@ -451,6 +451,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			vfs_wrapped_handle handle = {};
 			errno_t rc = ops->wrap_handle(self, fd, &handle);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
+			ipcb_set_obj_1(&answer, handle);
 			ipcb_send_answer(&msg, answer);
 			break;
 		}
@@ -486,7 +487,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			int parentfd = ipcb_get_val2(&msg);
 			int flags = ipcb_get_val3(&msg);
-			size_t path_slice = ipcb_get_val_4(&msg);
+			size_t path_slice = ipcb_get_val_5(&msg);
 			size_t path_len = ipcb_slice_len(path_slice);
 			void *path = calloc(path_len, 1);
 			if (path == nullptr) {
@@ -494,7 +495,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 				break;
 			}
 			
-			ipc_blob_read_5(&msg, path, path_slice);
+			ipc_blob_read_4(&msg, path, path_slice);
 			path[path_len - 1] = '\0';
 			
 			int fd = {};
