@@ -454,6 +454,12 @@ print_h("#include <ipc_b.h>")
 print_c(f'#include "{os.path.basename(header_name)}"')
 print_both()
 
+print_c("#define method_present(ops, method) \\")
+print_c(
+    "\t(offsetof(typeof(*ops), method) + sizeof(ops->method) <= ops->_sizeof && ops->method)"
+)
+print_c()
+
 for obj in objs:
     if not obj.methods:
         continue
@@ -517,9 +523,7 @@ for obj in objs:
 
         # passing sizeof(ops) from the caller allows safely adding entries while
         # maintaining compatibility with code linked to older/newer version
-        print_c(
-            f"if (offsetof(typeof(*ops), {method.name}) + sizeof(ops->{method.name}) > ops->_sizeof || !ops->{method.name}) {{"
-        )
+        print_c(f"if (!method_present(ops, {method.name}) {{")
         indent += 1
         print_c("ipcb_answer_protocol_error(msg);")
         print_c("break;")

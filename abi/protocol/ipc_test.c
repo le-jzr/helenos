@@ -4,6 +4,9 @@
 
 #include "ipc_test.h"
 
+#define method_present(ops, method) \
+	(offsetof(typeof(*ops), method) + sizeof(ops->method) <= ops->_sizeof && ops->method)
+
 enum test_instance_methods {
 	_test_instance_op_undef,
 	_test_instance_op_hello,
@@ -32,7 +35,7 @@ void test_instance_handle_message(test_instance_impl_t *self, const ipc_message_
 	case _test_instance_op_hello:
 		{
 			// TODO: check message type and detect protocol mismatch
-			if (offsetof(typeof(*ops), hello) + sizeof(ops->hello) > ops->_sizeof || !ops->hello) {
+			if (!method_present(ops, hello) {
 				ipcb_answer_protocol_error(msg);
 				break;
 			}
