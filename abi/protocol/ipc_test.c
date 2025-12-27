@@ -52,4 +52,5 @@ void test_instance_handle_message(test_instance_impl_t *self, const ipc_message_
 
 errno_t test_instance_hello(test_instance_t *self)
 {
+	ipc_message_t msg = {};
 }

@@ -96,7 +96,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			int oldfd = ipcb_get_val2(&msg);
 			int newfd = ipcb_get_val3(&msg);
 			bool desc = ipcb_get_val4(&msg);
-			int outfd;
+			int outfd = {};
 			errno_t rc = ops->clone(self, oldfd, newfd, desc, &outfd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, outfd);
@@ -125,7 +125,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			ipc_blob_read_4(&msg, fs_name, fs_name_slice);
 			fs_name[fs_name_len - 1] = '\0';
 			
-			vfs_fs_probe_info_t info;
+			vfs_fs_probe_info_t info = {};
 			errno_t rc = ops->fsprobe(self, service_id, fs_name, &info);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			
@@ -199,7 +199,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			ipc_blob_read_4(&msg, fs_name, fs_name_slice);
 			fs_name[fs_name_len - 1] = '\0';
 			
-			int outfd;
+			int outfd = {};
 			errno_t rc = ops->mount(self, _indata.mpfd, _indata.service_id, _indata.flags, _indata.instance, opts, fs_name, &outfd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, outfd);
@@ -263,7 +263,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			ipcb_buffer_t buffer_obj = ipc_get_obj_3(msg);
 			
-			size_t read;
+			size_t read = {};
 			errno_t rc = ops->read(self, _indata.fd, _indata.pos, buffer, buffer_len, &read);
 			ipcb_buffer_write(buffer_obj, _indata.buffer_slice, buffer, buffer_len);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
@@ -341,7 +341,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			}
 			
 			int fd = ipcb_get_val2(&msg);
-			vfs_stat_t data;
+			vfs_stat_t data = {};
 			errno_t rc = ops->stat(self, fd, &data);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			
@@ -364,7 +364,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			}
 			
 			int fd = ipcb_get_val2(&msg);
-			vfs_statfs_t data;
+			vfs_statfs_t data = {};
 			errno_t rc = ops->statfs(self, fd, &data);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			
@@ -448,7 +448,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			}
 			
 			int fd = ipcb_get_val2(&msg);
-			vfs_wrapped_handle handle;
+			vfs_wrapped_handle handle = {};
 			errno_t rc = ops->wrap_handle(self, fd, &handle);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_send_answer(&msg, answer);
@@ -467,7 +467,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			vfs_wrapped_handle handle = ipcb_get_obj2(&msg);
 			bool high_fd = ipcb_get_val3(&msg);
 			vfs_wrapped_handle handle = _indata.handle;
-			int fd;
+			int fd = {};
 			errno_t rc = ops->unwrap_handle(self, &handle, high_fd, &fd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, fd);
@@ -497,7 +497,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			ipc_blob_read_5(&msg, path, path_slice);
 			path[path_len - 1] = '\0';
 			
-			int fd;
+			int fd = {};
 			errno_t rc = ops->walk(self, parentfd, flags, path, &fd);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, fd);
@@ -527,7 +527,7 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 			
 			ipc_blob_read_3(&msg, buffer, buffer_slice);
 			
-			size_t written;
+			size_t written = {};
 			errno_t rc = ops->write(self, _indata.fd, _indata.pos, buffer, buffer_len, &written);
 			ipcb_message_t answer = ipcb_start_answer(&msg, rc);
 			ipcb_set_val_1(&answer, written);
@@ -545,72 +545,90 @@ void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t 
 
 errno_t vfs_instance_clone(vfs_instance_t *self, int oldfd, int newfd, bool desc, int *outfd)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_fsprobe(vfs_instance_t *self, service_id_t service_id, const char *fs_name, vfs_fs_probe_info_t *info)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_fstypes(vfs_instance_t *self, ipc_buffer_t *fstypes, size_t fstypes_slice)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_mount(vfs_instance_t *self, int mpfd, service_id_t service_id, unsigned flags, unsigned instance, const char *opts, const char *fs_name, int *outfd)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_open(vfs_instance_t *self, int fd, int mode)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_put(vfs_instance_t *self, int fd)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_read(vfs_instance_t *self, int fd, aoff64_t pos, ipc_buffer_t *buffer, size_t buffer_slice, size_t *read)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_rename(vfs_instance_t *self, int basefd, const char *old, const char *new)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_resize(vfs_instance_t *self, int fd, int64_t size)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_stat(vfs_instance_t *self, int fd, vfs_stat_t *data)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_statfs(vfs_instance_t *self, int fd, vfs_statfs_t *data)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_sync(vfs_instance_t *self, int fd)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_unlink(vfs_instance_t *self, int parentfd, int expectfd, const char *path)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_unmount(vfs_instance_t *self, int mpfd)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_wrap_handle(vfs_instance_t *self, int fd, vfs_wrapped_handle_t **handle)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_unwrap_handle(vfs_instance_t *self, vfs_wrapped_handle_t *handle, bool high_fd, int *fd)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_walk(vfs_instance_t *self, int parentfd, int flags, const char *path, int *fd)
 {
+	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_write(vfs_instance_t *self, int fd, aoff64_t pos, const ipc_blob_t *buffer, size_t buffer_slice, size_t *written)
 {
+	ipc_message_t msg = {};
 }
