@@ -16,11 +16,11 @@ struct vfs_instance_ops {
 	void (*_destroy)(vfs_instance_impl_t *self);
 	errno_t (*clone)(vfs_instance_impl_t *self, int oldfd, int newfd, bool desc, int *outfd);
 	errno_t (*fsprobe)(vfs_instance_impl_t *self, service_id_t service_id, const char *fs_name, vfs_fs_probe_info_t *info);
-	errno_t (*fstypes)(vfs_instance_impl_t *self, ipc_buffer_t *fstypes, size_t fstypes_slice);
+	errno_t (*fstypes)(vfs_instance_impl_t *self, void *fstypes, size_t fstypes_size);
 	errno_t (*mount)(vfs_instance_impl_t *self, int mpfd, service_id_t service_id, unsigned flags, unsigned instance, const char *opts, const char *fs_name, int *outfd);
 	errno_t (*open)(vfs_instance_impl_t *self, int fd, int mode);
 	errno_t (*put)(vfs_instance_impl_t *self, int fd);
-	errno_t (*read)(vfs_instance_impl_t *self, int fd, aoff64_t pos, ipc_buffer_t *buffer, size_t buffer_slice, size_t *read);
+	errno_t (*read)(vfs_instance_impl_t *self, int fd, aoff64_t pos, void *buffer, size_t buffer_size, size_t *read);
 	errno_t (*rename)(vfs_instance_impl_t *self, int basefd, const char *old, const char *new);
 	errno_t (*resize)(vfs_instance_impl_t *self, int fd, int64_t size);
 	errno_t (*stat)(vfs_instance_impl_t *self, int fd, vfs_stat_t *data);
@@ -31,18 +31,18 @@ struct vfs_instance_ops {
 	errno_t (*wrap_handle)(vfs_instance_impl_t *self, int fd, vfs_wrapped_handle_t **handle);
 	errno_t (*unwrap_handle)(vfs_instance_impl_t *self, vfs_wrapped_handle_t *handle, bool high_fd, int *fd);
 	errno_t (*walk)(vfs_instance_impl_t *self, int parentfd, int flags, const char *path, int *fd);
-	errno_t (*write)(vfs_instance_impl_t *self, int fd, aoff64_t pos, const ipc_blob_t *buffer, size_t buffer_slice, size_t *written);
+	errno_t (*write)(vfs_instance_impl_t *self, int fd, aoff64_t pos, const void *buffer, size_t buffer_size, size_t *written);
 };
 
 void vfs_instance_handle_message(vfs_instance_impl_t *self, const ipc_message_t *msg);
 
 errno_t vfs_instance_clone(vfs_instance_t *self, int oldfd, int newfd, bool desc, int *outfd);
 errno_t vfs_instance_fsprobe(vfs_instance_t *self, service_id_t service_id, const char *fs_name, vfs_fs_probe_info_t *info);
-errno_t vfs_instance_fstypes(vfs_instance_t *self, ipc_buffer_t *fstypes, size_t fstypes_slice);
+errno_t vfs_instance_fstypes(vfs_instance_t *self, void *fstypes, size_t fstypes_size);
 errno_t vfs_instance_mount(vfs_instance_t *self, int mpfd, service_id_t service_id, unsigned flags, unsigned instance, const char *opts, const char *fs_name, int *outfd);
 errno_t vfs_instance_open(vfs_instance_t *self, int fd, int mode);
 errno_t vfs_instance_put(vfs_instance_t *self, int fd);
-errno_t vfs_instance_read(vfs_instance_t *self, int fd, aoff64_t pos, ipc_buffer_t *buffer, size_t buffer_slice, size_t *read);
+errno_t vfs_instance_read(vfs_instance_t *self, int fd, aoff64_t pos, void *buffer, size_t buffer_size, size_t *read);
 errno_t vfs_instance_rename(vfs_instance_t *self, int basefd, const char *old, const char *new);
 errno_t vfs_instance_resize(vfs_instance_t *self, int fd, int64_t size);
 errno_t vfs_instance_stat(vfs_instance_t *self, int fd, vfs_stat_t *data);
@@ -53,4 +53,4 @@ errno_t vfs_instance_unmount(vfs_instance_t *self, int mpfd);
 errno_t vfs_instance_wrap_handle(vfs_instance_t *self, int fd, vfs_wrapped_handle_t **handle);
 errno_t vfs_instance_unwrap_handle(vfs_instance_t *self, vfs_wrapped_handle_t *handle, bool high_fd, int *fd);
 errno_t vfs_instance_walk(vfs_instance_t *self, int parentfd, int flags, const char *path, int *fd);
-errno_t vfs_instance_write(vfs_instance_t *self, int fd, aoff64_t pos, const ipc_blob_t *buffer, size_t buffer_slice, size_t *written);
+errno_t vfs_instance_write(vfs_instance_t *self, int fd, aoff64_t pos, const void *buffer, size_t buffer_size, size_t *written);

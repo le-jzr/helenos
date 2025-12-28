@@ -554,17 +554,47 @@ errno_t vfs_instance_clone(vfs_instance_t *self, int oldfd, int newfd, bool desc
 
 errno_t vfs_instance_fsprobe(vfs_instance_t *self, service_id_t service_id, const char *fs_name, vfs_fs_probe_info_t *info)
 {
+	size_t fs_name_size = strlen(fs_name) + 1;
+	ipc_blob_t *fs_name_blob = ipc_blob_create(fs_name, fs_name_size);
+}
+
+errno_t vfs_instance_fsprobe_raw(vfs_instance_t *self, service_id_t service_id, ipc_blob_t *fs_name, size_t fs_name_slice, vfs_fs_probe_info_t *info)
+{
 	ipc_message_t msg = {};
 }
 
-errno_t vfs_instance_fstypes(vfs_instance_t *self, ipc_buffer_t *fstypes, size_t fstypes_slice)
+errno_t vfs_instance_fstypes(vfs_instance_t *self, void *fstypes, size_t fstypes_size)
+{
+	ipc_buffer_t *fstypes_buffer = ipc_buffer_create(fstypes_size);
+}
+
+errno_t vfs_instance_fstypes_raw(vfs_instance_t *self, ipc_buffer_t *fstypes, size_t fstypes_slice)
 {
 	ipc_message_t msg = {};
 }
 
 errno_t vfs_instance_mount(vfs_instance_t *self, int mpfd, service_id_t service_id, unsigned flags, unsigned instance, const char *opts, const char *fs_name, int *outfd)
 {
+	size_t opts_size = strlen(opts) + 1;
+	ipc_blob_t *opts_blob = ipc_blob_create(opts, opts_size);
+	size_t fs_name_size = strlen(fs_name) + 1;
+	ipc_blob_t *fs_name_blob = ipc_blob_create(fs_name, fs_name_size);
+}
+
+errno_t vfs_instance_mount_raw(vfs_instance_t *self, int mpfd, service_id_t service_id, unsigned flags, unsigned instance, ipc_blob_t *opts, size_t opts_slice, ipc_blob_t *fs_name, size_t fs_name_slice, int *outfd)
+{
 	ipc_message_t msg = {};
+	_vfs_instance_mount_indata_t _indata = {
+		.mpfd = mpfd,
+		.service_id = service_id,
+		.flags = flags,
+		.instance = instance,
+		.opts_slice = opts_slice,
+		.fs_name_slice = fs_name_slice,
+	};
+	
+	ipc_blob_t *_indata_blob = ipc_blob_create(&_indata, sizeof(_indata));
+	ipcb_message_set_obj_2(&msg, _indata_blob);
 }
 
 errno_t vfs_instance_open(vfs_instance_t *self, int fd, int mode)
@@ -577,14 +607,43 @@ errno_t vfs_instance_put(vfs_instance_t *self, int fd)
 	ipc_message_t msg = {};
 }
 
-errno_t vfs_instance_read(vfs_instance_t *self, int fd, aoff64_t pos, ipc_buffer_t *buffer, size_t buffer_slice, size_t *read)
+errno_t vfs_instance_read(vfs_instance_t *self, int fd, aoff64_t pos, void *buffer, size_t buffer_size, size_t *read)
+{
+	ipc_buffer_t *buffer_buffer = ipc_buffer_create(buffer_size);
+}
+
+errno_t vfs_instance_read_raw(vfs_instance_t *self, int fd, aoff64_t pos, ipc_buffer_t *buffer, size_t buffer_slice, size_t *read)
 {
 	ipc_message_t msg = {};
+	_vfs_instance_read_indata_t _indata = {
+		.fd = fd,
+		.pos = pos,
+		.buffer_slice = buffer_slice,
+	};
+	
+	ipc_blob_t *_indata_blob = ipc_blob_create(&_indata, sizeof(_indata));
+	ipcb_message_set_obj_2(&msg, _indata_blob);
 }
 
 errno_t vfs_instance_rename(vfs_instance_t *self, int basefd, const char *old, const char *new)
 {
+	size_t old_size = strlen(old) + 1;
+	ipc_blob_t *old_blob = ipc_blob_create(old, old_size);
+	size_t new_size = strlen(new) + 1;
+	ipc_blob_t *new_blob = ipc_blob_create(new, new_size);
+}
+
+errno_t vfs_instance_rename_raw(vfs_instance_t *self, int basefd, ipc_blob_t *old, size_t old_slice, ipc_blob_t *new, size_t new_slice)
+{
 	ipc_message_t msg = {};
+	_vfs_instance_rename_indata_t _indata = {
+		.basefd = basefd,
+		.old_slice = old_slice,
+		.new_slice = new_slice,
+	};
+	
+	ipc_blob_t *_indata_blob = ipc_blob_create(&_indata, sizeof(_indata));
+	ipcb_message_set_obj_2(&msg, _indata_blob);
 }
 
 errno_t vfs_instance_resize(vfs_instance_t *self, int fd, int64_t size)
@@ -609,6 +668,12 @@ errno_t vfs_instance_sync(vfs_instance_t *self, int fd)
 
 errno_t vfs_instance_unlink(vfs_instance_t *self, int parentfd, int expectfd, const char *path)
 {
+	size_t path_size = strlen(path) + 1;
+	ipc_blob_t *path_blob = ipc_blob_create(path, path_size);
+}
+
+errno_t vfs_instance_unlink_raw(vfs_instance_t *self, int parentfd, int expectfd, ipc_blob_t *path, size_t path_slice)
+{
 	ipc_message_t msg = {};
 }
 
@@ -629,10 +694,29 @@ errno_t vfs_instance_unwrap_handle(vfs_instance_t *self, vfs_wrapped_handle_t *h
 
 errno_t vfs_instance_walk(vfs_instance_t *self, int parentfd, int flags, const char *path, int *fd)
 {
+	size_t path_size = strlen(path) + 1;
+	ipc_blob_t *path_blob = ipc_blob_create(path, path_size);
+}
+
+errno_t vfs_instance_walk_raw(vfs_instance_t *self, int parentfd, int flags, ipc_blob_t *path, size_t path_slice, int *fd)
+{
 	ipc_message_t msg = {};
 }
 
-errno_t vfs_instance_write(vfs_instance_t *self, int fd, aoff64_t pos, const ipc_blob_t *buffer, size_t buffer_slice, size_t *written)
+errno_t vfs_instance_write(vfs_instance_t *self, int fd, aoff64_t pos, const void *buffer, size_t buffer_size, size_t *written)
+{
+	ipc_blob_t *buffer_blob = ipc_blob_create(buffer, buffer_size);
+}
+
+errno_t vfs_instance_write_raw(vfs_instance_t *self, int fd, aoff64_t pos, ipc_blob_t *buffer, size_t buffer_slice, size_t *written)
 {
 	ipc_message_t msg = {};
+	_vfs_instance_write_indata_t _indata = {
+		.fd = fd,
+		.pos = pos,
+		.buffer_slice = buffer_slice,
+	};
+	
+	ipc_blob_t *_indata_blob = ipc_blob_create(&_indata, sizeof(_indata));
+	ipcb_message_set_obj_2(&msg, _indata_blob);
 }

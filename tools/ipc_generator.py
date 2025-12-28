@@ -70,6 +70,7 @@ class Method:
     args: List[Arg]
     merge_inputs: bool = False
     merge_outputs: bool = False
+    has_buffers: bool = False
     has_indata: bool = False
     has_outdata: bool = False
     retval_idx: int | None = None
@@ -248,10 +249,10 @@ def arg_signature(a: Arg) -> List[str]:
                 f"char *{a.name}",
                 f"size_t {a.name}_size",
             ]
-        elif a.type == "str" or a.type is None:
+        elif a.type is None:
             return [
-                f"ipc_buffer_t *{a.name}",
-                f"size_t {a.name}_slice",
+                f"void *{a.name}",
+                f"size_t {a.name}_size",
             ]
         else:
             return [f"{a.type} *{a.name}"]
@@ -262,13 +263,37 @@ def arg_signature(a: Arg) -> List[str]:
             return [f"const char *{a.name}"]
         elif a.type is None:
             return [
-                f"const ipc_blob_t *{a.name}",
-                f"size_t {a.name}_slice",
+                f"const void *{a.name}",
+                f"size_t {a.name}_size",
             ]
         elif a.indirect:
             return [f"const {a.type} *{a.name}"]
         else:
             return [f"{a.type} {a.name}"]
+
+
+def arg_signature_raw(a: Arg) -> List[str]:
+    if a.type == "str" or a.type is None:
+        if a.output:
+            return [
+                f"ipc_buffer_t *{a.name}",
+                f"size_t {a.name}_slice",
+            ]
+        else:
+            return [
+                f"ipc_blob_t *{a.name}",
+                f"size_t {a.name}_slice",
+            ]
+    else:
+        return arg_signature(a)
+
+
+def method_signature_raw(method: Method) -> List[str]:
+    argdecl: List[str] = []
+    for a in method.args:
+        argdecl += arg_signature_raw(a)
+
+    return argdecl
 
 
 def method_signature(method: Method) -> List[str]:
@@ -353,6 +378,7 @@ def map_args(method: Method):
 
     for a in method.args:
         if a.type == "str" or a.type is None:
+            method.has_buffers = True
             slots_needed_in += 2
             continue
 
@@ -667,14 +693,65 @@ for obj in objs:
     print_c("}")
 
     for method in methods:
-        print_c()
-        print_c(
-            f"{method.retval} {server}_{method.name}({', '.join([f'{server}_t *self'] + method_signature(method))})",
-        )
+        if method.has_buffers:
+            print_c()
+            print_c(
+                f"{method.retval} {server}_{method.name}({', '.join([f'{server}_t *self'] + method_signature(method))})",
+            )
+            print_c("{")
+            indent += 1
+
+            for a in method.args:
+                if a.input:
+                    if a.type == "str":
+                        print_c(f"size_t {a.name}_size = strlen({a.name}) + 1;")
+                        print_c(
+                            f"ipc_blob_t *{a.name}_blob = ipc_blob_create({a.name}, {a.name}_size);"
+                        )
+                    if a.type is None:
+                        print_c(
+                            f"ipc_blob_t *{a.name}_blob = ipc_blob_create({a.name}, {a.name}_size);"
+                        )
+
+                if a.output:
+                    if a.type == "str" or a.type is None:
+                        print_c(
+                            f"ipc_buffer_t *{a.name}_buffer = ipc_buffer_create({a.name}_size);"
+                        )
+
+            # TODO
+
+            indent -= 1
+            print_c("}")
+
+            print_c()
+            print_c(
+                f"{method.retval} {server}_{method.name}_raw({', '.join([f'{server}_t *self'] + method_signature_raw(method))})",
+            )
+        else:
+            print_c()
+            print_c(
+                f"{method.retval} {server}_{method.name}({', '.join([f'{server}_t *self'] + method_signature(method))})",
+            )
         print_c("{")
         indent += 1
 
         print_c("ipc_message_t msg = {};")
+
+        if method.indata_idx is not None:
+            print_c(f"_{obj.name}_{method.name}_indata_t _indata = {{")
+            for a in method.args:
+                if a.type is None or a.type == "str" and method.merge_inputs:
+                    print_c(f"\t.{a.name}_slice = {a.name}_slice,")
+                    continue
+                if a.input and a.in_idx is None:
+                    print_c(f"\t.{a.name} = {a.name},")
+            print_c("};")
+            print_c()
+            print_c(
+                "ipc_blob_t *_indata_blob = ipc_blob_create(&_indata, sizeof(_indata));"
+            )
+            print_c(f"ipcb_message_set_obj_{method.indata_idx}(&msg, _indata_blob);")
 
         indent -= 1
         print_c("}")
